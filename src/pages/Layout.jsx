@@ -44,6 +44,7 @@ const Layout = ({ children }) => {
   const [logoLoaded, setLogoLoaded] = useState(false);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
+  const [isStatisticsExpanded, setIsStatisticsExpanded] = useState(false);
 
   // Event handlers
   const handleAccountClick = useCallback(() => {
@@ -79,6 +80,10 @@ const Layout = ({ children }) => {
     setIsSidebarExpanded((prev) => !prev);
   }, []);
 
+  const handleStatisticsToggle = useCallback(() => {
+    setIsStatisticsExpanded((prev) => !prev);
+  }, []);
+
   // Sidebar items with MUI Icons
   const sidebarItems = useMemo(
     () => {
@@ -99,7 +104,18 @@ const Layout = ({ children }) => {
       if (user?.role === 'admin') {
         items.unshift(
           { label: 'Account', to: '/accounts', icon: People },
-          { label: 'Statistics', to: '/statistics', icon: BarChart }
+          {
+            label: 'Statistics',
+            to: '/statistics',
+            icon: BarChart,
+            hasSubmenu: true,
+            submenuItems: [
+              { label: 'Customer', to: '/statistics/customer', icon: People },
+              { label: 'Product', to: '/statistics/product', icon: Inventory },
+              { label: 'Order', to: '/statistics/order', icon: ShoppingBag },
+              { label: 'Revenue', to: '/statistics/revenue', icon: BarChart }
+            ]
+          }
         );
       }
 
@@ -134,6 +150,10 @@ const Layout = ({ children }) => {
   useEffect(() => {
     setIsAccountOpen(false);
     setError(null);
+    // Auto-expand statistics if on statistics route
+    if (location.pathname.startsWith('/statistics')) {
+      setIsStatisticsExpanded(true);
+    }
   }, [location.pathname]);
 
   // User display name
@@ -219,36 +239,105 @@ const Layout = ({ children }) => {
           <nav className="flex flex-col flex-1 py-4 overflow-y-auto">
             <div className="space-y-1 px-2">
               {sidebarItems.map((item, index) => (
-                <Link
-                  key={index}
-                  to={item.to}
-                  className={`flex items-center px-3 py-3 mx-1 rounded-xl text-sm font-medium transition-all duration-200 relative group ${location.pathname === item.to
-                    ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 shadow-sm'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
-                    }`}
-                  role="menuitem"
-                  title={item.label}
-                >
-                  {location.pathname === item.to && (
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-blue-600 rounded-r-full"></div>
+                <div key={index}>
+                  {/* Main Item */}
+                  {item.hasSubmenu ? (
+                    <div>
+                      <button
+                        onClick={handleStatisticsToggle}
+                        className={`flex items-center justify-between w-full px-3 py-3 mx-1 rounded-xl text-sm font-medium transition-all duration-200 relative group ${location.pathname.startsWith(item.to)
+                          ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 shadow-sm'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+                          }`}
+                        role="menuitem"
+                        title={item.label}
+                      >
+                        <div className="flex items-center">
+                          {location.pathname.startsWith(item.to) && (
+                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-blue-600 rounded-r-full"></div>
+                          )}
+                          <item.icon
+                            sx={{ fontSize: 20 }}
+                            className={`flex-shrink-0 transition-colors duration-200 ${location.pathname.startsWith(item.to)
+                              ? 'text-blue-600'
+                              : 'text-gray-500 group-hover:text-gray-700'
+                              }`}
+                          />
+                          {isSidebarExpanded && (
+                            <span className="ml-3 whitespace-nowrap font-medium">{item.label}</span>
+                          )}
+                        </div>
+                        {isSidebarExpanded && (
+                          <div className={`transition-transform duration-200 ${isStatisticsExpanded ? 'rotate-180' : ''}`}>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        )}
+                      </button>
+
+                      {/* Submenu Items */}
+                      {isSidebarExpanded && isStatisticsExpanded && (
+                        <div className="ml-4 mt-1 space-y-1">
+                          {item.submenuItems.map((subItem, subIndex) => (
+                            <Link
+                              key={subIndex}
+                              to={subItem.to}
+                              className={`flex items-center px-3 py-2 mx-1 rounded-lg text-sm font-medium transition-all duration-200 relative group ${location.pathname === subItem.to
+                                ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 shadow-sm'
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+                                }`}
+                              role="menuitem"
+                              title={subItem.label}
+                            >
+                              {location.pathname === subItem.to && (
+                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-blue-600 rounded-r-full"></div>
+                              )}
+                              <subItem.icon
+                                sx={{ fontSize: 16 }}
+                                className={`flex-shrink-0 transition-colors duration-200 ${location.pathname === subItem.to
+                                  ? 'text-blue-600'
+                                  : 'text-gray-500 group-hover:text-gray-700'
+                                  }`}
+                              />
+                              <span className="ml-3 whitespace-nowrap font-medium">{subItem.label}</span>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <Link
+                      to={item.to}
+                      className={`flex items-center px-3 py-3 mx-1 rounded-xl text-sm font-medium transition-all duration-200 relative group ${location.pathname === item.to
+                        ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 shadow-sm'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+                        }`}
+                      role="menuitem"
+                      title={item.label}
+                    >
+                      {location.pathname === item.to && (
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-blue-600 rounded-r-full"></div>
+                      )}
+                      <item.icon
+                        sx={{ fontSize: 20 }}
+                        className={`flex-shrink-0 transition-colors duration-200 ${location.pathname === item.to
+                          ? 'text-blue-600'
+                          : 'text-gray-500 group-hover:text-gray-700'
+                          }`}
+                      />
+                      {isSidebarExpanded && (
+                        <span className="ml-3 whitespace-nowrap font-medium">{item.label}</span>
+                      )}
+                    </Link>
                   )}
-                  <item.icon
-                    sx={{ fontSize: 20 }}
-                    className={`flex-shrink-0 transition-colors duration-200 ${location.pathname === item.to
-                      ? 'text-blue-600'
-                      : 'text-gray-500 group-hover:text-gray-700'
-                      }`}
-                  />
-                  {isSidebarExpanded && (
-                    <span className="ml-3 whitespace-nowrap font-medium">{item.label}</span>
-                  )}
-                </Link>
+                </div>
               ))}
             </div>
           </nav>
 
           {/* Profile Section */}
-          <div className="flex flex-col border-t border-gray-200 py-3 mt-auto">
+          <div className="flex flex-col border-t border-gray-200 py-3 mt-auto bg-gradient-to-t from-white via-purple-50/30 to-transparent">
             {/* Profile Info */}
             <div className="px-4 py-2 mx-2">
               {isSidebarExpanded ? (
@@ -256,10 +345,10 @@ const Layout = ({ children }) => {
                   {/* Avatar and Basic Info - Clickable */}
                   <Link
                     to="/profile"
-                    className="flex items-center space-x-3 hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors duration-200"
+                    className="flex items-center space-x-3 hover:bg-purple-100/60 rounded-lg p-2 -m-2 transition-all duration-200"
                   >
-                    <div className="w-9 h-9 bg-purple-100 rounded-full flex items-center justify-center">
-                      <AccountCircle sx={{ fontSize: 22, color: '#800080' }} />
+                    <div className="w-9 h-9 bg-gradient-to-tr from-purple-500 to-indigo-500 rounded-full flex items-center justify-center shadow-sm">
+                      <AccountCircle sx={{ fontSize: 22, color: 'white' }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-900 truncate">
@@ -274,7 +363,7 @@ const Layout = ({ children }) => {
                   {/* Sign Out Button */}
                   <button
                     onClick={handleLogout}
-                    className="flex items-center space-x-2 w-full px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium transition-colors duration-200"
+                    className="flex items-center space-x-2 w-full px-3 py-2 text-red-600 hover:bg-red-100/70 rounded-lg text-sm font-medium transition-all duration-200"
                   >
                     <Logout sx={{ fontSize: 16 }} />
                     <span>Sign Out</span>
@@ -284,13 +373,13 @@ const Layout = ({ children }) => {
                 <div className="flex flex-col items-center space-y-2">
                   <Link
                     to="/profile"
-                    className="w-7 h-7 bg-purple-100 rounded-full flex items-center justify-center hover:bg-purple-200 transition-colors duration-200"
+                    className="w-8 h-8 bg-gradient-to-tr from-purple-500 to-indigo-500 rounded-full flex items-center justify-center hover:scale-110 transition-all duration-200 shadow-md"
                   >
-                    <AccountCircle sx={{ fontSize: 18, color: '#800080' }} />
+                    <AccountCircle sx={{ fontSize: 18, color: 'white' }} />
                   </Link>
                   <button
                     onClick={handleLogout}
-                    className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors duration-200"
+                    className="p-1 text-red-500 hover:bg-red-100 rounded transition-all duration-200 hover:scale-110"
                     title="Sign Out"
                   >
                     <Logout sx={{ fontSize: 16 }} />
@@ -299,6 +388,7 @@ const Layout = ({ children }) => {
               )}
             </div>
           </div>
+
         </aside>
       )}
 

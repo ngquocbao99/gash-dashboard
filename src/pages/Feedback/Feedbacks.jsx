@@ -427,38 +427,38 @@ const Feedbacks = () => {
 
       {/* Filter Section */}
       {showFilters && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 lg:p-8 mb-6 lg:mb-8">
-          <h2 className="text-lg lg:text-xl font-semibold text-gray-900 mb-4 lg:mb-6">Search & Filter</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6">
+          <h2 className="text-base lg:text-lg font-semibold text-gray-900 mb-3 lg:mb-4">Search & Filter</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4">
             <div>
-              <label htmlFor="search-start-date" className="block text-sm font-medium text-gray-700 mb-3">Start Date</label>
+              <label htmlFor="search-start-date" className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Start Date</label>
               <input
                 id="search-start-date"
                 type="date"
                 value={searchParams.startDate}
                 onChange={(e) => { handleFieldChange(e, 'search', 'startDate'); fetchFeedbacks(); }}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
+                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
                 aria-label="Start Date"
               />
             </div>
             <div>
-              <label htmlFor="search-end-date" className="block text-sm font-medium text-gray-700 mb-3">End Date</label>
+              <label htmlFor="search-end-date" className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">End Date</label>
               <input
                 id="search-end-date"
                 type="date"
                 value={searchParams.endDate}
                 onChange={(e) => { handleFieldChange(e, 'search', 'endDate'); fetchFeedbacks(); }}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
+                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
                 aria-label="End Date"
               />
             </div>
             <div>
-              <label htmlFor="search-product-id" className="block text-sm font-medium text-gray-700 mb-3">Product</label>
+              <label htmlFor="search-product-id" className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Product</label>
               <select
                 id="search-product-id"
                 value={searchParams.productId}
                 onChange={(e) => { handleFieldChange(e, 'search', 'productId'); fetchFeedbacks(); }}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
+                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
                 aria-label="Select Product"
               >
                 <option value="">All Products</option>
@@ -470,12 +470,12 @@ const Feedbacks = () => {
               </select>
             </div>
             <div>
-              <label htmlFor="search-username" className="block text-sm font-medium text-gray-700 mb-3">Username</label>
+              <label htmlFor="search-username" className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Username</label>
               <select
                 id="search-username"
                 value={searchParams.username}
                 onChange={(e) => { handleFieldChange(e, 'search', 'username'); fetchFeedbacks(); }}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
+                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
                 aria-label="Select User"
               >
                 <option value="">All Users</option>
@@ -486,20 +486,15 @@ const Feedbacks = () => {
                 ))}
               </select>
             </div>
-          </div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mt-6 lg:mt-8 pt-4 lg:pt-6 border-t border-gray-200 gap-4">
-            <button
-              onClick={clearSearch}
-              className="px-4 lg:px-6 py-2 lg:py-3 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium text-sm lg:text-base"
-              aria-label="Clear search"
-              disabled={loading || !hasActiveFilters()}
-            >
-              Clear Filters
-            </button>
-            <div className="bg-gray-50 px-3 lg:px-4 py-2 rounded-lg border border-gray-200">
-              <span className="text-xs lg:text-sm text-gray-600 font-medium">
-                Showing {startIndex + 1} to {Math.min(endIndex, feedbacks.length)} of {feedbacks.length} feedbacks
-              </span>
+            <div className="flex items-end">
+              <button
+                onClick={clearSearch}
+                className="w-full px-3 py-2 lg:px-4 lg:py-3 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium text-sm lg:text-base"
+                aria-label="Clear search"
+                disabled={loading || !hasActiveFilters()}
+              >
+                Clear Filters
+              </button>
             </div>
           </div>
         </div>

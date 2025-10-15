@@ -214,17 +214,17 @@ const Api = {
     // ==== Vouchers ====
     vouchers: {
         // Get all vouchers
-        getAll: (params = {}) => axiosClient.get("/vouchers", { params }),
+        getAll: (params = {}) => axiosClient.get("/vouchers/get-all-vouchers", { params }).then(response => response.data),
         // Get voucher by ID
-        getById: (voucherId) => axiosClient.get(`/vouchers/${voucherId}`),
+        getById: (voucherId) => axiosClient.get(`/vouchers/${voucherId}`).then(response => response.data),
         // Create voucher (admin/manager only)
-        create: (data) => axiosClient.post("/vouchers", data),
+        create: (data) => axiosClient.post("/vouchers/create-voucher", data).then(response => response.data),
         // Update voucher (admin/manager only)
-        update: (voucherId, data) => axiosClient.put(`/vouchers/${voucherId}`, data),
-        // Delete voucher (admin/manager only)
-        delete: (voucherId) => axiosClient.delete(`/vouchers/${voucherId}`),
+        update: (voucherId, data) => axiosClient.put(`/vouchers/update-voucher/${voucherId}`, data).then(response => response.data),
+        // Delete/Disable voucher (admin/manager only)
+        disable: (voucherId) => axiosClient.delete(`/vouchers/disable-voucher/${voucherId}`).then(response => response.data),
         // Apply voucher to order
-        applyVoucher: (data) => axiosClient.post("/vouchers/apply-voucher", data),
+        applyVoucher: (data) => axiosClient.post("/vouchers/apply-voucher", data).then(response => response.data),
     },
 
     // ==== Import Bills ====
@@ -251,6 +251,24 @@ const Api = {
         getProducts: (params = {}) => axiosClient.get("/statistics/products", { params }),
         // Get user statistics
         getUsers: (params = {}) => axiosClient.get("/statistics/users", { params }),
+
+        // ==== Revenue Statistics ====
+        // Get total revenue statistics
+        getRevenue: () => axiosClient.get("/statistics/revenue").then(response => response.data),
+        // Get revenue by week (new API structure)
+        getRevenueByWeek: () => axiosClient.get("/statistics/revenue/revenue-by-week").then(response => response.data),
+        // Get revenue by month
+        getRevenueByMonth: () => axiosClient.get("/statistics/revenue/revenue-by-month").then(response => response.data),
+        // Get revenue by year
+        getRevenueByYear: () => axiosClient.get("/statistics/revenue/revenue-by-year").then(response => response.data),
+
+        // ==== Customer Statistics ====
+        // Get customer statistics
+        getCustomers: () => axiosClient.get("/statistics/customers").then(response => response.data),
+
+        // ==== Order Statistics ====
+        // Get order statistics
+        getOrders: () => axiosClient.get("/statistics/orders").then(response => response.data),
     },
 
     // ==== Bills ====
