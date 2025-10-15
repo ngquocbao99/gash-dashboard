@@ -7,6 +7,7 @@ import {
   useLocation,
 } from "react-router-dom";
 import { AuthProvider, AuthContext } from "./context/AuthContext.jsx";
+import { ToastProvider } from "./components/Toast.jsx";
 
 // ==== Import các component hiện có ====
 import Products from "./pages/Products.jsx";
@@ -22,7 +23,7 @@ import Feedbacks from "./pages/Feedback/Feedbacks.jsx";
 import ImportBills from "./pages/ImportBills.jsx";
 import Statistics from "./pages/Statistics.jsx";
 import Layout from "./pages/Layout.jsx";
-import Vouchers from "./pages/Vouchers.jsx";
+import Vouchers from "./pages/Voucher/Vouchers.jsx";
 
 // ==== Import Forgot Password, OTP, Reset Password ====
 import ForgotPassword from "./pages/ForgotPassword.jsx";
@@ -58,143 +59,145 @@ const App = () => {
   return (
     <Router>
       <AuthProvider>
-        <Layout>
-          <Routes>
-            {/* ==== Public routes ==== */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/otp-verification" element={<OTPVerification />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
+        <ToastProvider>
+          <Layout>
+            <Routes>
+              {/* ==== Public routes ==== */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/otp-verification" element={<OTPVerification />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
 
-            {/* ==== Protected Routes ==== */}
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Statistics />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/products"
-              element={
-                <ProtectedRoute>
-                  <Products />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/feedbacks"
-              element={
-                <ProtectedRoute>
-                  <Feedbacks />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/statistics"
-              element={
-                <ProtectedRoute>
-                  <Statistics />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/imports"
-              element={
-                <ProtectedRoute>
-                  <ImportBills />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/accounts"
-              element={
-                <ProtectedRoute>
-                  <Accounts />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/specifications"
-              element={
-                <ProtectedRoute>
-                  <ProductSpecifications />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/variants"
-              element={
-                <ProtectedRoute>
-                  <ProductVariants />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <Profile />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/carts"
-              element={
-                <ProtectedRoute>
-                  <Carts />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/categories"
-              element={
-                <ProtectedRoute>
-                  <Categories />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/orders"
-              element={
-                <ProtectedRoute>
-                  <Orders />
-                </ProtectedRoute>
-              }
-            />
+              {/* ==== Protected Routes ==== */}
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <Statistics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/products"
+                element={
+                  <ProtectedRoute>
+                    <Products />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/feedbacks"
+                element={
+                  <ProtectedRoute>
+                    <Feedbacks />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/statistics"
+                element={
+                  <ProtectedRoute>
+                    <Statistics />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/imports"
+                element={
+                  <ProtectedRoute>
+                    <ImportBills />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/accounts"
+                element={
+                  <ProtectedRoute>
+                    <Accounts />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/specifications"
+                element={
+                  <ProtectedRoute>
+                    <ProductSpecifications />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/variants"
+                element={
+                  <ProtectedRoute>
+                    <ProductVariants />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/carts"
+                element={
+                  <ProtectedRoute>
+                    <Carts />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/categories"
+                element={
+                  <ProtectedRoute>
+                    <Categories />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/orders"
+                element={
+                  <ProtectedRoute>
+                    <Orders />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* ✅ Vouchers */}
-            <Route
-              path="/vouchers"
-              element={
-                <ProtectedRoute>
-                  <Vouchers />
-                </ProtectedRoute>
-              }
-            />
+              {/* ✅ Vouchers */}
+              <Route
+                path="/vouchers"
+                element={
+                  <ProtectedRoute>
+                    <Vouchers />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* ✅ Notifications */}
-            <Route
-              path="/notifications"
-              element={
-                <ProtectedRoute>
-                  <Notifications />
-                </ProtectedRoute>
-              }
-            />
+              {/* ✅ Notifications */}
+              <Route
+                path="/notifications"
+                element={
+                  <ProtectedRoute>
+                    <Notifications />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* ✅ Admin Chat */}
-            <Route
-              path="/chat"
-              element={
-                <ProtectedRoute>
-                  <AdminChat />
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </Layout>
+              {/* ✅ Admin Chat */}
+              <Route
+                path="/chat"
+                element={
+                  <ProtectedRoute>
+                    <AdminChat />
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+          </Layout>
+        </ToastProvider>
       </AuthProvider>
     </Router>
   );

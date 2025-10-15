@@ -259,7 +259,7 @@ const Layout = ({ children }) => {
                     className="flex items-center space-x-3 hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors duration-200"
                   >
                     <div className="w-9 h-9 bg-purple-100 rounded-full flex items-center justify-center">
-                      <AccountCircle sx={{ fontSize: 22, color: '#800080' }} />
+                      <AccountCircle sx={{ fontSize: 22, color: 'yellow' }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-900 truncate">
