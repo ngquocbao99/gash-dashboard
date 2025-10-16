@@ -61,7 +61,7 @@ const Api = {
             axiosClient.delete(`/accounts/soft/${userId}`).then(response => response.data),
         disableAccount: (userId) =>
             axiosClient.put(`/accounts/disable/${userId}`).then(response => response.data),
-        getAllAccounts: (params = {}) => axiosClient.get("/accounts", { params }).then(response => response.data),
+        getAll: (params = {}) => axiosClient.get("/accounts", { params }).then(response => response.data),
         createAccount: (data) => axiosClient.post("/accounts", data).then(response => response.data),
         updateAccount: (userId, data) => axiosClient.put(`/accounts/${userId}`, data).then(response => response.data),
     },
