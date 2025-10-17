@@ -90,8 +90,7 @@ const Layout = ({ children }) => {
       const items = [
         { label: 'Order', to: '/orders', icon: ShoppingBag },
         { label: 'Product', to: '/products', icon: Inventory },
-        { label: 'Category', to: '/categories', icon: List },
-        { label: 'Cart', to: '/carts', icon: ShoppingCart },
+        // { label: 'Cart', to: '/carts', icon: ShoppingCart },
         { label: 'Product Specification', to: '/specifications', icon: Info },
         { label: 'Product Variant', to: '/variants', icon: Layers },
         { label: 'Import Bills', to: '/imports', icon: FileUpload },

@@ -10,15 +10,23 @@ import { AuthProvider, AuthContext } from "./context/AuthContext.jsx";
 import { ToastProvider } from "./components/Toast.jsx";
 
 // ==== Import các component hiện có ====
-import Products from "./pages/Products.jsx";
+import Products from "./pages/Product/Products.jsx";
 import ProductVariants from "./pages/ProductVariants.jsx";
 import Login from "./pages/Login.jsx";
 import Profile from "./pages/Profile.jsx";
 import Carts from "./pages/Carts.jsx";
 import Orders from "./pages/Orders.jsx";
-import ProductSpecifications from "./pages/ProductSpecifications.jsx";
+import ProductSpecifications from "./pages/ProductSpecifications/ProductSpecifications.jsx";
+
+// Component to redirect to categories tab in ProductSpecifications
+const CategoriesRedirect = () => {
+  const navigate = useNavigate();
+  React.useEffect(() => {
+    navigate('/product-specifications?tab=categories', { replace: true });
+  }, [navigate]);
+  return null;
+};
 import Accounts from "./pages/Accounts.jsx";
-import Categories from "./pages/Categories.jsx";
 import Feedbacks from "./pages/Feedback/Feedbacks.jsx";
 import ImportBills from "./pages/ImportBills.jsx";
 import Layout from "./pages/Layout.jsx";
@@ -186,7 +194,7 @@ const App = () => {
                 path="/categories"
                 element={
                   <ProtectedRoute>
-                    <Categories />
+                    <CategoriesRedirect />
                   </ProtectedRoute>
                 }
               />

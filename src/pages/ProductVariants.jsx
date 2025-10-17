@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import "../styles/ProductVariants.css";
 import axios from "axios";
+import Api from "../common/SummaryAPI";
 
 // API client with interceptors
 const apiClient = axios.create({
@@ -18,10 +19,10 @@ apiClient.interceptors.response.use(
       status === 401
         ? "Unauthorized access - please log in"
         : status === 404
-        ? "Resource not found"
-        : status >= 500
-        ? "Server error - please try again later"
-        : "Network error - please check your connection";
+          ? "Resource not found"
+          : status >= 500
+            ? "Server error - please try again later"
+            : "Network error - please check your connection";
     return Promise.reject({ ...error, message, skipRetry: status === 400 });
   }
 );
@@ -50,7 +51,7 @@ const ProductVariants = () => {
   const [colors, setColors] = useState([]);
   const [sizes, setSizes] = useState([]);
   const [editingVariantId, setEditingVariantId] = useState(null);
-  
+
   // Edit form data for variant
   const [editFormData, setEditFormData] = useState({
     productId: "",
@@ -61,10 +62,10 @@ const ProductVariants = () => {
     stockQuantity: "",
     variantStatus: "",
   });
-  
+
   const [editVariantImageFile, setEditVariantImageFile] = useState(null);
   const [editVariantImagePreview, setEditVariantImagePreview] = useState("");
-  
+
   // Filter states
   const [filters, setFilters] = useState({
     searchQuery: '',
@@ -74,11 +75,11 @@ const ProductVariants = () => {
     statusFilter: '',
   });
   const [showFilters, setShowFilters] = useState(false);
-  
+
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage] = useState(20);
-  
+
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
@@ -97,11 +98,11 @@ const ProductVariants = () => {
         const colorName = variant.productColorId?.color_name?.toLowerCase() || '';
         const sizeName = variant.productSizeId?.size_name?.toLowerCase() || '';
         const variantId = variant._id?.toLowerCase() || '';
-        
-        if (!productName.includes(query) && 
-            !colorName.includes(query) && 
-            !sizeName.includes(query) && 
-            !variantId.includes(query)) {
+
+        if (!productName.includes(query) &&
+          !colorName.includes(query) &&
+          !sizeName.includes(query) &&
+          !variantId.includes(query)) {
           return false;
         }
       }
@@ -159,11 +160,11 @@ const ProductVariants = () => {
 
   // Check if any filters are active
   const hasActiveFilters = useCallback(() => {
-    return filters.searchQuery || 
-           filters.productFilter || 
-           filters.colorFilter || 
-           filters.sizeFilter || 
-           filters.statusFilter;
+    return filters.searchQuery ||
+      filters.productFilter ||
+      filters.colorFilter ||
+      filters.sizeFilter ||
+      filters.statusFilter;
   }, [filters]);
 
   // Auto-dismiss toast
@@ -291,17 +292,27 @@ const ProductVariants = () => {
 
   // Upload helper (single image)
   const uploadSingleImage = useCallback(async (file) => {
-    const token = localStorage.getItem('token');
     if (!file) return '';
-    const formData = new FormData();
-    formData.append('image', file);
-    const response = await apiClient.post('/upload', formData, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return response.data?.url || '';
+    try {
+      const response = await Api.upload.image(file);
+
+      // Try different possible response structures
+      const imageUrl = response.data?.url ||
+        response.data?.data?.url ||
+        response.data?.imageUrl ||
+        response.data?.data?.imageUrl ||
+        response.data;
+
+      if (!imageUrl) {
+        console.error('No image URL found in response:', response);
+        return '';
+      }
+
+      return imageUrl;
+    } catch (err) {
+      console.error('Upload error:', err);
+      return '';
+    }
   }, []);
 
 
@@ -349,9 +360,9 @@ const ProductVariants = () => {
     try {
       const token = localStorage.getItem("token");
       if (!token) throw new Error("No authentication token found");
-      
+
       let variantImageUrl = editFormData.variantImage;
-      
+
       // Upload new image if selected
       if (editVariantImageFile) {
         variantImageUrl = await uploadSingleImage(editVariantImageFile);
@@ -368,15 +379,15 @@ const ProductVariants = () => {
       }, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       console.log('Variant updated:', response.data);
-      
+
       // Fetch the updated variant with populated data
       const populatedResponse = await fetchWithRetry(`/new-variants/${variantId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const populatedVariant = populatedResponse.data || populatedResponse;
-      
+
       setVariants((prev) =>
         prev.map((variant) =>
           variant._id === variantId ? populatedVariant : variant
@@ -407,43 +418,43 @@ const ProductVariants = () => {
 
   // Delete variant (soft delete) using NEW API
   const deleteVariant = useCallback(async (variantId) => {
-      if (!window.confirm("Are you sure you want to delete this variant? This action will mark it as discontinued."))
-        return;
+    if (!window.confirm("Are you sure you want to delete this variant? This action will mark it as discontinued."))
+      return;
 
-      setLoading(true);
-      setError("");
-      setToast(null);
+    setLoading(true);
+    setError("");
+    setToast(null);
 
-      try {
-        const token = localStorage.getItem("token");
-        if (!token) throw new Error("No authentication token found");
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("No authentication token found");
 
-        await apiClient.delete(`/new-variants/${variantId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        
-        console.log('Variant deleted:', variantId);
-        
-        // Update the variant status to discontinued instead of removing it
-        setVariants((prev) =>
-          prev.map(variant => 
-            variant._id === variantId 
-              ? { ...variant, variantStatus: 'discontinued' }
-              : variant
-          )
-        );
-        
-        setToast({ type: "success", message: "Variant marked as discontinued successfully" });
-        if (editingVariantId === variantId) setEditingVariantId(null);
-      } catch (err) {
-        const errorMessage = err.response?.data?.message || err.message || 'Failed to delete variant';
-        setError(errorMessage);
-        setToast({ type: "error", message: errorMessage });
-        console.error("Delete variant error:", err);
-      } finally {
-        setLoading(false);
-      }
-    },
+      await apiClient.delete(`/new-variants/${variantId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      console.log('Variant deleted:', variantId);
+
+      // Update the variant status to discontinued instead of removing it
+      setVariants((prev) =>
+        prev.map(variant =>
+          variant._id === variantId
+            ? { ...variant, variantStatus: 'discontinued' }
+            : variant
+        )
+      );
+
+      setToast({ type: "success", message: "Variant marked as discontinued successfully" });
+      if (editingVariantId === variantId) setEditingVariantId(null);
+    } catch (err) {
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to delete variant';
+      setError(errorMessage);
+      setToast({ type: "error", message: errorMessage });
+      console.error("Delete variant error:", err);
+    } finally {
+      setLoading(false);
+    }
+  },
     [editingVariantId]
   );
 
@@ -524,7 +535,7 @@ const ProductVariants = () => {
 
   // Get status badge class
   const getStatusBadgeClass = useCallback((status) => {
-    switch(status) {
+    switch (status) {
       case 'active': return 'variant-status-active';
       case 'inactive': return 'variant-status-inactive';
       case 'discontinued': return 'variant-status-discontinued';
@@ -554,13 +565,12 @@ const ProductVariants = () => {
       {/* Toast Notification */}
       {toast && (
         <div
-          className={`product-variants-toast ${
-            toast.type === "success"
+          className={`product-variants-toast ${toast.type === "success"
               ? "product-variants-toast-success"
               : toast.type === "error"
-              ? "product-variants-toast-error"
-              : "product-variants-toast-info"
-          }`}
+                ? "product-variants-toast-error"
+                : "product-variants-toast-info"
+            }`}
           role="alert"
         >
           {toast.message}
@@ -604,56 +614,56 @@ const ProductVariants = () => {
               {/* Product Filter */}
               <div className="product-variants-filter-group">
                 <label htmlFor="productFilter" className="product-variants-filter-label">Product</label>
-          <select
+                <select
                   id="productFilter"
                   value={filters.productFilter}
                   onChange={(e) => handleFilterChange('productFilter', e.target.value)}
                   className="product-variants-filter-select"
-          >
+                >
                   <option value="">All Products</option>
                   {products.map(product => (
-              <option key={product._id} value={product._id}>
-                {product.productName}
-              </option>
-            ))}
-          </select>
-        </div>
+                    <option key={product._id} value={product._id}>
+                      {product.productName}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               {/* Color Filter */}
               <div className="product-variants-filter-group">
                 <label htmlFor="colorFilter" className="product-variants-filter-label">Color</label>
-          <select
+                <select
                   id="colorFilter"
                   value={filters.colorFilter}
                   onChange={(e) => handleFilterChange('colorFilter', e.target.value)}
                   className="product-variants-filter-select"
-          >
+                >
                   <option value="">All Colors</option>
                   {colors.map(color => (
-              <option key={color._id} value={color._id}>
-                {color.color_name}
-              </option>
-            ))}
-          </select>
-        </div>
+                    <option key={color._id} value={color._id}>
+                      {color.color_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               {/* Size Filter */}
               <div className="product-variants-filter-group">
                 <label htmlFor="sizeFilter" className="product-variants-filter-label">Size</label>
-          <select
+                <select
                   id="sizeFilter"
                   value={filters.sizeFilter}
                   onChange={(e) => handleFilterChange('sizeFilter', e.target.value)}
                   className="product-variants-filter-select"
-          >
+                >
                   <option value="">All Sizes</option>
                   {sizes.map(size => (
-              <option key={size._id} value={size._id}>
-                {size.size_name}
-              </option>
-            ))}
-          </select>
-        </div>
+                    <option key={size._id} value={size._id}>
+                      {size.size_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               {/* Status Filter */}
               <div className="product-variants-filter-group">
@@ -673,19 +683,19 @@ const ProductVariants = () => {
             </div>
           </div>
 
-                    <div className="product-variants-filter-actions">
-          <button
+          <div className="product-variants-filter-actions">
+            <button
               className="product-variants-clear-filters"
               onClick={clearFilters}
               disabled={!hasActiveFilters()}
               aria-label="Clear all filters"
-          >
+            >
               Clear Filters
-          </button>
+            </button>
             <div className="product-variants-filter-summary">
               Showing {startIndex + 1} to {Math.min(endIndex, filteredVariants.length)} of {filteredVariants.length} variants
-        </div>
-      </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -694,14 +704,14 @@ const ProductVariants = () => {
         <div className="product-variants-error" role="alert" aria-live="true">
           <span className="product-variants-error-icon">⚠</span>
           <span>{error}</span>
-        <button
+          <button
             className="product-variants-retry-button"
             onClick={handleRetry}
             aria-label="Retry loading variants"
-        >
+          >
             Retry
-        </button>
-      </div>
+          </button>
+        </div>
       )}
 
       {/* Loading State */}
@@ -949,7 +959,7 @@ const ProductVariants = () => {
             >
               Previous
             </button>
-            
+
             <div className="product-variants-pagination-pages">
               {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                 <button
@@ -962,7 +972,7 @@ const ProductVariants = () => {
                 </button>
               ))}
             </div>
-            
+
             <button
               className="product-variants-pagination-button"
               onClick={handleNextPage}

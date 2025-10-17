@@ -5,6 +5,7 @@ import { AuthContext } from "../context/AuthContext";
 import "../styles/Orders.css";
 import axios from "axios";
 import { io } from "socket.io-client";
+import Api from "../common/SummaryAPI";
 
 // Định dạng ngày dd/MM/yyyy
 function formatDateVN(dateStr) {
@@ -59,9 +60,9 @@ apiClient.interceptors.response.use(
         ? "Unauthorized access - please log in"
         : status === 404
           ? "Resource not found"
-        : status >= 500
-          ? "Server error - please try again later"
-          : "Network error - please check your connection";
+          : status >= 500
+            ? "Server error - please try again later"
+            : "Network error - please check your connection";
     return Promise.reject({ ...error, message });
   }
 );
@@ -241,8 +242,8 @@ const Orders = () => {
       setOrders(
         Array.isArray(response)
           ? response.sort(
-              (a, b) => new Date(b.orderDate) - new Date(a.orderDate)
-            )
+            (a, b) => new Date(b.orderDate) - new Date(a.orderDate)
+          )
           : []
       );
     } catch (err) {
@@ -404,16 +405,17 @@ const Orders = () => {
 
         if (refundProofFile) {
           setUploadingRefundProof(true);
-          const formData = new FormData();
-          formData.append("image", refundProofFile);
-          const uploadResult = await axios.post(
-            `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/upload`,
-            formData,
-            { headers: { "Content-Type": "multipart/form-data" } }
-          );
+          const uploadResult = await Api.upload.image(refundProofFile);
           setUploadingRefundProof(false);
-          if (uploadResult.data?.url) {
-            changedFields.refund_proof = uploadResult.data.url;
+          // Try different possible response structures
+          const imageUrl = uploadResult.data?.url ||
+            uploadResult.data?.data?.url ||
+            uploadResult.data?.imageUrl ||
+            uploadResult.data?.data?.imageUrl ||
+            uploadResult.data;
+
+          if (imageUrl) {
+            changedFields.refund_proof = imageUrl;
           } else {
             throw new Error("Failed to upload refund proof");
           }
@@ -901,31 +903,31 @@ const Orders = () => {
                           {(editFormData.refund_status === "pending_refund" ||
                             editFormData.refund_status === "refunded" ||
                             order.refund_status === "refunded") && (
-                            <div style={{ marginTop: 8 }}>
-                              <input
-                                id={`refund-proof-upload-${order._id}`}
-                                type="file"
-                                accept="image/*"
-                                onChange={handleRefundProofChange}
-                                disabled={uploadingRefundProof}
-                                style={{ marginLeft: 8 }}
-                              />
-                              {(refundProofPreview || editFormData.refund_proof) && (
-                                <div style={{ marginTop: 8 }}>
-                                  <img
-                                    src={refundProofPreview || editFormData.refund_proof}
-                                    alt="Refund proof preview"
-                                    style={{
-                                      maxWidth: 180,
-                                      maxHeight: 180,
-                                      border: "1px solid #ccc",
-                                      marginTop: 4,
-                                    }}
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          )}
+                              <div style={{ marginTop: 8 }}>
+                                <input
+                                  id={`refund-proof-upload-${order._id}`}
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleRefundProofChange}
+                                  disabled={uploadingRefundProof}
+                                  style={{ marginLeft: 8 }}
+                                />
+                                {(refundProofPreview || editFormData.refund_proof) && (
+                                  <div style={{ marginTop: 8 }}>
+                                    <img
+                                      src={refundProofPreview || editFormData.refund_proof}
+                                      alt="Refund proof preview"
+                                      style={{
+                                        maxWidth: 180,
+                                        maxHeight: 180,
+                                        border: "1px solid #ccc",
+                                        marginTop: 4,
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           {order.refund_proof && (
                             <div style={{ marginTop: 4 }}>
                               <img
@@ -1138,8 +1140,8 @@ const Orders = () => {
                                           </td>
                                           <td>
                                             {detail.feedback &&
-                                            (detail.feedback.rating ||
-                                              detail.feedback.content) ? (
+                                              (detail.feedback.rating ||
+                                                detail.feedback.content) ? (
                                               <div>
                                                 {detail.feedback.rating &&
                                                   `Rating: ${detail.feedback.rating}/5`}
@@ -1155,8 +1157,8 @@ const Orders = () => {
                                             {order.order_status === "delivered" && (
                                               <div className="orders-action-buttons">
                                                 {detail.feedback &&
-                                                (detail.feedback.rating ||
-                                                  detail.feedback.content) ? (
+                                                  (detail.feedback.rating ||
+                                                    detail.feedback.content) ? (
                                                   <>
                                                     <button
                                                       onClick={() => {
@@ -1394,14 +1396,14 @@ const Orders = () => {
                                     <td style={{ textAlign: "left" }}>
                                       {order.feedback_ids && order.feedback_ids.length > 0
                                         ? order.feedback_ids.map((fb, idx) => (
-                                            <div key={idx}>
-                                              {fb.feedback.rating &&
-                                                `Rating: ${fb.feedback.rating}/5`}
-                                              {fb.feedback.rating &&
-                                                fb.feedback.content && <br />}
-                                              {fb.feedback.content}
-                                            </div>
-                                          ))
+                                          <div key={idx}>
+                                            {fb.feedback.rating &&
+                                              `Rating: ${fb.feedback.rating}/5`}
+                                            {fb.feedback.rating &&
+                                              fb.feedback.content && <br />}
+                                            {fb.feedback.content}
+                                          </div>
+                                        ))
                                         : "None"}
                                     </td>
                                   </tr>
@@ -1439,9 +1441,8 @@ const Orders = () => {
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                 <button
                   key={page}
-                  className={`orders-pagination-page ${
-                    currentPage === page ? "active" : ""
-                  }`}
+                  className={`orders-pagination-page ${currentPage === page ? "active" : ""
+                    }`}
                   onClick={() => handlePageChange(page)}
                   aria-label={`Page ${page}`}
                 >

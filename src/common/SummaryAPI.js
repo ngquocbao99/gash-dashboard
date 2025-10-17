@@ -72,8 +72,6 @@ const Api = {
         getProduct: (productId) => axiosClient.get(`/products/${productId}`),
         // Get product variants (old API - deprecated)
         getVariants: (productId) => axiosClient.get(`/variants?pro_id=${productId}`),
-        // Get product images (old API - deprecated)
-        getImages: (productId) => axiosClient.get(`/specifications/image/product/${productId}`),
         // Get product feedbacks
         getFeedbacks: (productId) => axiosClient.get(`/order-details/product/${productId}`),
         search: (query) => {
@@ -106,20 +104,57 @@ const Api = {
 
     // ==== New Product Variants ====
     newVariants: {
-        // Get all variants (with optional filters)
-        getAll: (filters = {}) => axiosClient.get('/new-variants', { params: filters }).then(response => response.data),
-        // Get single variant by ID
-        getById: (variantId) => axiosClient.get(`/new-variants/${variantId}`).then(response => response.data),
-        // Create variant (admin/manager only)
-        create: (data) => axiosClient.post('/new-variants', data).then(response => response.data),
-        // Update variant (admin/manager only)
-        update: (variantId, data) => axiosClient.put(`/new-variants/${variantId}`, data).then(response => response.data),
-        // Delete variant (admin/manager only)
-        delete: (variantId) => axiosClient.delete(`/new-variants/${variantId}`).then(response => response.data),
+        // Get all variants (accessible to public)
+        getAll: (filters = {}) => axiosClient.get('/new-variants/get-all-variants', { params: filters }).then(response => response.data),
+        // Get single variant by ID (accessible to public)
+        getById: (variantId) => axiosClient.get(`/new-variants/get-variant-detail/${variantId}`).then(response => response.data),
+        // Create variant (restricted to manager/admin)
+        create: (data) => axiosClient.post('/new-variants/create-variant', data).then(response => response.data),
+        // Update variant (restricted to manager/admin)
+        update: (variantId, data) => axiosClient.put(`/new-variants/update-variant/${variantId}`, data).then(response => response.data),
+        // Delete variant (restricted to manager/admin)
+        delete: (variantId) => axiosClient.delete(`/new-variants/delete-variant/${variantId}`).then(response => response.data),
+        // Get variants by product ID (using get-all-variants with productId filter)
+        getByProduct: (productId) => axiosClient.get(`/new-variants/get-all-variants?productId=${productId}`).then(response => response.data),
+    },
+
+    // ==== Product Colors ====
+    colors: {
+        // Get all colors (accessible to public)
+        getAll: () => axiosClient.get('/specifications/get-all-colors').then(response => response.data),
+        // Get single color by ID (accessible to public)
+        getById: (colorId) => axiosClient.get(`/specifications/get-color-detail/${colorId}`).then(response => response.data),
+        // Create color (restricted to admin/manager)
+        create: (data) => axiosClient.post('/specifications/create-color', data).then(response => response.data),
+        // Update color (restricted to admin/manager)
+        update: (colorId, data) => axiosClient.put(`/specifications/update-color/${colorId}`, data).then(response => response.data),
+        // Delete color (restricted to admin/manager)
+        delete: (colorId) => axiosClient.delete(`/specifications/delete-color/${colorId}`).then(response => response.data),
+        // Search colors (accessible to public)
+        search: (params = {}) => axiosClient.get('/specifications/search-specifications', { params: { ...params, type: 'color' } }).then(response => response.data),
+    },
+
+    // ==== Product Sizes ====
+    sizes: {
+        // Get all sizes (accessible to public)
+        getAll: () => axiosClient.get('/specifications/get-all-sizes').then(response => response.data),
+        // Get single size by ID (accessible to public)
+        getById: (sizeId) => axiosClient.get(`/specifications/get-size-detail/${sizeId}`).then(response => response.data),
+        // Create size (restricted to admin/manager)
+        create: (data) => axiosClient.post('/specifications/create-size', data).then(response => response.data),
+        // Update size (restricted to admin/manager)
+        update: (sizeId, data) => axiosClient.put(`/specifications/update-size/${sizeId}`, data).then(response => response.data),
+        // Delete size (restricted to admin/manager)
+        delete: (sizeId) => axiosClient.delete(`/specifications/delete-size/${sizeId}`).then(response => response.data),
+        // Search sizes (accessible to public)
+        search: (params = {}) => axiosClient.get('/specifications/search-specifications', { params: { ...params, type: 'size' } }).then(response => response.data),
     },
 
     // ==== Product Specifications ====
     specifications: {
+        // Search specifications
+        search: (params = {}) => axiosClient.get('/specifications/search-specifications', { params }).then(response => response.data),
+        // Legacy methods for backward compatibility
         getAll: (filters = {}) => axiosClient.get('/specifications', { params: filters }),
         getById: (specId) => axiosClient.get(`/specifications/${specId}`),
         create: (data) => axiosClient.post('/specifications', data),
@@ -130,11 +165,18 @@ const Api = {
 
     // ==== Categories ====
     categories: {
-        getAll: (filters = {}) => axiosClient.get('/categories', { params: filters }),
-        getById: (categoryId) => axiosClient.get(`/categories/${categoryId}`),
-        create: (data) => axiosClient.post('/categories', data),
-        update: (categoryId, data) => axiosClient.put(`/categories/${categoryId}`, data),
-        delete: (categoryId) => axiosClient.delete(`/categories/${categoryId}`),
+        // Get all categories (accessible to public)
+        getAll: (filters = {}) => axiosClient.get('/categories/get-all-categories', { params: filters }).then(response => response.data),
+        // Get single category by ID (accessible to public)
+        getById: (categoryId) => axiosClient.get(`/categories/get-category-detail/${categoryId}`).then(response => response.data),
+        // Create category (restricted to admin/manager)
+        create: (data) => axiosClient.post('/categories/create-category', data).then(response => response.data),
+        // Update category (restricted to admin/manager)
+        update: (categoryId, data) => axiosClient.put(`/categories/update-category/${categoryId}`, data).then(response => response.data),
+        // Delete category (restricted to admin/manager)
+        delete: (categoryId) => axiosClient.delete(`/categories/delete-category/${categoryId}`).then(response => response.data),
+        // Search categories (accessible to public)
+        search: (params = {}) => axiosClient.get('/categories/search-categories', { params }).then(response => response.data),
     },
 
     // ==== Orders ====
@@ -290,6 +332,8 @@ const Api = {
         sendMessage: (data) => axiosClient.post("/chat/messages", data),
         getConversations: (params = {}) => axiosClient.get("/chat/conversations", { params }),
     },
+
+
 };
 
 export default Api;
