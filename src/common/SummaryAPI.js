@@ -269,6 +269,7 @@ const Api = {
         // ==== Order Statistics ====
         // Get order statistics
         getOrders: () => axiosClient.get("/statistics/orders").then(response => response.data),
+        getOrderStatistics: () => axiosClient.get("/new-statistics/order-statistics").then(response => response.data),
     },
 
     // ==== Bills ====

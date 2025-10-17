@@ -55,7 +55,7 @@ export default function AccountModal({ isOpen, account, onClose, onSuccess }) {
                 return;
             }
 
-            await SummaryAPI.accounts.update(accountId, {
+            await SummaryAPI.accounts.updateAccount(accountId, {
                 role: formData.role,
                 acc_status: formData.acc_status,
             });
