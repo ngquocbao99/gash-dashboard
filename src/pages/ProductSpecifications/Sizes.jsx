@@ -48,6 +48,7 @@ const Sizes = () => {
             const payload = { size_name: newSizeForm.content };
             const response = await Api.sizes.create(payload);
             setSizes(prev => [...prev, response]);
+            await fetchSizes();
             showToast('Size created successfully', 'success');
             setNewSizeForm({ content: '' });
             setShowCreateModal(false);
@@ -77,6 +78,7 @@ const Sizes = () => {
             const payload = { size_name: editFormData.content };
             const response = await Api.sizes.update(editingSize._id, payload);
             setSizes(prev => prev.map(item => item._id === editingSize._id ? response : item));
+            await fetchSizes();
             showToast('Size updated successfully', 'success');
             setShowEditModal(false);
             setEditingSize(null);

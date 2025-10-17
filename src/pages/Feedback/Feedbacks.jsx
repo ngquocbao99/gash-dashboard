@@ -57,7 +57,7 @@ const Feedbacks = () => {
       if (productId) params.productId = productId;
       if (username) params.username = username;
 
-      const response = await Api.feedback.getAllFeedbacks(params);
+      const response = await Api.feedback.getAll(params);
 
       // Debug: Log the full response to see the structure
       console.log('Full API response:', response);
@@ -193,21 +193,21 @@ const Feedbacks = () => {
     }
   };
 
-  // Toggle delete feedback
-  const toggleDeleteFeedback = async (feedback, isDeleted) => {
-    try {
-      if (isDeleted) {
-        await Api.feedback.deleteFeedback(feedback.order?._id, feedback.variant?.variant_id);
-        setToast({ type: 'success', message: 'Feedback deleted successfully' });
-      } else {
-        await Api.feedback.deleteFeedback(feedback.order?._id, feedback.variant?.variant_id);
-        setToast({ type: 'success', message: 'Feedback restored successfully' });
+    // Toggle delete feedback
+    const toggleDeleteFeedback = async (feedback, isDeleted) => {
+      try {
+        if (isDeleted) {
+          await Api.feedback.delete(feedback._id); // Use feedback._id as the single parameter
+          setToast({ type: 'success', message: 'Feedback deleted successfully' });
+        } else {
+          await Api.feedback.restore(feedback._id); // Use restore for restoring feedback
+          setToast({ type: 'success', message: 'Feedback restored successfully' });
+        }
+        fetchFeedbacks();
+      } catch (err) {
+        setToast({ type: 'error', message: err.message || 'Failed to update feedback' });
       }
-      fetchFeedbacks();
-    } catch (err) {
-      setToast({ type: 'error', message: err.message || 'Failed to update feedback' });
-    }
-  };
+    };
 
   // Toggle filters
   const toggleFilters = () => {

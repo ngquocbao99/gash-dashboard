@@ -14,7 +14,7 @@ const FeedbackDetail = ({ feedbackId, isOpen, onClose }) => {
         setLoading(true);
         setError('');
         try {
-            const response = await Api.feedback.getFeedbackById(feedbackId);
+            const response = await Api.feedback.getById(feedbackId);
             console.log('Feedback detail response:', response);
 
             if (response?.success && response?.data) {

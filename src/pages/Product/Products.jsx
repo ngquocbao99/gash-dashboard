@@ -53,7 +53,7 @@ const Products = () => {
   const [selectedProductForVariant, setSelectedProductForVariant] = useState(null);
 
   // Status options based on model
-  const statusOptions = ['active', 'inactive'];
+  const statusOptions = ['active', 'discontinued'];
 
   // Apply filters to products
   const applyFilters = useCallback((productsList, filterSettings) => {
@@ -121,8 +121,6 @@ const Products = () => {
       filters.categoryFilter ||
       filters.statusFilter;
   }, [filters]);
-
-
 
   // Fetch categories
   const fetchCategories = useCallback(async () => {
@@ -311,13 +309,13 @@ const Products = () => {
           product._id === editingProductId ? updatedProduct : product
         )
       );
-      // Cập nhật selectedProductForDetails với data mới
+      // Update selectedProductForDetails with new data
       setSelectedProductForDetails(updatedProduct);
       showToast('Product updated successfully', 'success');
       setEditingProductId(null);
       setEditingProduct(null);
       setShowEditModal(false);
-      // Quay lại ProductDetailsModal sau khi update thành công
+      // Return to ProductDetailsModal after successful update
       setShowDetailsModal(true);
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.message || 'Failed to update product';
@@ -331,7 +329,7 @@ const Products = () => {
 
   // Delete product (soft delete) using NEW API
   const deleteProduct = useCallback(async (productId) => {
-    if (!window.confirm('Are you sure you want to delete this product? This action will mark it as inactive.')) return;
+    if (!window.confirm('Are you sure you want to discontinue this product? This action will mark it as discontinued.')) return;
 
     setLoading(true);
     setError('');
@@ -339,22 +337,22 @@ const Products = () => {
     try {
       await Api.newProducts.delete(productId);
 
-      console.log('Product deleted:', productId);
+      console.log('Product discontinued:', productId);
 
-      // Update the product status to inactive instead of removing it
+      // Update the product status to discontinued instead of removing it
       setProducts(prev =>
         prev.map(product =>
           product._id === productId
-            ? { ...product, productStatus: 'inactive' }
+            ? { ...product, productStatus: 'discontinued' }
             : product
         )
       );
 
-      showToast('Product marked as inactive successfully', 'success');
+      showToast('Product marked as discontinued successfully', 'success');
       if (selectedProductId === productId) setSelectedProductId(null);
       if (editingProductId === productId) setEditingProductId(null);
     } catch (err) {
-      const errorMessage = err.response?.data?.message || err.message || 'Failed to delete product';
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to discontinue product';
       setError(errorMessage);
       showToast(errorMessage, 'error');
       console.error('Delete product error:', err);
@@ -414,7 +412,7 @@ const Products = () => {
     setShowEditModal(false);
     setEditingProductId(null);
     setEditingProduct(null);
-    // Quay lại ProductDetailsModal
+    // Return to ProductDetailsModal
     setShowDetailsModal(true);
   }, []);
 
@@ -459,15 +457,14 @@ const Products = () => {
   const getStatusBadgeClass = useCallback((status) => {
     switch (status) {
       case 'active': return 'products-status-active';
-      case 'inactive': return 'products-status-inactive';
-      // Only active and inactive are supported
+      case 'discontinued': return 'products-status-discontinued';
       default: return 'products-status-unknown';
     }
   }, []);
 
-  // Check if product is inactive
-  const isProductInactive = useCallback((product) => {
-    return product.productStatus === 'inactive';
+  // Check if product is discontinued
+  const isProductDiscontinued = useCallback((product) => {
+    return product.productStatus === 'discontinued';
   }, []);
 
   // Show loading state while auth is being verified
@@ -581,7 +578,6 @@ const Products = () => {
         </div>
       )}
 
-
       {/* Error Display */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 lg:mb-6" role="alert" aria-live="assertive">
@@ -652,10 +648,10 @@ const Products = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {currentProducts.map((product, index) => {
-                  const inactive = isProductInactive(product);
+                  const discontinued = isProductDiscontinued(product);
                   return (
                     <React.Fragment key={product._id}>
-                      <tr className={`hover:bg-gray-50 transition-colors duration-150 ${inactive ? 'opacity-60' : ''}`}>
+                      <tr className={`hover:bg-gray-50 transition-colors duration-150 ${discontinued ? 'opacity-60' : ''}`}>
                         <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm text-gray-900">
                           {startIndex + index + 1}
                         </td>
@@ -688,7 +684,7 @@ const Products = () => {
                           ) : (
                             <div className="w-12 h-12 lg:w-16 lg:h-16 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
                               <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                <path stroke Capstone="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                               </svg>
                             </div>
                           )}
@@ -699,13 +695,13 @@ const Products = () => {
                           </div>
                         </td>
                         <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${inactive
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${discontinued
                             ? 'bg-red-100 text-red-800'
                             : product.productStatus === 'active'
                               ? 'bg-green-100 text-green-800'
                               : 'bg-gray-100 text-gray-800'
                             }`}>
-                            {inactive ? 'Inactive' : product.productStatus || 'N/A'}
+                            {discontinued ? 'Discontinued' : product.productStatus || 'N/A'}
                           </span>
                         </td>
                         <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm font-medium">
@@ -714,7 +710,7 @@ const Products = () => {
                               onClick={() => handleShowDetails(product)}
                               className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-all duration-200 border border-blue-200 hover:border-blue-300"
                               aria-label={`View details for product ${product._id}`}
-                              disabled={inactive}
+                              disabled={discontinued}
                               title="View Details"
                             >
                               <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -726,7 +722,7 @@ const Products = () => {
                               onClick={() => handleEditProduct(product)}
                               className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-all duration-200 border border-blue-200 hover:border-blue-300"
                               aria-label={`Edit product ${product._id}`}
-                              disabled={inactive}
+                              disabled={discontinued}
                               title="Edit Product"
                             >
                               <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -736,9 +732,9 @@ const Products = () => {
                             <button
                               onClick={() => deleteProduct(product._id)}
                               className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all duration-200 border border-red-200 hover:border-red-300"
-                              aria-label={`Delete product ${product._id}`}
-                              disabled={inactive}
-                              title="Delete Product"
+                              aria-label={`Discontinue product ${product._id}`}
+                              disabled={discontinued}
+                              title="Discontinue Product"
                             >
                               <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -748,7 +744,7 @@ const Products = () => {
                               onClick={() => handleOpenAddVariantModal(product)}
                               className="p-1.5 text-green-600 hover:text-green-800 hover:bg-green-100 rounded-lg transition-all duration-200 border border-green-200 hover:border-green-300"
                               aria-label={`Add variant for product ${product._id}`}
-                              disabled={inactive}
+                              disabled={discontinued}
                               title="Add Variant"
                             >
                               <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -758,7 +754,6 @@ const Products = () => {
                           </div>
                         </td>
                       </tr>
-
                     </React.Fragment>
                   );
                 })}

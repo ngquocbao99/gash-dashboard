@@ -50,6 +50,7 @@ const Categories = () => {
             const payload = { cat_name: newCategoryForm.cat_name };
             const response = await Api.categories.create(payload);
             setCategories(prev => [...prev, response]);
+            await fetchCategories(); 
             showToast('Category created successfully', 'success');
             setNewCategoryForm({ cat_name: '' });
             setShowCreateModal(false);
@@ -79,6 +80,7 @@ const Categories = () => {
             const payload = { cat_name: editFormData.cat_name };
             const response = await Api.categories.update(editingCategory._id, payload);
             setCategories(prev => prev.map(item => item._id === editingCategory._id ? response : item));
+            await fetchCategories(); 
             showToast('Category updated successfully', 'success');
             setShowEditModal(false);
             setEditingCategory(null);

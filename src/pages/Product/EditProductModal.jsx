@@ -169,7 +169,6 @@ const EditProductModal = ({
         }
     }, [formData.productImageIds, mainImageIndex]);
 
-
     // Handle form submit
     const handleSubmit = useCallback(async (e) => {
         e.preventDefault();
@@ -262,6 +261,8 @@ const EditProductModal = ({
         }))
     ];
 
+    const hasNoVariants = product.productVariantIds?.length === 0;
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -353,11 +354,17 @@ const EditProductModal = ({
                             id="edit-status"
                             value={formData.productStatus}
                             onChange={(e) => handleFieldChange('productStatus', e.target.value)}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${hasNoVariants ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-gray-300'
+                                }`}
+                            disabled={hasNoVariants}
+                            title={hasNoVariants ? 'Status is disabled because the product has no variants' : ''}
                         >
                             <option value="active">Active</option>
                             <option value="inactive">Inactive</option>
                         </select>
+                        {hasNoVariants && (
+                            <p className="mt-1 text-sm text-gray-500">Add a variant to enable status changes</p>
+                        )}
                     </div>
 
                     {/* Image Management */}

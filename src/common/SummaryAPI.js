@@ -51,19 +51,28 @@ const Api = {
 
     // ==== Accounts ====
     accounts: {
-        getProfile: (userId) => axiosClient.get(`/accounts/${userId}`).then(response => response.data),
-        updateProfile: (userId, data) =>
-            axiosClient.put(`/accounts/change-profile/${userId}`, data).then(response => response.data),
-        changePassword: (userId, data) =>
-            axiosClient.put(`/accounts/change-password/${userId}`, data).then(response => response.data),
-        deleteAccount: (userId) => axiosClient.delete(`/accounts/${userId}`).then(response => response.data),
-        softDeleteAccount: (userId) =>
-            axiosClient.delete(`/accounts/soft/${userId}`).then(response => response.data),
-        disableAccount: (userId) =>
-            axiosClient.put(`/accounts/disable/${userId}`).then(response => response.data),
+        // Get all accounts (Admin only)
         getAll: (params = {}) => axiosClient.get("/accounts", { params }).then(response => response.data),
-        createAccount: (data) => axiosClient.post("/accounts", data).then(response => response.data),
-        updateAccount: (userId, data) => axiosClient.put(`/accounts/${userId}`, data).then(response => response.data),
+        // Search accounts (Admin only)
+        search: (params = {}) => axiosClient.get("/accounts/search", { params }).then(response => response.data),
+        // Get single account by ID (Admin or self)
+        getById: (userId) => axiosClient.get(`/accounts/${userId}`).then(response => response.data),
+        // Create a new account (Admin only)
+        create: (data) => axiosClient.post("/accounts", data).then(response => response.data),
+        // Update an account (Admin or self)
+        update: (userId, data) => axiosClient.put(`/accounts/${userId}`, data).then(response => response.data),
+        // Update profile information (Admin or self)
+        updateProfile: (userId, data) => axiosClient.put(`/accounts/change-profile/${userId}`, data).then(response => response.data),
+        // Change password (Admin or self)
+        changePassword: (userId, data) => axiosClient.put(`/accounts/change-password/${userId}`, data).then(response => response.data),
+        // Soft delete an account (Admin or self)
+        softDelete: (userId) => axiosClient.delete(`/accounts/soft/${userId}`).then(response => response.data),
+        // Disable an account (Admin only)
+        disable: (userId) => axiosClient.put(`/accounts/disable/${userId}`).then(response => response.data),
+        // Delete an account permanently (Admin or self)
+        delete: (userId) => axiosClient.delete(`/accounts/${userId}`).then(response => response.data),
+        // Edit staff information (Admin only, for staff accounts)
+        editStaff: (userId, data) => axiosClient.put(`/accounts/edit-staff/${userId}`, data).then(response => response.data),
     },
 
     // ==== Products ====
@@ -157,10 +166,7 @@ const Api = {
         // Legacy methods for backward compatibility
         getAll: (filters = {}) => axiosClient.get('/specifications', { params: filters }),
         getById: (specId) => axiosClient.get(`/specifications/${specId}`),
-        create: (data) => axiosClient.post('/specifications', data),
-        update: (specId, data) => axiosClient.put(`/specifications/${specId}`, data),
-        delete: (specId) => axiosClient.delete(`/specifications/${specId}`),
-        getByProduct: (productId) => axiosClient.get(`/specifications/product/${productId}`),
+        create: (data) => axiosClient.post('/specifications', data).then(response => response.data),
     },
 
     // ==== Categories ====
@@ -246,11 +252,14 @@ const Api = {
 
     // ==== Feedback ====
     feedback: {
-        // Get all feedbacks with new structure
-        getAllFeedbacks: (params = {}) => axiosClient.get("/feedback/get-all-feedbacks", { params }).then(response => response.data),
-        // Get feedback by ID
-        getFeedbackById: (feedbackId) => axiosClient.get(`/feedback/get-feedback-by-id/${feedbackId}`).then(response => response.data),
-
+        // Get all feedbacks with pagination and filters (Admin/Staff only)
+        getAll: (params = {}) => axiosClient.get("/feedback/get-all-feedbacks", { params }).then(response => response.data),
+        // Get feedback by ID (Admin/Staff only)
+        getById: (feedbackId) => axiosClient.get(`/feedback/get-feedback-by-id/${feedbackId}`).then(response => response.data),
+        // Delete feedback (soft delete) (Admin/Staff only)
+        delete: (feedbackId) => axiosClient.delete(`/feedback/delete-feedback/${feedbackId}`).then(response => response.data),
+        // Restore deleted feedback (Admin/Staff only)
+        restore: (feedbackId) => axiosClient.patch(`/feedback/restore-feedback/${feedbackId}`).then(response => response.data),
     },
 
     // ==== Vouchers ====
@@ -333,8 +342,6 @@ const Api = {
         sendMessage: (data) => axiosClient.post("/chat/messages", data),
         getConversations: (params = {}) => axiosClient.get("/chat/conversations", { params }),
     },
-
-
 };
 
 export default Api;
