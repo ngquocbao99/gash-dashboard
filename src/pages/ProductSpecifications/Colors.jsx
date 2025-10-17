@@ -47,18 +47,17 @@ const Colors = () => {
         try {
             const payload = { color_name: newColorForm.content };
             const response = await Api.colors.create(payload);
-            setColors(prev => [...prev, response]);
+            await fetchColors(); // Refetch to ensure latest data
             showToast('Color created successfully', 'success');
             setNewColorForm({ content: '' });
             setShowCreateModal(false);
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to create color');
             showToast(err.response?.data?.message || 'Failed to create color', 'error');
-            console.error('Create color error:', err);
         } finally {
             setLoading(false);
         }
-    }, [newColorForm, showToast]);
+    }, [newColorForm, showToast, fetchColors]);
 
     // Update color
     const updateColor = useCallback(async () => {
@@ -76,7 +75,7 @@ const Colors = () => {
         try {
             const payload = { color_name: editFormData.content };
             const response = await Api.colors.update(editingColor._id, payload);
-            setColors(prev => prev.map(item => item._id === editingColor._id ? response : item));
+            await fetchColors(); // Refetch to ensure latest data
             showToast('Color updated successfully', 'success');
             setShowEditModal(false);
             setEditingColor(null);
@@ -84,11 +83,10 @@ const Colors = () => {
         } catch (err) {
             setError(err.response?.data?.message || err.message || 'Failed to update color');
             showToast(err.response?.data?.message || err.message || 'Failed to update color', 'error');
-            console.error('Update color error:', err);
         } finally {
             setLoading(false);
         }
-    }, [editingColor, editFormData, showToast]);
+    }, [editingColor, editFormData, showToast, fetchColors]);
 
     // Delete color
     const deleteColor = useCallback(async (id) => {

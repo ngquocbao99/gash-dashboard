@@ -45,8 +45,12 @@ const ProductDetailsModal = ({
     }, [onVariantChange]);
 
     const handleEditVariant = useCallback((variant) => {
+        if (variant.status === 'discontinued') {
+            showToast('Cannot edit discontinued variant', 'error');
+            return;
+        }
         setEditingVariant(variant);
-    }, []);
+    }, [showToast]);
 
     const handleCloseCreateModal = useCallback(() => {
         setShowCreateVariant(false);
@@ -125,9 +129,11 @@ const ProductDetailsModal = ({
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                                     <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${product.productStatus === 'active'
-                                            ? 'bg-green-100 text-green-800'
-                                            : 'bg-gray-100 text-gray-800'
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${product.productStatus === 'discontinued'
+                                            ? 'bg-red-100 text-red-800'
+                                            : product.productStatus === 'active'
+                                                ? 'bg-green-100 text-green-800'
+                                                : 'bg-gray-100 text-gray-800'
                                             }`}>
                                             {product.productStatus || 'N/A'}
                                         </span>
