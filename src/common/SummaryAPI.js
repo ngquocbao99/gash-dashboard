@@ -61,7 +61,7 @@ const Api = {
             axiosClient.delete(`/accounts/soft/${userId}`).then(response => response.data),
         disableAccount: (userId) =>
             axiosClient.put(`/accounts/disable/${userId}`).then(response => response.data),
-        getAllAccounts: (params = {}) => axiosClient.get("/accounts", { params }).then(response => response.data),
+        getAll: (params = {}) => axiosClient.get("/accounts", { params }).then(response => response.data),
         createAccount: (data) => axiosClient.post("/accounts", data).then(response => response.data),
         updateAccount: (userId, data) => axiosClient.put(`/accounts/${userId}`, data).then(response => response.data),
     },
@@ -269,6 +269,7 @@ const Api = {
         // ==== Order Statistics ====
         // Get order statistics
         getOrders: () => axiosClient.get("/statistics/orders").then(response => response.data),
+        getOrderStatistics: () => axiosClient.get("/new-statistics/order-statistics").then(response => response.data),
     },
 
     // ==== Bills ====
