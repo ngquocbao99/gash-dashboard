@@ -8,7 +8,8 @@ const ProductVariantList = ({
     variants,
     onVariantUpdated,
     onVariantDeleted,
-    onEditVariant
+    onEditVariant,
+    viewOnly = false
 }) => {
     const { showToast } = useContext(ToastContext);
     const [loading, setLoading] = useState(false);
@@ -80,7 +81,9 @@ const ProductVariantList = ({
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Stock</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Image</th>
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                            {!viewOnly && (
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                            )}
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -127,25 +130,27 @@ const ProductVariantList = ({
                                         {variant.variantStatus || 'N/A'}
                                     </span>
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                    <div className="flex items-center space-x-2">
-                                        <button
-                                            onClick={() => onEditVariant && onEditVariant(variant)}
-                                            className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-all duration-200 border border-blue-200 hover:border-blue-300"
-                                            title="Edit Variant"
-                                        >
-                                            <FaEdit className="w-3 h-3" />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteVariant(variant._id)}
-                                            className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all duration-200 border border-red-200 hover:border-red-300"
-                                            title="Delete Variant"
-                                            disabled={loading}
-                                        >
-                                            <FaTrash className="w-3 h-3" />
-                                        </button>
-                                    </div>
-                                </td>
+                                {!viewOnly && (
+                                    <td className="px-4 py-3 text-sm text-gray-900">
+                                        <div className="flex items-center space-x-2">
+                                            <button
+                                                onClick={() => onEditVariant && onEditVariant(variant)}
+                                                className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-all duration-200 border border-blue-200 hover:border-blue-300"
+                                                title="Edit Variant"
+                                            >
+                                                <FaEdit className="w-3 h-3" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteVariant(variant._id)}
+                                                className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all duration-200 border border-red-200 hover:border-red-300"
+                                                title="Delete Variant"
+                                                disabled={loading}
+                                            >
+                                                <FaTrash className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    </td>
+                                )}
                             </tr>
                         ))}
                     </tbody>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import { ToastContext } from '../../context/ToastContext';
 import '../../styles/Products.css';
@@ -16,6 +16,7 @@ import axiosClient from '../../common/axiosClient';
 const Products = () => {
   const { user, isAuthLoading } = useContext(AuthContext);
   const { showToast } = useContext(ToastContext);
+  const location = useLocation();
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -25,6 +26,7 @@ const Products = () => {
   const [productVariants, setProductVariants] = useState({});
   const [editingProductId, setEditingProductId] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [isViewMode, setIsViewMode] = useState(false);
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -200,27 +202,36 @@ const Products = () => {
 
   // Fetch variants for a specific product
   const fetchProductVariants = useCallback(async (productId) => {
+    console.log(`Fetching variants for product ${productId}...`);
     try {
       const response = await Api.newVariants.getByProduct(productId);
       console.log(`Fetched variants for product ${productId}:`, response);
 
       // Handle different response structures
       let variantsData = [];
-      if (response.data) {
-        if (Array.isArray(response.data)) {
-          variantsData = response.data;
-        } else if (response.data.data && Array.isArray(response.data.data)) {
-          variantsData = response.data.data;
-        } else if (response.data.success && response.data.data && Array.isArray(response.data.data)) {
-          variantsData = response.data.data;
+      if (response) {
+        if (Array.isArray(response)) {
+          variantsData = response;
+        } else if (response.data) {
+          if (Array.isArray(response.data)) {
+            variantsData = response.data;
+          } else if (response.data.data && Array.isArray(response.data.data)) {
+            variantsData = response.data.data;
+          } else if (response.data.success && response.data.data && Array.isArray(response.data.data)) {
+            variantsData = response.data.data;
+          }
         }
       }
 
       console.log(`Processed variants data for product ${productId}:`, variantsData);
-      setProductVariants(prev => ({
-        ...prev,
-        [productId]: variantsData
-      }));
+      setProductVariants(prev => {
+        const newState = {
+          ...prev,
+          [productId]: variantsData
+        };
+        console.log('Updated productVariants state:', newState);
+        return newState;
+      });
     } catch (err) {
       console.error('Fetch variants error:', err);
       setProductVariants(prev => ({
@@ -375,6 +386,27 @@ const Products = () => {
     }
   }, [user, isAuthLoading, navigate, fetchData]);
 
+  // Handle URL query parameter for productId
+  useEffect(() => {
+    if (products.length > 0) {
+      const urlParams = new URLSearchParams(location.search);
+      const productId = urlParams.get('productId');
+      if (productId) {
+        const product = products.find(p => p._id === productId);
+        if (product) {
+          setSelectedProductForDetails(product);
+          setShowDetailsModal(true);
+          setIsViewMode(true);
+          // Always fetch variants when opening from URL
+          fetchProductVariants(product._id);
+          // Clear the URL parameter
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, '', newUrl);
+        }
+      }
+    }
+  }, [products, location.search, fetchProductVariants]);
+
   // Show product details in popup
   const handleShowDetails = useCallback((product) => {
     setSelectedProductForDetails(product);
@@ -389,6 +421,7 @@ const Products = () => {
   const handleCloseDetailsModal = useCallback(() => {
     setShowDetailsModal(false);
     setSelectedProductForDetails(null);
+    setIsViewMode(false);
   }, []);
 
   // Start editing product
@@ -844,6 +877,7 @@ const Products = () => {
           setShowDetailsModal(false);
           setShowEditModal(true);
         }}
+        viewOnly={isViewMode}
       />
 
       {/* Create Product Modal */}

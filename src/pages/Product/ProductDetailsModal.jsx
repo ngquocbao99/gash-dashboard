@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useContext } from 'react';
+import React, { useState, useCallback, useContext, useEffect } from 'react';
 import { FaPlus, FaEdit } from 'react-icons/fa';
 import { ToastContext } from '../../context/ToastContext';
 import CreateVariantModal from '../ProductVariant/CreateVariantModal';
@@ -15,13 +15,28 @@ const ProductDetailsModal = ({
     colors,
     sizes,
     onVariantChange,
-    onEditProduct
+    onEditProduct,
+    viewOnly = false
 }) => {
     const { showToast } = useContext(ToastContext);
     const [editingVariant, setEditingVariant] = useState(null);
     const [showCreateVariant, setShowCreateVariant] = useState(false);
     const [showImageModal, setShowImageModal] = useState(false);
     const [selectedImage, setSelectedImage] = useState('');
+
+    // Debug logging
+    console.log('ProductDetailsModal - product:', product);
+    console.log('ProductDetailsModal - productVariants:', productVariants);
+    console.log('ProductDetailsModal - product._id:', product?._id);
+    console.log('ProductDetailsModal - variants for product:', productVariants[product?._id]);
+
+    // Fetch variants when modal opens and product is available
+    useEffect(() => {
+        if (isOpen && product?._id && onVariantChange) {
+            console.log('ProductDetailsModal - requesting variants fetch for product:', product._id);
+            onVariantChange();
+        }
+    }, [isOpen, product?._id, onVariantChange]);
 
     // Handle variant operations
     const handleVariantCreated = useCallback(() => {
@@ -86,16 +101,20 @@ const ProductDetailsModal = ({
             <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
                 <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-6xl max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-100 animate-in fade-in-0 zoom-in-95" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                        <h2 className="text-xl font-bold text-gray-900">Product Details</h2>
+                        <h2 className="text-xl font-bold text-gray-900">
+                            {viewOnly ? 'Product Details' : 'Product Details'}
+                        </h2>
                         <div className="flex items-center space-x-2">
-                            <button
-                                onClick={handleEditProduct}
-                                className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm"
-                                title="Edit Product"
-                            >
-                                <FaEdit className="w-4 h-4" />
-                                <span>Edit Product</span>
-                            </button>
+                            {!viewOnly && (
+                                <button
+                                    onClick={handleEditProduct}
+                                    className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm"
+                                    title="Edit Product"
+                                >
+                                    <FaEdit className="w-4 h-4" />
+                                    <span>Edit Product</span>
+                                </button>
+                            )}
                             <button
                                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors duration-200"
                                 onClick={onClose}
@@ -191,25 +210,40 @@ const ProductDetailsModal = ({
                         <div>
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-lg font-semibold text-gray-900">Product Variants</h3>
-                                <button
-                                    onClick={() => setShowCreateVariant(true)}
-                                    className="flex items-center space-x-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 text-sm"
-                                >
-                                    <FaPlus className="w-4 h-4" />
-                                    <span>Add Variant</span>
-                                </button>
+                                {!viewOnly && (
+                                    <button
+                                        onClick={() => setShowCreateVariant(true)}
+                                        className="flex items-center space-x-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 text-sm"
+                                    >
+                                        <FaPlus className="w-4 h-4" />
+                                        <span>Add Variant</span>
+                                    </button>
+                                )}
                             </div>
-                            {product?._id && productVariants[product._id] ? (
+                            {product?._id && productVariants[product._id] && productVariants[product._id].length > 0 ? (
                                 <ProductVariantList
                                     variants={productVariants[product._id]}
                                     onVariantUpdated={handleVariantUpdated}
                                     onVariantDeleted={handleVariantDeleted}
                                     onEditVariant={handleEditVariant}
+                                    viewOnly={viewOnly}
                                 />
+                            ) : product?._id && productVariants[product._id] && productVariants[product._id].length === 0 ? (
+                                <div className="text-center py-8 bg-gray-50 border border-gray-200 rounded-lg">
+                                    <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                                    </svg>
+                                    <p className="text-gray-500">No variants available for this product</p>
+                                </div>
                             ) : (
                                 <div className="text-center py-8 bg-gray-50 border border-gray-200 rounded-lg">
                                     <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
                                     <p className="text-gray-500">Loading variants...</p>
+                                    <div className="mt-4 text-xs text-gray-400">
+                                        <p>Product ID: {product?._id}</p>
+                                        <p>Variants loaded: {productVariants[product?._id] ? 'Yes' : 'No'}</p>
+                                        <p>Variants count: {productVariants[product?._id]?.length || 0}</p>
+                                    </div>
                                 </div>
                             )}
                         </div>

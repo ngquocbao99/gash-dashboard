@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useContext, useCallback } from "react";
 import { ToastContext } from "../../context/ToastContext";
 import { AuthContext } from "../../context/AuthContext";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import SummaryAPI from "../../common/SummaryAPI";
 import AccountModal from "./AccountModal";
 
@@ -9,6 +9,7 @@ export default function Accounts() {
     const { showToast } = useContext(ToastContext);
     const { user, isAuthLoading } = useContext(AuthContext);
     const navigate = useNavigate();
+    const location = useLocation();
     const [accounts, setAccounts] = useState([]);
     const [statusFilter, setStatusFilter] = useState("all");
     const [roleFilter, setRoleFilter] = useState("all");
@@ -21,6 +22,7 @@ export default function Accounts() {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [accountToDelete, setAccountToDelete] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
+    const [isViewMode, setIsViewMode] = useState(false);
     const accountsPerPage = 20;
 
     // Fetch accounts
@@ -50,6 +52,26 @@ export default function Accounts() {
         }
     }, [showToast, navigate]);
 
+    // Handle accountId from URL query parameter
+    useEffect(() => {
+        const urlParams = new URLSearchParams(location.search);
+        const accountId = urlParams.get('accountId');
+
+        if (accountId && accounts.length > 0) {
+            const targetAccount = accounts.find(account =>
+                account._id === accountId || account.id === accountId
+            );
+
+            if (targetAccount) {
+                setEditingAccount(targetAccount);
+                setIsViewMode(true);
+                setShowModal(true);
+                // Clear the URL parameter after opening modal
+                navigate('/accounts', { replace: true });
+            }
+        }
+    }, [accounts, location.search, navigate]);
+
     useEffect(() => {
         if (isAuthLoading) return;
         if (!user && !localStorage.getItem('token')) {
@@ -60,12 +82,13 @@ export default function Accounts() {
             showToast("Access denied. Only admin can view accounts", "error");
             navigate('/dashboard', { replace: true });
         }
-    }, [user, isAuthLoading, navigate, fetchAccounts]);
+    }, [user, isAuthLoading, navigate, fetchAccounts, showToast]);
 
     // Edit account
     const handleEdit = (account) => {
         if (account.is_deleted) return;
         setEditingAccount(account);
+        setIsViewMode(false);
         setShowModal(true);
     };
 
@@ -73,11 +96,20 @@ export default function Accounts() {
     const closeModal = () => {
         setShowModal(false);
         setEditingAccount(null);
+        setIsViewMode(false);
     };
 
     // Handle successful operation
-    const handleSuccess = () => {
-        fetchAccounts();
+    const handleSuccess = (account = null, action = 'refresh') => {
+        if (action === 'edit' && account) {
+            // Switch to edit mode
+            setEditingAccount(account);
+            setIsViewMode(false);
+            setShowModal(true);
+        } else {
+            // Refresh accounts list
+            fetchAccounts();
+        }
     };
 
     // Toggle filters
@@ -200,12 +232,13 @@ export default function Accounts() {
 
     return (
         <div className="min-h-screen bg-gray-50 p-2 sm:p-3 lg:p-4 xl:p-6">
-            {/* Account Modal (Edit only) */}
+            {/* Account Modal */}
             <AccountModal
                 isOpen={showModal}
                 account={editingAccount}
                 onClose={closeModal}
                 onSuccess={handleSuccess}
+                viewOnly={isViewMode}
             />
 
             {/* Main Account Management UI */}
