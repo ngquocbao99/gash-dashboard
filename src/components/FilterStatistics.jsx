@@ -42,7 +42,19 @@ const Filter = ({
                 <div className="flex items-center justify-center w-8 h-8 bg-white/20 rounded-xl group-hover:bg-white/30 transition-colors duration-300">
                     <FaFilter className="text-sm" />
                 </div>
-                <span className="font-semibold text-lg">Show {defaultItemsToShow} {itemTypeCapitalized}</span>
+                <span className="font-semibold text-lg">
+                    {showAllItems
+                        ? `Show All ${data.length} ${itemType}`
+                        : (() => {
+                            const currentOption = defaultOptions.find(opt =>
+                                (typeof opt === 'object' ? opt.value : opt) === defaultItemsToShow
+                            );
+                            return currentOption && typeof currentOption === 'object'
+                                ? currentOption.label
+                                : `Show ${defaultItemsToShow} ${itemTypeCapitalized}`;
+                        })()
+                    }
+                </span>
                 <FaChevronDown className="text-sm" />
             </button>
 
@@ -64,22 +76,31 @@ const Filter = ({
 
                     {/* Content */}
                     <div className="p-6">
-                        <div className="grid grid-cols-2 gap-3">
-                            {defaultOptions.map((option) => (
-                                <button
-                                    key={option}
-                                    onClick={() => onChangeDefaultItems(option)}
-                                    className={`p-4 rounded-xl border-2 transition-all duration-300 ${defaultItemsToShow === option
-                                        ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-md'
-                                        : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50'
-                                        }`}
-                                >
-                                    <div className="text-center">
-                                        <div className="text-2xl font-bold">{option}</div>
-                                        <div className="text-sm font-medium">{itemTypeCapitalized}</div>
-                                    </div>
-                                </button>
-                            ))}
+                        <div className="grid grid-cols-1 gap-3">
+                            {defaultOptions.map((option) => {
+                                // Handle both old format (number) and new format (object with value and label)
+                                const optionValue = typeof option === 'object' ? option.value : option;
+                                const optionLabel = typeof option === 'object' ? option.label : `${option} ${itemTypeCapitalized}`;
+                                const isSelected = defaultItemsToShow === optionValue;
+
+                                return (
+                                    <button
+                                        key={optionValue}
+                                        onClick={() => onChangeDefaultItems(optionValue)}
+                                        className={`p-4 rounded-xl border-2 transition-all duration-300 ${isSelected
+                                            ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-md'
+                                            : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50'
+                                            }`}
+                                    >
+                                        <div className="text-left">
+                                            <div className="text-lg font-bold text-gray-800">{optionLabel}</div>
+                                            <div className="text-sm text-gray-500 mt-1">
+                                                {typeof option === 'object' ? `${optionValue} tuần` : `${optionValue} ${itemType}`}
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            })}
                         </div>
 
                         {/* Show All Option */}

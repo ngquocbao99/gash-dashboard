@@ -14,7 +14,6 @@ import {
 import { FaChartLine, FaArrowUp, FaTrophy } from 'react-icons/fa';
 import SummaryAPI from "../../common/SummaryAPI";
 import Loading from "../../components/Loading";
-import Filter from "../../components/FilterStatistics";
 
 // Register Chart.js components
 ChartJS.register(
@@ -380,19 +379,12 @@ const RevenueByYear = ({ user }) => {
                             <h3 className="text-3xl font-bold text-gray-900">Revenue by Year</h3>
                             <p className="text-gray-500 text-lg">Yearly revenue performance overview</p>
                         </div>
-                        <Filter
-                            data={revenueByYear}
-                            filteredData={filteredRevenueByYear}
-                            showFilter={showFilter}
-                            defaultItemsToShow={defaultYearsToShow}
-                            showAllItems={showAllYears}
-                            defaultOptions={[2, 3, 4, 5, 6, 10]}
-                            itemType="years"
-                            itemTypeCapitalized="Years"
-                            onToggleFilter={() => setShowFilter(!showFilter)}
-                            onChangeDefaultItems={handleChangeDefaultYears}
-                            onShowAllItems={handleShowAllYears}
-                        />
+                        <button
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
+                            onClick={() => setShowFilter(!showFilter)}
+                        >
+                            {showFilter ? 'Hide Filters' : 'Show Filters'}
+                        </button>
                     </div>
 
                 </div>

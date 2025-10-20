@@ -243,33 +243,13 @@ const Api = {
 
     // ==== Statistics ====
     statistics: {
-        // Get dashboard statistics
-        getDashboard: (params = {}) => axiosClient.get("/statistics/dashboard", { params }),
-        // Get sales statistics
-        getSales: (params = {}) => axiosClient.get("/statistics/sales", { params }),
-        // Get product statistics
-        getProducts: (params = {}) => axiosClient.get("/statistics/products", { params }),
-        // Get user statistics
-        getUsers: (params = {}) => axiosClient.get("/statistics/users", { params }),
-
         // ==== Revenue Statistics ====
-        // Get total revenue statistics
-        getRevenue: () => axiosClient.get("/statistics/revenue").then(response => response.data),
-        // Get revenue by week (new API structure)
-        getRevenueByWeek: () => axiosClient.get("/statistics/revenue/revenue-by-week").then(response => response.data),
+        // Get revenue by week
+        getRevenueByWeek: (weeks = 52) => axiosClient.get(`/statistics/revenue/revenue-by-week?weeks=${weeks}`).then(response => response.data),
         // Get revenue by month
         getRevenueByMonth: () => axiosClient.get("/statistics/revenue/revenue-by-month").then(response => response.data),
         // Get revenue by year
         getRevenueByYear: () => axiosClient.get("/statistics/revenue/revenue-by-year").then(response => response.data),
-
-        // ==== Customer Statistics ====
-        // Get customer statistics
-        getCustomers: () => axiosClient.get("/statistics/customers").then(response => response.data),
-
-        // ==== Order Statistics ====
-        // Get order statistics
-        getOrders: () => axiosClient.get("/statistics/orders").then(response => response.data),
-        getOrderStatistics: () => axiosClient.get("/new-statistics/order-statistics").then(response => response.data),
     },
 
     // ==== Bills ====

@@ -35,11 +35,7 @@ ChartJS.register(
 
 const Statistics = () => {
   const { user, isAuthLoading } = useContext(AuthContext);
-  const [customerStats, setCustomerStats] = useState(null);
-  const [revenueStats, setRevenueStats] = useState(null);
-  const [orderStats, setOrderStats] = useState(null);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [activeTab, setActiveTab] = useState('week');
   const navigate = useNavigate();
@@ -55,58 +51,18 @@ const Statistics = () => {
   }, [toast]);
 
 
-  // Fetch all statistics
-  const fetchStatistics = useCallback(async () => {
-    if (!user?._id) {
-      setError("User not authenticated");
-      return;
-    }
-    setLoading(true);
-    setError("");
-
-    try {
-      console.log("Fetching statistics using SummaryAPI...");
-
-      // Fetch all statistics in parallel using SummaryAPI with individual error handling
-      const [
-        customerResponse,
-        revenueResponse,
-        orderResponse
-      ] = await Promise.allSettled([
-        SummaryAPI.statistics.getCustomers(),
-        SummaryAPI.statistics.getRevenue(),
-        SummaryAPI.statistics.getOrders()
-      ]);
-
-      // Handle responses with error checking
-      setCustomerStats(customerResponse.status === 'fulfilled' ? customerResponse.value : null);
-      setRevenueStats(revenueResponse.status === 'fulfilled' ? revenueResponse.value : null);
-      setOrderStats(orderResponse.status === 'fulfilled' ? orderResponse.value : null);
-
-    } catch (err) {
-      setError(err.message || "Failed to load statistics");
-      console.error("Fetch statistics error:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
   // Handle authentication state
   useEffect(() => {
     if (isAuthLoading) return;
     if (!user || !localStorage.getItem("token")) {
       navigate("/login", { replace: true });
     } else if (user && (user.role === 'admin' || user.role === 'manager')) {
-      fetchStatistics();
+      // No need to fetch statistics - each tab handles its own data
     } else {
       setError("You do not have permission to view statistics");
     }
-  }, [user, isAuthLoading, navigate, fetchStatistics]);
+  }, [user, isAuthLoading, navigate]);
 
-  // Retry fetching statistics
-  const handleRetry = useCallback(() => {
-    fetchStatistics();
-  }, [fetchStatistics]);
 
 
   // Format currency
@@ -115,10 +71,6 @@ const Statistics = () => {
     return new Intl.NumberFormat('vi-VN').format(value) + ' ₫';
   };
 
-  // Helper: Get total completed (sold) orders
-  const totalCompletedOrders = orderStats && Array.isArray(orderStats.statusCounts)
-    ? (orderStats.statusCounts.find(s => s._id === 'delivered')?.count || 0)
-    : 0;
 
 
 
@@ -135,7 +87,7 @@ const Statistics = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
+    <div className="min-h-screen bg-gray-100 p-4">
       {/* Toast Notification */}
       {toast && (
         <div
@@ -152,45 +104,45 @@ const Statistics = () => {
       )}
 
       {/* Header */}
-      <div className="mb-8">
-        <div className="bg-blue-600 rounded-2xl p-8 text-white">
-          <h1 className="text-4xl font-bold mb-3">Statistics Dashboard</h1>
-          <p className="text-blue-100 text-lg">Comprehensive overview of your business performance</p>
+      <div className="mb-6">
+        <div className="bg-blue-600 rounded-xl p-6 text-white">
+          <h1 className="text-3xl font-bold mb-2">Statistics Dashboard</h1>
+          <p className="text-blue-100 text-base">Comprehensive overview of your business performance</p>
         </div>
       </div>
 
       {/* Revenue Analytics Tabs */}
-      {!loading && !error && (
-        <div className="space-y-6">
+      {!error && (
+        <div className="space-y-4">
           {/* Tab Navigation */}
-          <div className="bg-white rounded-2xl p-2 shadow-lg border border-gray-200">
+          <div className="bg-white rounded-xl p-2 shadow-lg border border-gray-200">
             <div className="flex space-x-2">
               <button
                 onClick={() => setActiveTab('week')}
-                className={`flex-1 px-4 py-4 rounded-xl font-semibold text-lg transition-all duration-300 ${activeTab === 'week'
+                className={`flex-1 px-3 py-3 rounded-lg font-semibold text-base transition-all duration-300 ${activeTab === 'week'
                   ? 'bg-blue-600 text-white shadow-lg transform scale-105'
                   : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                   }`}
               >
-                📊 Week
+                Week
               </button>
               <button
                 onClick={() => setActiveTab('month')}
-                className={`flex-1 px-4 py-4 rounded-xl font-semibold text-lg transition-all duration-300 ${activeTab === 'month'
+                className={`flex-1 px-3 py-3 rounded-lg font-semibold text-base transition-all duration-300 ${activeTab === 'month'
                   ? 'bg-blue-600 text-white shadow-lg transform scale-105'
                   : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                   }`}
               >
-                📈 Month
+                Month
               </button>
               <button
                 onClick={() => setActiveTab('year')}
-                className={`flex-1 px-4 py-4 rounded-xl font-semibold text-lg transition-all duration-300 ${activeTab === 'year'
+                className={`flex-1 px-3 py-3 rounded-lg font-semibold text-base transition-all duration-300 ${activeTab === 'year'
                   ? 'bg-blue-600 text-white shadow-lg transform scale-105'
                   : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                   }`}
               >
-                📅 Year
+                Year
               </button>
             </div>
           </div>
@@ -206,36 +158,19 @@ const Statistics = () => {
 
       {/* Error Display */}
       {error && (
-        <div className="bg-gradient-to-r from-red-50 to-red-100 border-2 border-red-200 rounded-2xl p-8 shadow-lg" role="alert" aria-live="true">
-          <div className="flex items-center space-x-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-red-400 to-red-600 rounded-2xl flex items-center justify-center shadow-lg">
-              <span className="text-white text-2xl">⚠</span>
+        <div className="bg-gradient-to-r from-red-50 to-red-100 border-2 border-red-200 rounded-xl p-6 shadow-lg" role="alert" aria-live="true">
+          <div className="flex items-center space-x-3">
+            <div className="w-12 h-12 bg-gradient-to-br from-red-400 to-red-600 rounded-xl flex items-center justify-center shadow-lg">
+              <span className="text-white text-xl">⚠</span>
             </div>
             <div className="flex-1">
-              <h3 className="text-xl font-bold text-red-800 mb-2">Error Loading Statistics</h3>
+              <h3 className="text-lg font-bold text-red-800 mb-1">Access Denied</h3>
               <p className="text-red-700 font-medium">{error}</p>
             </div>
-            <button
-              className="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
-              onClick={handleRetry}
-              aria-label="Retry loading statistics"
-            >
-              🔄 Retry
-            </button>
           </div>
         </div>
       )}
 
-      {/* Loading State */}
-      {loading && (
-        <Loading
-          type="page"
-          size="large"
-          message="Loading Statistics"
-          subMessage="Please wait while we fetch your data..."
-          className="min-h-96"
-        />
-      )}
 
     </div>
   );
