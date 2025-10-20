@@ -65,7 +65,7 @@ const Profile = () => {
     if (!user || !user._id) return;
     setLoading(true);
     try {
-      const response = await Api.accounts.getProfile(user._id);
+      const response = await Api.accounts.getById(user._id);
       setProfile(response);
       setIsDeleted(response.is_deleted === true);
       setFormData({
