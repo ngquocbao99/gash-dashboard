@@ -247,7 +247,7 @@ const Api = {
         // Get revenue by week
         getRevenueByWeek: (weeks = 52) => axiosClient.get(`/statistics/revenue/revenue-by-week?weeks=${weeks}`).then(response => response.data),
         // Get revenue by month
-        getRevenueByMonth: () => axiosClient.get("/statistics/revenue/revenue-by-month").then(response => response.data),
+        getRevenueByMonth: (months = 12) => axiosClient.get(`/statistics/revenue/revenue-by-month?months=${months}`).then(response => response.data),
         // Get revenue by year
         getRevenueByYear: () => axiosClient.get("/statistics/revenue/revenue-by-year").then(response => response.data),
     },
