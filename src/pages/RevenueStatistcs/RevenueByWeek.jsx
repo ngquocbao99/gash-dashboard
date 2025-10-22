@@ -11,7 +11,7 @@ import {
     Legend,
     Filler
 } from 'chart.js';
-import { FaChartLine, FaArrowUp, FaTrophy } from 'react-icons/fa';
+import { FaChartLine, FaArrowUp, FaArrowDown, FaTrophy } from 'react-icons/fa';
 import SummaryAPI from "../../common/SummaryAPI";
 
 // Register Chart.js components
@@ -558,11 +558,11 @@ const RevenueByWeek = ({ user }) => {
     return (
         <div className="space-y-6">
             {/* Header Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6">
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 mb-4">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 lg:gap-3">
                     <div className="flex-1 min-w-0">
-                        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-2">Revenue by Week</h1>
-                        <p className="text-gray-600 text-sm sm:text-base lg:text-lg">Weekly revenue performance overview</p>
+                        <h1 className="text-lg font-semibold text-gray-900 mb-1">Revenue by Week</h1>
+                        <p className="text-gray-600 text-sm">Weekly revenue performance overview</p>
                     </div>
                     <button
                         className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-xs lg:text-sm"
@@ -625,59 +625,107 @@ const RevenueByWeek = ({ user }) => {
             )}
 
             {/* Summary Cards */}
-            {filteredRevenueByWeek.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    {/* Total Revenue */}
-                    <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300">
-                        <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
-                                <FaArrowUp className="text-xl text-white" />
+            {weekSummary && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+                    {/* Current Week Revenue */}
+                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                        <div className="flex flex-col items-center text-center space-y-2">
+                            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                                <FaChartLine className="text-sm text-white" />
                             </div>
                             <div>
-                                <p className="text-gray-600 text-xs font-medium">
-                                    Total Revenue ({filteredRevenueByWeek.length} weeks)
-                                </p>
-                                <p className="text-2xl font-bold text-gray-800">
-                                    {summaryData.totalRevenueFormatted}
+                                <p className="text-gray-600 text-xs font-medium mb-1">Current Week</p>
+                                <p className="text-sm font-bold text-gray-800 truncate">
+                                    {weekSummary.currentWeekRevenueFormatted || '0'}
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    {/* Change vs Previous Period */}
-                    <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300">
-                        <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
-                                <FaArrowUp className="text-xl text-white" />
+                    {/* vs Last Week */}
+                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                        <div className="flex flex-col items-center text-center space-y-2">
+                            <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                                <FaArrowUp className="text-sm text-white" />
                             </div>
                             <div>
-                                <p className="text-gray-600 text-xs font-medium">vs Previous Period</p>
-                                <p className={`text-2xl font-bold ${summaryData.changeVsPrevious?.startsWith('+')
+                                <p className="text-gray-600 text-xs font-medium mb-1">vs Last Week</p>
+                                <p className={`text-sm font-bold ${weekSummary.changeVsLastWeek?.startsWith('+')
                                     ? 'text-green-600'
-                                    : summaryData.changeVsPrevious?.startsWith('-')
+                                    : weekSummary.changeVsLastWeek?.startsWith('-')
                                         ? 'text-red-600'
                                         : 'text-gray-800'
-                                    }`}>
-                                    {summaryData.changeVsPrevious}
+                                    } truncate`}>
+                                    {weekSummary.changeVsLastWeek || '-'}
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    {/* Best Week */}
-                    <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300">
-                        <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 bg-red-500 rounded-xl flex items-center justify-center">
-                                <FaTrophy className="text-xl text-white" />
+                    {/* Average Weekly Revenue */}
+                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                        <div className="flex flex-col items-center text-center space-y-2">
+                            <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                                <FaChartLine className="text-sm text-white" />
                             </div>
                             <div>
-                                <p className="text-gray-600 text-xs font-medium">Best Week</p>
-                                <p className="text-lg font-bold text-gray-800">
-                                    {summaryData.bestWeek}
+                                <p className="text-gray-600 text-xs font-medium mb-1">Average Weekly</p>
+                                <p className="text-sm font-bold text-gray-800 truncate">
+                                    {weekSummary.averageWeeklyRevenueFormatted || '0'}
                                 </p>
                             </div>
                         </div>
                     </div>
+
+                    {/* Trend Status */}
+                    {weekSummary.trend && (
+                        <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                            <div className="flex flex-col items-center text-center space-y-1">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${weekSummary.trend.status === 'increasing' ? 'bg-green-500' :
+                                    weekSummary.trend.status === 'decreasing' ? 'bg-red-500' : 'bg-gray-500'
+                                    }`}>
+                                    {weekSummary.trend.status === 'increasing' ? (
+                                        <FaArrowUp className="text-sm text-white" />
+                                    ) : weekSummary.trend.status === 'decreasing' ? (
+                                        <FaArrowDown className="text-sm text-white" />
+                                    ) : (
+                                        <FaChartLine className="text-sm text-white" />
+                                    )}
+                                </div>
+                                <div>
+                                    <p className="text-gray-600 text-xs font-medium mb-1">Trend</p>
+                                    <p className="text-xs font-bold text-gray-800 truncate">
+                                        {weekSummary.trend.description}
+                                    </p>
+                                    <p className={`text-xs ${weekSummary.trend.changePercentage?.startsWith('+')
+                                        ? 'text-green-600'
+                                        : weekSummary.trend.changePercentage?.startsWith('-')
+                                            ? 'text-red-600'
+                                            : 'text-gray-500'
+                                        } truncate`}>
+                                        {weekSummary.trend.changePercentage || '-'} vs {weekSummary.trend.comparedTo || 'previous period'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Best Week */}
+                    {weekSummary.bestWeek && (
+                        <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                            <div className="flex flex-col items-center text-center space-y-2">
+                                <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                                    <FaTrophy className="text-sm text-white" />
+                                </div>
+                                <div>
+                                    <p className="text-gray-600 text-xs font-medium mb-1">Best Week</p>
+                                    <p className="text-xs font-bold text-gray-800 truncate">
+                                        {weekSummary.bestWeek}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 

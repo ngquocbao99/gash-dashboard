@@ -11,7 +11,7 @@ import {
     Legend,
     Filler
 } from 'chart.js';
-import { FaChartLine, FaArrowUp, FaTrophy } from 'react-icons/fa';
+import { FaChartLine, FaArrowUp, FaArrowDown, FaTrophy } from 'react-icons/fa';
 import SummaryAPI from "../../common/SummaryAPI";
 import Loading from "../../components/Loading";
 
@@ -44,12 +44,8 @@ const RevenueByYear = ({ user }) => {
         setError("");
 
         try {
-            console.log("Fetching revenue by year data using SummaryAPI...");
-
             // Fetch revenue by year using SummaryAPI
             const yearResponse = await SummaryAPI.statistics.getRevenueByYear(10);
-
-            console.log("Year response:", yearResponse);
 
             // Handle API response structure for revenue by year
             if (yearResponse && yearResponse.success) {
@@ -58,35 +54,27 @@ const RevenueByYear = ({ user }) => {
                 let summary = null;
 
                 if (yearData?.data?.yearlyData) {
-                    console.log("Using nested data structure");
                     yearlyData = Array.isArray(yearData.data.yearlyData) ? yearData.data.yearlyData : [];
                     summary = yearData.data.summary || null;
                 } else if (yearData?.yearlyData) {
-                    console.log("Using direct data structure");
                     yearlyData = Array.isArray(yearData.yearlyData) ? yearData.yearlyData : [];
                     summary = yearData.summary || null;
                 } else if (Array.isArray(yearData)) {
-                    console.log("Using array structure");
                     yearlyData = yearData;
                     summary = null;
                 } else {
-                    console.log("No valid data found");
                     yearlyData = [];
                     summary = null;
                 }
 
-                console.log(`API returned ${yearlyData.length} years of data`);
-
                 setRevenueByYear(yearlyData);
                 setYearSummary(summary);
             } else {
-                console.log("Year response failed or not successful");
                 setRevenueByYear([]);
                 setYearSummary(null);
             }
         } catch (err) {
             setError(err.message || "Failed to load revenue by year statistics");
-            console.error("Fetch revenue by year error:", err);
         } finally {
             setLoading(false);
         }
@@ -401,67 +389,119 @@ const RevenueByYear = ({ user }) => {
     return (
         <div className="space-y-6">
             {/* Header Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6">
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 mb-4">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 lg:gap-3">
                     <div className="flex-1 min-w-0">
-                        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-2">Revenue by Year</h1>
-                        <p className="text-gray-600 text-sm sm:text-base lg:text-lg">Yearly revenue performance overview</p>
+                        <h1 className="text-lg font-semibold text-gray-900 mb-1">Revenue by Year</h1>
+                        <p className="text-gray-600 text-sm">Yearly revenue performance overview</p>
                     </div>
                 </div>
             </div>
 
             {/* Summary Cards */}
             {yearSummary && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    {/* Total Revenue This Year */}
-                    <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300">
-                        <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
-                                <FaArrowUp className="text-xl text-white" />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+                    {/* Current Year Revenue */}
+                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                        <div className="flex flex-col items-center text-center space-y-2">
+                            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                                <FaChartLine className="text-sm text-white" />
                             </div>
                             <div>
-                                <p className="text-gray-600 text-xs font-medium">This Year Revenue</p>
-                                <p className="text-2xl font-bold text-gray-800">
-                                    {yearSummary.totalRevenueThisYearFormatted ? yearSummary.totalRevenueThisYearFormatted + ' ₫' : formatCurrency(yearSummary.totalRevenueThisYear)}
+                                <p className="text-gray-600 text-xs font-medium mb-1">Current Year</p>
+                                <p className="text-sm font-bold text-gray-800 truncate">
+                                    {yearSummary.currentYearRevenueFormatted || '0'}
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    {/* Change vs Last Year */}
-                    <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300">
-                        <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
-                                <FaArrowUp className="text-xl text-white" />
+                    {/* vs Last Year */}
+                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                        <div className="flex flex-col items-center text-center space-y-2">
+                            <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                                <FaArrowUp className="text-sm text-white" />
                             </div>
                             <div>
-                                <p className="text-gray-600 text-xs font-medium">vs Last Year</p>
-                                <p className={`text-2xl font-bold ${yearSummary.changeVsLastYear?.startsWith('+')
+                                <p className="text-gray-600 text-xs font-medium mb-1">vs Last Year</p>
+                                <p className={`text-sm font-bold ${yearSummary.changeVsLastYear?.startsWith('+')
                                     ? 'text-green-600'
                                     : yearSummary.changeVsLastYear?.startsWith('-')
                                         ? 'text-red-600'
                                         : 'text-gray-800'
-                                    }`}>
+                                    } truncate`}>
                                     {yearSummary.changeVsLastYear || '-'}
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    {/* Best Year */}
-                    <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300">
-                        <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 bg-red-500 rounded-xl flex items-center justify-center">
-                                <FaTrophy className="text-xl text-white" />
+                    {/* Average Yearly Revenue */}
+                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                        <div className="flex flex-col items-center text-center space-y-2">
+                            <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                                <FaChartLine className="text-sm text-white" />
                             </div>
                             <div>
-                                <p className="text-gray-600 text-xs font-medium">Best Year</p>
-                                <p className="text-lg font-bold text-gray-800">
-                                    {yearSummary.bestYearInPeriod || '-'}
+                                <p className="text-gray-600 text-xs font-medium mb-1">Average Yearly</p>
+                                <p className="text-sm font-bold text-gray-800 truncate">
+                                    {yearSummary.averageYearlyRevenueFormatted || '0'}
                                 </p>
                             </div>
                         </div>
                     </div>
+
+                    {/* Trend Status */}
+                    {yearSummary.trend && (
+                        <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                            <div className="flex flex-col items-center text-center space-y-1">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${yearSummary.trend.status === 'increasing' ? 'bg-green-500' :
+                                    yearSummary.trend.status === 'decreasing' ? 'bg-red-500' : 'bg-gray-500'
+                                    }`}>
+                                    {yearSummary.trend.status === 'increasing' ? (
+                                        <FaArrowUp className="text-sm text-white" />
+                                    ) : yearSummary.trend.status === 'decreasing' ? (
+                                        <FaArrowDown className="text-sm text-white" />
+                                    ) : (
+                                        <FaChartLine className="text-sm text-white" />
+                                    )}
+                                </div>
+                                <div>
+                                    <p className="text-gray-600 text-xs font-medium mb-1">Trend</p>
+                                    <p className="text-xs font-bold text-gray-800 truncate">
+                                        {yearSummary.trend.description}
+                                    </p>
+                                    <p className={`text-xs ${yearSummary.trend.changePercentage?.startsWith('+')
+                                        ? 'text-green-600'
+                                        : yearSummary.trend.changePercentage?.startsWith('-')
+                                            ? 'text-red-600'
+                                            : 'text-gray-500'
+                                        } truncate`}>
+                                        {yearSummary.trend.changePercentage || '-'} vs {yearSummary.trend.comparedTo || 'previous period'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Best Year */}
+                    {yearSummary.bestYear && (
+                        <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                            <div className="flex flex-col items-center text-center space-y-2">
+                                <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                                    <FaTrophy className="text-sm text-white" />
+                                </div>
+                                <div>
+                                    <p className="text-gray-600 text-xs font-medium mb-1">Best Year</p>
+                                    <p className="text-xs font-bold text-gray-800 truncate">
+                                        {yearSummary.bestYear}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+
                 </div>
             )}
 

@@ -18,6 +18,7 @@ import { FaUsers, FaDollarSign, FaShoppingCart, FaExternalLinkAlt } from 'react-
 import RevenueByWeek from "./RevenueByWeek";
 import RevenueByMonth from "./RevenueByMonth";
 import RevenueByYear from "./RevenueByYear";
+import RevenueByDay from "./RevenueByDay";
 import Loading from "../../components/Loading";
 
 // Register Chart.js components
@@ -37,7 +38,7 @@ const Statistics = () => {
   const { user, isAuthLoading } = useContext(AuthContext);
   const [error, setError] = useState("");
   const [toast, setToast] = useState(null);
-  const [activeTab, setActiveTab] = useState('week');
+  const [activeTab, setActiveTab] = useState('day');
   const navigate = useNavigate();
 
   // Auto-dismiss toast
@@ -105,9 +106,9 @@ const Statistics = () => {
 
       {/* Header */}
       <div className="mb-6">
-        <div className="bg-blue-600 rounded-xl p-6 text-white">
-          <h1 className="text-3xl font-bold mb-2">Statistics Dashboard</h1>
-          <p className="text-blue-100 text-base">Comprehensive overview of your business performance</p>
+        <div className="bg-blue-600 rounded-xl p-4 text-white">
+          <h1 className="text-2xl font-bold mb-1">Statistics Dashboard</h1>
+          <p className="text-blue-100 text-sm">Comprehensive overview of your business performance</p>
         </div>
       </div>
 
@@ -116,11 +117,20 @@ const Statistics = () => {
         <div className="space-y-4">
           {/* Tab Navigation */}
           <div className="bg-white rounded-xl p-2 shadow-lg border border-gray-200">
-            <div className="flex space-x-2">
+            <div className="flex space-x-1">
+              <button
+                onClick={() => setActiveTab('day')}
+                className={`flex-1 px-3 py-2 rounded-lg font-medium text-sm transition-all duration-300 ${activeTab === 'day'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                  }`}
+              >
+                Day
+              </button>
               <button
                 onClick={() => setActiveTab('week')}
-                className={`flex-1 px-3 py-3 rounded-lg font-semibold text-base transition-all duration-300 ${activeTab === 'week'
-                  ? 'bg-blue-600 text-white shadow-lg transform scale-105'
+                className={`flex-1 px-3 py-2 rounded-lg font-medium text-sm transition-all duration-300 ${activeTab === 'week'
+                  ? 'bg-blue-600 text-white shadow-md'
                   : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                   }`}
               >
@@ -128,8 +138,8 @@ const Statistics = () => {
               </button>
               <button
                 onClick={() => setActiveTab('month')}
-                className={`flex-1 px-3 py-3 rounded-lg font-semibold text-base transition-all duration-300 ${activeTab === 'month'
-                  ? 'bg-blue-600 text-white shadow-lg transform scale-105'
+                className={`flex-1 px-3 py-2 rounded-lg font-medium text-sm transition-all duration-300 ${activeTab === 'month'
+                  ? 'bg-blue-600 text-white shadow-md'
                   : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                   }`}
               >
@@ -137,8 +147,8 @@ const Statistics = () => {
               </button>
               <button
                 onClick={() => setActiveTab('year')}
-                className={`flex-1 px-3 py-3 rounded-lg font-semibold text-base transition-all duration-300 ${activeTab === 'year'
-                  ? 'bg-blue-600 text-white shadow-lg transform scale-105'
+                className={`flex-1 px-3 py-2 rounded-lg font-medium text-sm transition-all duration-300 ${activeTab === 'year'
+                  ? 'bg-blue-600 text-white shadow-md'
                   : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
                   }`}
               >
@@ -149,6 +159,7 @@ const Statistics = () => {
 
           {/* Tab Content */}
           <div className="tab-content">
+            {activeTab === 'day' && <RevenueByDay user={user} />}
             {activeTab === 'week' && <RevenueByWeek user={user} />}
             {activeTab === 'month' && <RevenueByMonth user={user} />}
             {activeTab === 'year' && <RevenueByYear user={user} />}

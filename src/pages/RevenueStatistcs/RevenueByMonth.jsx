@@ -11,7 +11,7 @@ import {
     Legend,
     Filler
 } from 'chart.js';
-import { FaChartLine, FaArrowUp, FaTrophy } from 'react-icons/fa';
+import { FaChartLine, FaArrowUp, FaArrowDown, FaTrophy } from 'react-icons/fa';
 import SummaryAPI from "../../common/SummaryAPI";
 import Loading from "../../components/Loading";
 
@@ -50,12 +50,8 @@ const RevenueByMonth = ({ user }) => {
         setError("");
 
         try {
-            console.log(`Fetching revenue by month data for ${requestedYears} years using SummaryAPI...`);
-
             // Fetch revenue by month using SummaryAPI with years parameter
             const monthResponse = await SummaryAPI.statistics.getRevenueByMonth(requestedYears);
-
-            console.log("Month response:", monthResponse);
 
             // Handle API response structure for revenue by month
             if (monthResponse && monthResponse.success) {
@@ -64,42 +60,31 @@ const RevenueByMonth = ({ user }) => {
                 let summary = null;
 
                 if (monthData?.data?.monthlyData) {
-                    console.log("Using nested data structure");
                     yearlyData = Array.isArray(monthData.data.monthlyData) ? monthData.data.monthlyData : [];
                     summary = monthData.data.summary || null;
                 } else if (monthData?.monthlyData) {
-                    console.log("Using direct data structure");
                     yearlyData = Array.isArray(monthData.monthlyData) ? monthData.monthlyData : [];
                     summary = monthData.summary || null;
                 } else if (Array.isArray(monthData)) {
-                    console.log("Using array structure");
                     yearlyData = monthData;
                     summary = null;
                 } else {
-                    console.log("No valid data found");
                     yearlyData = [];
                     summary = null;
                 }
 
-                console.log(`API returned ${yearlyData.length} years of data`);
-                console.log('Yearly data structure:', yearlyData);
-                console.log('First year data:', yearlyData[0]);
-
                 // Validate that we have enough data
                 if (yearlyData.length < 2) {
-                    console.warn(`API only returned ${yearlyData.length} years, but at least 2 years are needed for comparison`);
                 }
 
                 setRevenueByMonth(yearlyData);
                 setMonthSummary(summary);
             } else {
-                console.log("Month response failed or not successful");
                 setRevenueByMonth([]);
                 setMonthSummary(null);
             }
         } catch (err) {
             setError(err.message || "Failed to load revenue by month statistics");
-            console.error("Fetch revenue by month error:", err);
         } finally {
             setLoading(false);
         }
@@ -132,13 +117,6 @@ const RevenueByMonth = ({ user }) => {
         const filtered = revenueByMonth.filter(yearData =>
             selectedYears.includes(yearData.year)
         );
-
-        console.log('Filtering data:', {
-            selectedYears,
-            totalData: revenueByMonth.length,
-            filteredData: filtered.length,
-            filteredYears: [...new Set(filtered.map(item => item.year))]
-        });
 
         setFilteredRevenueByMonth(filtered);
     }, [revenueByMonth, selectedYears]);
@@ -346,15 +324,6 @@ const RevenueByMonth = ({ user }) => {
                 return monthData ? monthData.totalRevenue : 0;
             });
 
-            console.log(`Creating dataset for year ${year}:`, {
-                year,
-                dataPoints: data.length,
-                nonZeroData: data.filter(d => d > 0).length,
-                yearDataLength: yearData.length,
-                selectedYears: selectedYears,
-                hasData: yearData.length > 0
-            });
-
             // Fallback color if generateYearColors returns undefined
             const safeColor = color || {
                 border: '#3b82f6',
@@ -380,13 +349,6 @@ const RevenueByMonth = ({ user }) => {
                 pointHoverBorderColor: safeColor.border,
                 pointHoverBorderWidth: 3
             };
-        });
-
-        console.log('Final chart data:', {
-            labelsCount: labels.length,
-            datasetsCount: datasets.length,
-            datasetLabels: datasets.map(d => d.label),
-            selectedYears: selectedYears
         });
 
         return {
@@ -651,20 +613,17 @@ const RevenueByMonth = ({ user }) => {
             years.push(currentYear - i);
         }
 
-        console.log('Available years (10 most recent):', years);
-        console.log('Total years available:', years.length);
-
         return years;
     };
 
     return (
         <div className="space-y-6">
             {/* Header Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6">
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 mb-4">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 lg:gap-3">
                     <div className="flex-1 min-w-0">
-                        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-2">Revenue by Month</h1>
-                        <p className="text-gray-600 text-sm sm:text-base lg:text-lg">Monthly revenue performance comparison by year</p>
+                        <h1 className="text-lg font-semibold text-gray-900 mb-1">Revenue by Month</h1>
+                        <p className="text-gray-600 text-sm">Monthly revenue performance comparison by year</p>
                     </div>
                     <button
                         className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-xs lg:text-sm"
@@ -802,58 +761,129 @@ const RevenueByMonth = ({ user }) => {
 
             {/* Summary Cards */}
             {monthSummary && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    {/* Total Revenue This Month */}
-                    <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300">
-                        <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
-                                <FaArrowUp className="text-xl text-white" />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
+                    {/* 1. Current Month Revenue */}
+                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                        <div className="flex flex-col items-center text-center space-y-2">
+                            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                                <FaChartLine className="text-sm text-white" />
                             </div>
                             <div>
-                                <p className="text-gray-600 text-xs font-medium">This Month Revenue</p>
-                                <p className="text-2xl font-bold text-gray-800">
-                                    {monthSummary.totalRevenueThisMonthFormatted ? monthSummary.totalRevenueThisMonthFormatted + ' ₫' : formatCurrency(monthSummary.totalRevenueThisMonth)}
+                                <p className="text-gray-600 text-xs font-medium mb-1">Current Month</p>
+                                <p className="text-sm font-bold text-gray-800 truncate">
+                                    {monthSummary.currentMonthRevenueFormatted || '0'}
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    {/* Change vs Last Month */}
-                    <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300">
-                        <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
-                                <FaArrowUp className="text-xl text-white" />
+                    {/* 2. Average Monthly Revenue */}
+                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                        <div className="flex flex-col items-center text-center space-y-2">
+                            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                                <FaTrophy className="text-sm text-white" />
                             </div>
                             <div>
-                                <p className="text-gray-600 text-xs font-medium">vs Last Month</p>
-                                <p className={`text-2xl font-bold ${monthSummary.changeVsLastMonth?.startsWith('+')
+                                <p className="text-gray-600 text-xs font-medium mb-1">Average Monthly</p>
+                                <p className="text-sm font-bold text-gray-800 truncate">
+                                    {monthSummary.averageMonthlyRevenueFormatted || '0'}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 3. Best Month in Period */}
+                    {monthSummary.bestMonth && (
+                        <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                            <div className="flex flex-col items-center text-center space-y-2">
+                                <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center">
+                                    <FaTrophy className="text-sm text-white" />
+                                </div>
+                                <div>
+                                    <p className="text-gray-600 text-xs font-medium mb-1">Best Month</p>
+                                    <p className="text-xs font-bold text-gray-800 truncate">
+                                        {monthSummary.bestMonth}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 4. vs Last Month */}
+                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                        <div className="flex flex-col items-center text-center space-y-2">
+                            <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                                <FaArrowUp className="text-sm text-white" />
+                            </div>
+                            <div>
+                                <p className="text-gray-600 text-xs font-medium mb-1">vs Last Month</p>
+                                <p className={`text-sm font-bold ${monthSummary.changeVsLastMonth?.startsWith('+')
                                     ? 'text-green-600'
                                     : monthSummary.changeVsLastMonth?.startsWith('-')
                                         ? 'text-red-600'
                                         : 'text-gray-800'
-                                    }`}>
+                                    } truncate`}>
                                     {monthSummary.changeVsLastMonth || '-'}
                                 </p>
                             </div>
                         </div>
                     </div>
 
-                    {/* Best Month */}
-                    <div className="bg-white rounded-xl p-4 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300">
-                        <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 bg-red-500 rounded-xl flex items-center justify-center">
-                                <FaTrophy className="text-xl text-white" />
+                    {/* 5. vs Same Period Last Year */}
+                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                        <div className="flex flex-col items-center text-center space-y-2">
+                            <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                                <FaChartLine className="text-sm text-white" />
                             </div>
                             <div>
-                                <p className="text-gray-600 text-xs font-medium">Best Month</p>
-                                <p className="text-lg font-bold text-gray-800">
-                                    {monthSummary.bestMonthInPeriod || '-'}
+                                <p className="text-gray-600 text-xs font-medium mb-1">vs Last Year</p>
+                                <p className={`text-sm font-bold ${monthSummary.changeVsSamePeriodLastYear?.startsWith('+')
+                                    ? 'text-green-600'
+                                    : monthSummary.changeVsSamePeriodLastYear?.startsWith('-')
+                                        ? 'text-red-600'
+                                        : 'text-gray-800'
+                                    } truncate`}>
+                                    {monthSummary.changeVsSamePeriodLastYear || '-'}
                                 </p>
                             </div>
                         </div>
                     </div>
+
+                    {/* 6. Trend Status */}
+                    {monthSummary.trend && (
+                        <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                            <div className="flex flex-col items-center text-center space-y-1">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${monthSummary.trend.status === 'increasing' ? 'bg-green-500' :
+                                    monthSummary.trend.status === 'decreasing' ? 'bg-red-500' : 'bg-gray-500'
+                                    }`}>
+                                    {monthSummary.trend.status === 'increasing' ? (
+                                        <FaArrowUp className="text-sm text-white" />
+                                    ) : monthSummary.trend.status === 'decreasing' ? (
+                                        <FaArrowDown className="text-sm text-white" />
+                                    ) : (
+                                        <FaChartLine className="text-sm text-white" />
+                                    )}
+                                </div>
+                                <div>
+                                    <p className="text-gray-600 text-xs font-medium mb-1">Trend</p>
+                                    <p className="text-xs font-bold text-gray-800 truncate">
+                                        {monthSummary.trend.description}
+                                    </p>
+                                    <p className={`text-xs ${monthSummary.trend.changePercentage?.startsWith('+')
+                                        ? 'text-green-600'
+                                        : monthSummary.trend.changePercentage?.startsWith('-')
+                                            ? 'text-red-600'
+                                            : 'text-gray-500'
+                                        } truncate`}>
+                                        {monthSummary.trend.changePercentage || '-'} vs {monthSummary.trend.comparedTo || 'previous period'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
+
 
 
             {/* Revenue by Month Content */}
