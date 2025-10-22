@@ -394,9 +394,8 @@ const RevenueByDay = ({ user }) => {
                 caretPadding: 10,
                 callbacks: {
                     title: function (context) {
-                        const dataIndex = context.dataIndex;
+                        const dataIndex = context[0].dataIndex;
                         const item = filteredRevenueByDay[dataIndex];
-                        const dayNumber = context[0].label;
 
                         // Try to get date from various possible fields
                         let date = null;
@@ -410,34 +409,21 @@ const RevenueByDay = ({ user }) => {
                             }
                         }
 
-                        // If we have a valid date, show weekday + date
+                        // If we have a valid date, show weekday + date in DD/MM/YYYY format
                         if (date && !isNaN(date.getTime())) {
                             const weekday = date.toLocaleDateString('en-US', { weekday: 'long' });
-                            const dateStr = date.toLocaleDateString('vi-VN', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
-                            });
-                            return `${weekday}, ${dateStr}`;
+                            const day = date.getDate().toString().padStart(2, '0');
+                            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+                            const year = date.getFullYear();
+                            return `${weekday}, ${day}/${month}/${year}`;
                         }
 
-                        // Fallback: show day number with weekday if possible
-                        if (dayNumber && !isNaN(parseInt(dayNumber))) {
-                            // Try to calculate weekday based on current month
-                            const today = new Date();
-                            const currentMonth = today.getMonth();
-                            const currentYear = today.getFullYear();
-                            const dayOfMonth = parseInt(dayNumber);
-
-                            // Create date for this day in current month
-                            const testDate = new Date(currentYear, currentMonth, dayOfMonth);
-                            if (!isNaN(testDate.getTime())) {
-                                const weekday = testDate.toLocaleDateString('en-US', { weekday: 'long' });
-                                return `${weekday}, Day ${dayNumber}`;
-                            }
+                        // Fallback: use the date string if available
+                        if (item?.date) {
+                            return item.date;
                         }
 
-                        return `Day ${dayNumber}`;
+                        return `Day ${context[0].label}`;
                     },
                     label: function (context) {
                         const dataIndex = context.dataIndex;
