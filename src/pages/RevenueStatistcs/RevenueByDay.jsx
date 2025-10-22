@@ -95,16 +95,6 @@ const RevenueByDay = ({ user }) => {
             return;
         }
 
-        // Check cache first
-        const cacheKey = JSON.stringify(params);
-        if (dataCache.has(cacheKey)) {
-            const cachedData = dataCache.get(cacheKey);
-            setRevenueByDay(cachedData.revenueByDay);
-            setDaySummary(cachedData.daySummary);
-            setFilteredRevenueByDay(cachedData.revenueByDay);
-            return;
-        }
-
         setLoading(true);
         setError("");
 
@@ -120,6 +110,7 @@ const RevenueByDay = ({ user }) => {
                     setFilteredRevenueByDay(dailyData);
 
                     // Cache the data
+                    const cacheKey = JSON.stringify(params);
                     setDataCache(prev => new Map(prev.set(cacheKey, {
                         revenueByDay: dailyData,
                         daySummary: summary
@@ -139,7 +130,7 @@ const RevenueByDay = ({ user }) => {
         } finally {
             setLoading(false);
         }
-    }, [user?._id, dataCache]);
+    }, [user?._id]);
 
     // Fetch data on mount with current month
     useEffect(() => {
@@ -156,8 +147,8 @@ const RevenueByDay = ({ user }) => {
     }, [user, fetchRevenueByDay]);
 
     // Debounced fetch function (reduced delay for better UX)
-    const debouncedFetch = useCallback(
-        debounce((params) => {
+    const debouncedFetch = useMemo(
+        () => debounce((params) => {
             setFilterLoading(true);
             fetchRevenueByDay(params).finally(() => {
                 setFilterLoading(false);
@@ -183,12 +174,21 @@ const RevenueByDay = ({ user }) => {
     // Auto-fetch when both month and year are selected
     useEffect(() => {
         if (filterType === 'specificMonth' && selectedMonth && selectedYear) {
-            const currentMonth = getCurrentMonth();
-            const monthYear = `${selectedYear}-${selectedMonth}`;
-            // Only fetch if the selected month is different from current month
-            if (monthYear !== currentMonth) {
-                debouncedFetch({ month: monthYear });
+            // Validate that the selected month-year is not in the future
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentMonth = now.getMonth() + 1;
+            const yearNum = parseInt(selectedYear);
+            const monthNum = parseInt(selectedMonth);
+
+            if (yearNum > currentYear || (yearNum === currentYear && monthNum > currentMonth)) {
+                setError('Cannot select a month in the future. Please select a valid month.');
+                return;
             }
+
+            const monthYear = `${selectedYear}-${selectedMonth}`;
+            setError(''); // Clear any previous errors
+            debouncedFetch({ month: monthYear });
         }
     }, [selectedMonth, selectedYear, filterType, debouncedFetch]);
 
@@ -197,26 +197,6 @@ const RevenueByDay = ({ user }) => {
         setDataCache(new Map());
     }, []);
 
-    // Apply filter function
-    const applyFilter = useCallback(() => {
-        if (filterType === 'specificMonth' && selectedMonth && selectedYear) {
-            // Validate month format (should be 01-12)
-            if (!selectedMonth.match(/^(0[1-9]|1[0-2])$/)) {
-                setError('Invalid month format. Please select a valid month.');
-                return;
-            }
-
-            // Validate year format (should be 4 digits)
-            if (!selectedYear.match(/^\d{4}$/)) {
-                setError('Invalid year format. Please select a valid year.');
-                return;
-            }
-
-            const monthYear = `${selectedYear}-${selectedMonth}`;
-            setError(''); // Clear any previous errors
-            debouncedFetch({ month: monthYear });
-        }
-    }, [filterType, selectedMonth, selectedYear, debouncedFetch]);
 
     // Format currency - memoized for performance
     const formatCurrency = useCallback((value) => {
@@ -319,6 +299,7 @@ const RevenueByDay = ({ user }) => {
                 totalRevenueToday: daySummary.totalRevenueToday || 0,
                 totalRevenueTodayFormatted: (daySummary.totalRevenueTodayFormatted || '0'),
                 changeVsLastDay: daySummary.changeVsLastDay || '-',
+                changeVsSameDayLastWeek: daySummary.changeVsSameDayLastWeek || '-',
                 totalRevenueInPeriod: daySummary.totalRevenueInPeriod || 0,
                 totalRevenueInPeriodFormatted: (daySummary.totalRevenueInPeriodFormatted || '0'),
                 averageDailyRevenue: daySummary.averageDailyRevenue || 0,
@@ -415,19 +396,48 @@ const RevenueByDay = ({ user }) => {
                     title: function (context) {
                         const dataIndex = context.dataIndex;
                         const item = filteredRevenueByDay[dataIndex];
-                        // Show full date in title
+                        const dayNumber = context[0].label;
+
+                        // Try to get date from various possible fields
+                        let date = null;
                         if (item?.fullDate) {
-                            const date = new Date(item.fullDate);
-                            return date.toLocaleDateString('vi-VN', {
-                                weekday: 'long',
+                            date = new Date(item.fullDate);
+                        } else if (item?.date && typeof item.date === 'string' && item.date.includes('/')) {
+                            // Handle DD/MM/YYYY format
+                            const parts = item.date.split('/');
+                            if (parts.length === 3) {
+                                date = new Date(parts[2], parts[1] - 1, parts[0]);
+                            }
+                        }
+
+                        // If we have a valid date, show weekday + date
+                        if (date && !isNaN(date.getTime())) {
+                            const weekday = date.toLocaleDateString('en-US', { weekday: 'long' });
+                            const dateStr = date.toLocaleDateString('vi-VN', {
                                 year: 'numeric',
                                 month: 'long',
                                 day: 'numeric'
                             });
-                        } else if (item?.date) {
-                            return `Day ${item.date}`;
+                            return `${weekday}, ${dateStr}`;
                         }
-                        return `Day ${context[0].label}`;
+
+                        // Fallback: show day number with weekday if possible
+                        if (dayNumber && !isNaN(parseInt(dayNumber))) {
+                            // Try to calculate weekday based on current month
+                            const today = new Date();
+                            const currentMonth = today.getMonth();
+                            const currentYear = today.getFullYear();
+                            const dayOfMonth = parseInt(dayNumber);
+
+                            // Create date for this day in current month
+                            const testDate = new Date(currentYear, currentMonth, dayOfMonth);
+                            if (!isNaN(testDate.getTime())) {
+                                const weekday = testDate.toLocaleDateString('en-US', { weekday: 'long' });
+                                return `${weekday}, Day ${dayNumber}`;
+                            }
+                        }
+
+                        return `Day ${dayNumber}`;
                     },
                     label: function (context) {
                         const dataIndex = context.dataIndex;
@@ -640,35 +650,32 @@ const RevenueByDay = ({ user }) => {
                                         className={`w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base ${filterLoading || !selectedMonth ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
                                         <option value="">Select Year</option>
-                                        {getYearOptions().map((option) => (
-                                            <option key={option.value} value={option.value}>
-                                                {option.label}
-                                            </option>
-                                        ))}
+                                        {getYearOptions().map((option) => {
+                                            const now = new Date();
+                                            const currentYear = now.getFullYear();
+                                            const currentMonth = now.getMonth() + 1;
+                                            const yearNum = parseInt(option.value);
+                                            const monthNum = parseInt(selectedMonth);
+
+                                            // Disable if year is in the future OR if year is current year and selected month is in the future
+                                            const isFutureYear = yearNum > currentYear;
+                                            const isFutureMonth = yearNum === currentYear && monthNum > currentMonth;
+                                            const isDisabled = isFutureYear || isFutureMonth;
+
+                                            return (
+                                                <option
+                                                    key={option.value}
+                                                    value={option.value}
+                                                    disabled={isDisabled}
+                                                >
+                                                    {option.label}
+                                                </option>
+                                            );
+                                        })}
                                     </select>
                                 </div>
                             </>
                         )}
-
-                        <div className="flex items-end">
-                            <button
-                                onClick={applyFilter}
-                                disabled={filterLoading || !selectedMonth || !selectedYear}
-                                className={`w-full px-3 py-2 lg:px-4 lg:py-3 text-white rounded-lg transition-all duration-200 font-medium text-sm lg:text-base shadow-sm hover:shadow-md ${filterLoading || !selectedMonth || !selectedYear
-                                    ? 'bg-gray-400 cursor-not-allowed'
-                                    : 'bg-blue-600 hover:bg-blue-700 hover:scale-105'
-                                    }`}
-                            >
-                                {filterLoading ? (
-                                    <div className="flex items-center justify-center">
-                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                                        Applying...
-                                    </div>
-                                ) : (
-                                    'Apply Filter'
-                                )}
-                            </button>
-                        </div>
                     </div>
 
                     {/* Error Display */}
@@ -704,7 +711,18 @@ const RevenueByDay = ({ user }) => {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 <span className="text-sm text-blue-800">
-                                    Step 2: Now select a year to complete the selection
+                                    Step 2: Select a year to load data automatically
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
+                    {filterType === 'specificMonth' && selectedMonth && selectedYear && filterLoading && (
+                        <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <div className="flex items-center">
+                                <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin mr-2"></div>
+                                <span className="text-sm text-green-800">
+                                    Loading data for {selectedMonth}/{selectedYear}...
                                 </span>
                             </div>
                         </div>
@@ -713,7 +731,7 @@ const RevenueByDay = ({ user }) => {
             )}
 
             {/* Summary Cards */}
-            {filteredRevenueByDay.length > 0 && (
+            {(filteredRevenueByDay.length > 0 || daySummary) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
                     {/* Today's Revenue */}
                     <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
@@ -763,16 +781,21 @@ const RevenueByDay = ({ user }) => {
                         </div>
                     )}
 
-                    {/* Activity Rate */}
+                    {/* vs Last Day */}
                     <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
                         <div className="flex flex-col items-center text-center space-y-2">
-                            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
-                                <FaTrophy className="text-sm text-white" />
+                            <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                                <FaArrowUp className="text-sm text-white" />
                             </div>
                             <div>
-                                <p className="text-gray-600 text-xs font-medium mb-1">Activity Rate</p>
-                                <p className="text-sm font-bold text-gray-800 truncate">
-                                    {daySummary?.activityRate || '0.0%'}
+                                <p className="text-gray-600 text-xs font-medium mb-1">vs Last Day</p>
+                                <p className={`text-sm font-bold ${daySummary?.changeVsLastDay?.startsWith('+')
+                                    ? 'text-green-600'
+                                    : daySummary?.changeVsLastDay?.startsWith('-')
+                                        ? 'text-red-600'
+                                        : 'text-gray-800'
+                                    } truncate`}>
+                                    {daySummary?.changeVsLastDay || '-'}
                                 </p>
                             </div>
                         </div>
@@ -781,7 +804,7 @@ const RevenueByDay = ({ user }) => {
                     {/* vs Same Day Last Week */}
                     <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
                         <div className="flex flex-col items-center text-center space-y-2">
-                            <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
                                 <FaChartLine className="text-sm text-white" />
                             </div>
                             <div>
@@ -797,6 +820,7 @@ const RevenueByDay = ({ user }) => {
                             </div>
                         </div>
                     </div>
+
 
                     {/* Trend Status */}
                     {daySummary?.trend && (

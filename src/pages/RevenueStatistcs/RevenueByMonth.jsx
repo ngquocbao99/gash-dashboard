@@ -331,7 +331,7 @@ const RevenueByMonth = ({ user }) => {
                 hover: 'rgba(59, 130, 246, 0.2)'
             };
 
-            return {
+        return {
                 label: `${year}`,
                 data,
                 backgroundColor: safeColor.bg,
@@ -753,7 +753,7 @@ const RevenueByMonth = ({ user }) => {
                                 <p className="text-sm text-green-800">
                                     <strong>Selected Years:</strong> {selectedYears.sort((a, b) => b - a).join(', ')}
                                 </p>
-                            </div>
+                    </div>
                         </div>
                     )}
                 </div>
