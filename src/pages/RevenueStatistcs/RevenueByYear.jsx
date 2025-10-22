@@ -416,6 +416,38 @@ const RevenueByYear = ({ user }) => {
                         </div>
                     </div>
 
+                    {/* Average Yearly Revenue */}
+                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                        <div className="flex flex-col items-center text-center space-y-2">
+                            <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                                <FaChartLine className="text-sm text-white" />
+                            </div>
+                            <div>
+                                <p className="text-gray-600 text-xs font-medium mb-1">Average Yearly</p>
+                                <p className="text-sm font-bold text-gray-800 truncate">
+                                    {yearSummary.averageYearlyRevenueFormatted || '0'}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Best Year */}
+                    {yearSummary.bestYear && (
+                        <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                            <div className="flex flex-col items-center text-center space-y-2">
+                                <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                                    <FaTrophy className="text-sm text-white" />
+                                </div>
+                                <div>
+                                    <p className="text-gray-600 text-xs font-medium mb-1">Best Year</p>
+                                    <p className="text-xs font-bold text-gray-800 truncate">
+                                        {yearSummary.bestYear}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* vs Last Year */}
                     <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
                         <div className="flex flex-col items-center text-center space-y-2">
@@ -436,20 +468,6 @@ const RevenueByYear = ({ user }) => {
                         </div>
                     </div>
 
-                    {/* Average Yearly Revenue */}
-                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
-                        <div className="flex flex-col items-center text-center space-y-2">
-                            <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
-                                <FaChartLine className="text-sm text-white" />
-                            </div>
-                            <div>
-                                <p className="text-gray-600 text-xs font-medium mb-1">Average Yearly</p>
-                                <p className="text-sm font-bold text-gray-800 truncate">
-                                    {yearSummary.averageYearlyRevenueFormatted || '0'}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
 
                     {/* Trend Status */}
                     {yearSummary.trend && (
@@ -483,25 +501,6 @@ const RevenueByYear = ({ user }) => {
                             </div>
                         </div>
                     )}
-
-                    {/* Best Year */}
-                    {yearSummary.bestYear && (
-                        <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
-                            <div className="flex flex-col items-center text-center space-y-2">
-                                <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
-                                    <FaTrophy className="text-sm text-white" />
-                                </div>
-                                <div>
-                                    <p className="text-gray-600 text-xs font-medium mb-1">Best Year</p>
-                                    <p className="text-xs font-bold text-gray-800 truncate">
-                                        {yearSummary.bestYear}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-
                 </div>
             )}
 

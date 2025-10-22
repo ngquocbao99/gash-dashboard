@@ -245,7 +245,7 @@ const Api = {
     statistics: {
         // ==== Revenue Statistics ====
         // Get revenue by day
-        getRevenueByDay: (queryParams = '') => axiosClient.get(`/statistics/revenue/revenue-by-day?${queryParams}`).then(response => response.data),
+        getRevenueByDay: (params = {}) => axiosClient.get('/statistics/revenue/revenue-by-day', { params }).then(response => response.data),
         // Get revenue by week
         getRevenueByWeek: (weeks = 52) => axiosClient.get(`/statistics/revenue/revenue-by-week?weeks=${weeks}`).then(response => response.data),
         // Get revenue by month
