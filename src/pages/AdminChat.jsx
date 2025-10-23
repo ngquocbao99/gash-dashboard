@@ -1,8 +1,18 @@
-
+// AdminChat.jsx
 import React, { useEffect, useState, useRef, useContext } from "react";
 import io from "socket.io-client";
 import axios from "axios";
-import "../styles/AdminChat.css";
+import { motion } from "framer-motion";
+import {
+  FiSend,
+  FiUser,
+  FiUsers,
+  FiLoader,
+  FiImage,
+  FiSmile,
+  FiRefreshCcw,
+} from "react-icons/fi";
+import EmojiPicker from "emoji-picker-react";
 import { AuthContext } from "../context/AuthContext";
 
 const SOCKET_URL = "http://localhost:5000";
@@ -10,142 +20,142 @@ const API_URL = "http://localhost:5000";
 
 export default function AdminChat() {
   const { user } = useContext(AuthContext) || {};
-  const adminId = user?._id || "651fa12b23f8a8c12c7d9d9c";
+  const adminId = user?._id ? String(user._id) : "admin-fallback-id";
 
   const [conversations, setConversations] = useState([]);
   const [selected, setSelected] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
+  const [loadingConvos, setLoadingConvos] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [showEmoji, setShowEmoji] = useState(false);
   const socketRef = useRef(null);
   const endRef = useRef(null);
   const selectedRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     selectedRef.current = selected;
   }, [selected]);
 
-  const getId = (obj) => (obj?._id ? obj._id.toString() : obj?.id?.toString());
+  const getId = (obj) => {
+    if (!obj) return null;
+    if (obj._id) return String(obj._id);
+    if (obj.id) return String(obj.id);
+    return String(obj);
+  };
 
-  // ✅ Kết nối socket
+  // =============== SOCKET ===================
   useEffect(() => {
     socketRef.current = io(SOCKET_URL, { transports: ["websocket"] });
 
     socketRef.current.on("connect", () => {
-      console.log("✅ Admin socket connected:", socketRef.current.id);
+      console.info("✅ Socket connected:", socketRef.current.id);
     });
 
-    // 🔥 Nhận tin nhắn realtime
     socketRef.current.on("new_message", (msg) => {
-      const convoId =
-        typeof msg.conversationId === "object"
-          ? msg.conversationId.toString()
-          : msg.conversationId;
-      console.log("📩 New message received:", msg);
+      try {
+        const convoId = String(
+          typeof msg.conversationId === "object"
+            ? msg.conversationId._id || msg.conversationId
+            : msg.conversationId
+        );
 
-      // ✅ Nếu đang xem đúng room thì append
-      if (selectedRef.current && convoId === getId(selectedRef.current)) {
-        setMessages((prev) => [...prev, msg]);
-      }
-
-      // ✅ Nếu là cuộc trò chuyện chưa mở, thêm vào danh sách
-      setConversations((prev) => {
-        const exists = prev.find((c) => getId(c) === convoId);
-        return exists ? prev : [{ id: convoId, status: "pending" }, ...prev];
-      });
-    });
-
-    // Khi có hội thoại mới
-    socketRef.current.on("conversation_created", (conv) => {
-      setConversations((prev) => {
-        const exists = prev.some((c) => getId(c) === getId(conv));
-        return exists ? prev : [conv, ...prev];
-      });
-    });
-
-    socketRef.current.on("conversation_taken", (convo) => {
-      setConversations((prev) =>
-        prev.map((c) => (getId(c) === getId(convo) ? convo : c))
-      );
-      if (selectedRef.current && getId(selectedRef.current) === getId(convo)) {
-        setSelected(convo);
+        if (selectedRef.current && convoId === getId(selectedRef.current)) {
+          setMessages((prev) => [...prev, msg]);
+        } else {
+          setConversations((prev) =>
+            prev.map((c) =>
+              getId(c) === convoId
+                ? {
+                    ...c,
+                    unreadCount: (c.unreadCount || 0) + 1,
+                    lastMessage: msg.messageText || "📷 Image",
+                  }
+                : c
+            )
+          );
+        }
+      } catch (err) {
+        console.error("Error handling new_message:", err);
       }
     });
 
-    socketRef.current.on("conversation_closed", ({ conversationId }) => {
-      setConversations((prev) =>
-        prev.filter((c) => getId(c) !== conversationId.toString())
-      );
-      if (
-        selectedRef.current &&
-        getId(selectedRef.current) === conversationId.toString()
-      ) {
-        setSelected(null);
-        setMessages([]);
-      }
-    });
-
-    return () => {
-      if (socketRef.current) socketRef.current.disconnect();
-    };
+    return () => socketRef.current.disconnect();
   }, []);
 
-  // ✅ Load danh sách hội thoại
+  // =============== LOAD DATA ===================
   useEffect(() => {
     loadConversations();
   }, []);
 
   const loadConversations = async () => {
     try {
+      setLoadingConvos(true);
       const token = localStorage.getItem("token");
       const res = await axios.get(`${API_URL}/conversations`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      setConversations(res.data.data || []);
+      setConversations(res.data?.data || []);
     } catch (err) {
-      console.error("❌ Error loading conversations:", err);
+      console.error("Error loading conversations:", err);
+    } finally {
+      setLoadingConvos(false);
     }
   };
 
-  // ✅ Khi admin click chọn user để xem tin nhắn
   const loadMessages = async (conv) => {
     try {
-      if (selected && getId(selected) === getId(conv)) return;
       setSelected(conv);
-
-      // ⚡ Join room TRƯỚC khi load messages
-      if (socketRef.current && socketRef.current.connected) {
-        socketRef.current.emit("join_room", getId(conv));
-        console.log("📥 Admin joined room:", getId(conv));
-      }
+      setLoadingMessages(true);
+      socketRef.current.emit("join_room", getId(conv));
 
       const token = localStorage.getItem("token");
-      const res = await axios.get(
-        `${API_URL}/messages/${getId(conv)}/messages`,
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-      );
-      setMessages(res.data.data || []);
-
-      // Đánh dấu admin nhận xử lý hội thoại này
-      socketRef.current.emit("take_conversation", {
-        staffId: adminId,
-        conversationId: getId(conv),
+      const res = await axios.get(`${API_URL}/messages/${getId(conv)}/messages`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      setMessages(res.data?.data || []);
     } catch (err) {
-      console.error("❌ Error loading messages:", err);
+      console.error("Error loading messages:", err);
+    } finally {
+      setLoadingMessages(false);
     }
   };
 
-  // ✅ Gửi tin nhắn từ admin
+  // =============== SEND ===================
   const handleSend = () => {
     if (!input.trim() || !selected) return;
     const msg = {
       conversationId: getId(selected),
       senderId: adminId,
       messageText: input.trim(),
+      type: "text",
+      createdAt: new Date().toISOString(),
     };
-    if (socketRef.current && socketRef.current.connected) {
-      socketRef.current.emit("send_message", msg);
-      setInput("");
+    setMessages((prev) => [...prev, msg]);
+    setInput("");
+    socketRef.current.emit("send_message", msg);
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !selected) return;
+    const formData = new FormData();
+    formData.append("image", file);
+    try {
+      const res = await fetch(`${API_URL}/upload`, { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.success && data.url) {
+        socketRef.current.emit("send_message", {
+          conversationId: getId(selected),
+          senderId: adminId,
+          type: "image",
+          imageUrl: data.url,
+          createdAt: new Date().toISOString(),
+        });
+      } else alert("Upload thất bại!");
+    } catch (err) {
+      alert("Lỗi upload ảnh!");
     }
   };
 
@@ -153,93 +163,218 @@ export default function AdminChat() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const displayName = (conv) => {
+    const acc = conv.accountId;
+    if (!acc) return "Unknown";
+    return typeof acc === "object"
+      ? acc.username || acc.email || acc._id || "User"
+      : String(acc);
+  };
+
+  // =============== UI ===================
   return (
-    <div className="admin-chat-container">
-      <aside className="chat-sidebar">
-        <div className="sidebar-header">
-          <h3>💬 Danh sách cuộc trò chuyện</h3>
-        </div>
-        <div className="conversation-list">
-          {conversations.length === 0 ? (
-            <p className="empty">Không có cuộc trò chuyện nào</p>
-          ) : (
-            conversations.map((c) => {
-              const userName =
-                c.accountId && typeof c.accountId === "object"
-                  ? c.accountId.username ||
-                    c.accountId.email ||
-                    c.accountId._id
-                  : c.accountId || "Không xác định";
-              return (
-                <div
-                  key={getId(c)}
-                  onClick={() => loadMessages(c)}
-                  className={`conversation-item ${
-                    selected && getId(selected) === getId(c) ? "active" : ""
-                  }`}
-                >
-                  <div className="user-info">
-                    <span className="user-name">{userName}</span>
-                    <span className={`status ${c.status}`}>{c.status}</span>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </aside>
-
-      <main className="chat-main">
-        {!selected ? (
-          <div className="empty-chat">
-            👈 Chọn cuộc trò chuyện để xem tin nhắn
-          </div>
-        ) : (
-          <>
-            <div className="chat-header">
-              <h4>💬 {selected.accountId?.username || selected.accountId}</h4>
-              <span className={`chat-status ${selected.status}`}>
-                {selected.status}
-              </span>
-            </div>
-
-            <div className="chat-body">
-              {messages.map((m, i) => {
-                const sender =
-                  typeof m.senderId === "object"
-                    ? m.senderId?._id?.toString() || m.senderId?.toString()
-                    : m.senderId?.toString();
-                const isAdmin = sender === adminId.toString();
-                return (
-                  <div
-                    key={m._id || m.id || i}
-                    className={`chat-bubble ${isAdmin ? "admin" : "user"}`}
-                  >
-                    <div className="bubble-text">{m.messageText}</div>
-                  </div>
-                );
-              })}
-              <div ref={endRef}></div>
-            </div>
-
-            <div className="chat-footer">
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                placeholder="Nhập tin nhắn..."
-                disabled={selected.status === "closed"}
-              />
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-6">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* SIDEBAR */}
+        <aside className="lg:col-span-4 xl:col-span-3">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-2xl shadow-lg p-5 border border-gray-100 h-full flex flex-col"
+          >
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <FiUsers className="text-indigo-600" /> Active Chats
+              </h2>
               <button
-                onClick={handleSend}
-                disabled={selected.status === "closed"}
+                onClick={loadConversations}
+                className="text-gray-500 hover:text-indigo-600 transition"
+                title="Refresh"
               >
-                Gửi
+                <FiRefreshCcw />
               </button>
             </div>
-          </>
-        )}
-      </main>
+
+            <div className="flex-1 overflow-auto pr-2">
+              {loadingConvos ? (
+                <div className="space-y-2">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />
+                  ))}
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {conversations.map((c) => {
+                    const cid = getId(c);
+                    const active = selected && getId(selected) === cid;
+                    return (
+                      <motion.li
+                        key={cid}
+                        whileHover={{ scale: 1.01 }}
+                        onClick={() => loadMessages(c)}
+                        className={`cursor-pointer flex items-center justify-between p-3 rounded-xl border transition ${
+                          active
+                            ? "bg-indigo-50 border-indigo-200"
+                            : "hover:bg-gray-50 border-transparent"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                            {displayName(c).charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-800 text-sm">
+                              {displayName(c)}
+                            </p>
+                            <p className="text-xs text-gray-500 truncate max-w-[140px]">
+                              {c.lastMessage || "No message"}
+                            </p>
+                          </div>
+                        </div>
+                        {c.unreadCount > 0 && (
+                          <span className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full">
+                            {c.unreadCount}
+                          </span>
+                        )}
+                      </motion.li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </motion.div>
+        </aside>
+
+        {/* CHAT AREA */}
+        <section className="lg:col-span-8 xl:col-span-9">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-2xl shadow-lg border border-gray-100 flex flex-col h-[75vh] overflow-hidden"
+          >
+            {!selected ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
+                <div className="text-4xl mb-3">💬</div>
+                <p className="text-lg font-semibold">Select a conversation</p>
+              </div>
+            ) : (
+              <>
+                {/* HEADER */}
+                <div className="border-b border-gray-200 px-6 py-3 bg-gray-50 flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-gray-800">
+                      {displayName(selected)}
+                    </h3>
+                    <p className="text-xs text-gray-500">Chat active</p>
+                  </div>
+                  <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded">
+                    Active
+                  </span>
+                </div>
+
+                {/* MESSAGES */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+                  {loadingMessages ? (
+                    <div className="flex items-center justify-center h-full">
+                      <FiLoader className="animate-spin text-indigo-600 text-2xl" />
+                    </div>
+                  ) : (
+                    messages.map((m, i) => {
+                      const isAdmin = String(m.senderId) === String(adminId);
+                      return (
+                        <div
+                          key={i}
+                          className={`flex ${isAdmin ? "justify-end" : "justify-start"}`}
+                        >
+                          <motion.div
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className={`max-w-[70%] p-3 rounded-2xl shadow-sm ${
+                              isAdmin
+                                ? "bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-br-none"
+                                : "bg-white text-gray-800 border border-gray-200 rounded-bl-none"
+                            }`}
+                          >
+                            {m.type === "image" ? (
+                              <img
+                                src={m.imageUrl}
+                                alt="uploaded"
+                                className="rounded-lg border border-gray-200 max-w-[220px]"
+                              />
+                            ) : (
+                              <p className="text-sm leading-relaxed">{m.messageText}</p>
+                            )}
+                            <div
+                              className={`text-[10px] mt-1 ${
+                                isAdmin ? "text-indigo-100" : "text-gray-400"
+                              }`}
+                            >
+                              {new Date(m.createdAt).toLocaleTimeString("en-US", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </div>
+                          </motion.div>
+                        </div>
+                      );
+                    })
+                  )}
+                  <div ref={endRef}></div>
+                </div>
+
+                {/* INPUT */}
+                <div className="border-t border-gray-200 bg-white px-4 py-3 relative">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => fileInputRef.current.click()}>
+                      <FiImage className="text-gray-500 hover:text-indigo-600" size={20} />
+                    </button>
+                    <button onClick={() => setShowEmoji(!showEmoji)}>
+                      <FiSmile className="text-gray-500 hover:text-indigo-600" size={20} />
+                    </button>
+                    {showEmoji && (
+                      <div className="absolute bottom-12 left-10 z-50">
+                        <EmojiPicker onEmojiClick={(e) => setInput((prev) => prev + e.emoji)} />
+                      </div>
+                    )}
+                    <input
+                      type="text"
+                      className="flex-1 border border-gray-200 rounded-full px-4 py-2 focus:ring-2 focus:ring-indigo-200 outline-none"
+                      placeholder="Type your message..."
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSend();
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={handleSend}
+                      disabled={!input.trim()}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition ${
+                        !input.trim()
+                          ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                          : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                      }`}
+                    >
+                      <FiSend size={18} />
+                      <span>Send</span>
+                    </button>
+                    <input
+                      type="file"
+                      hidden
+                      ref={fileInputRef}
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+          </motion.div>
+        </section>
+      </div>
     </div>
   );
 }
