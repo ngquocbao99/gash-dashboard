@@ -215,7 +215,7 @@ export default function ProductStatistics() {
       }
 
       // fetch top products
-      const resTop = await fetch("http://localhost:5000/products/top?limit=6", {
+      const resTop = await fetch("http://localhost:5000/statistics/products/top?limit=6", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const jt = await resTop.json();
