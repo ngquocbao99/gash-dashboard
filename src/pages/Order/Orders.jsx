@@ -1,4 +1,5 @@
 import RefundProofModal from "../RefundProofModal";
+import CancelOrderModal from "./CancelOrderModal"; // Adjust path as needed
 import OrderDetails from "./OrderDetails";
 import React, { useState, useEffect, useContext, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -95,6 +96,12 @@ const Orders = () => {
   const [editFormData, setEditFormData] = useState({
     order_status: "",
     pay_status: "",
+  });
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelOrderId, setCancelOrderId] = useState(null);
+  const [cancelFormData, setCancelFormData] = useState({
+    cancelReason: "",
+    customReason: ""
   });
 
   const isOrderDataChanged = (order) => {
@@ -631,64 +638,63 @@ const Orders = () => {
           )}
           {/* Table Section */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[800px]">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">#</th>
-                    <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Order ID</th>
-                    <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Date</th>
-                    <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Name Receive</th>
-                    <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Phone</th>
-                    <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Address</th>
-                    <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Total</th>
-                    <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Discount</th>
-                    <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Final</th>
-                    <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                    <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Method</th>
-                    <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Payment</th>
-                    <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {currentOrders.map((order, index) => (
-                    <React.Fragment key={order._id}>
-                      <tr className="hover:bg-gray-50 transition-colors duration-150">
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm text-gray-900">
-                          {startIndex + index + 1}
-                        </td>
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
-                          <div className="text-xs lg:text-sm font-medium text-gray-900" title={order._id}>
-                            {formatOrderId(order._id)}
-                          </div>
-                        </td>
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm text-gray-900 text-center">{formatDateVN(order.orderDate)}</td>
-                        <td className="px-2 lg:px-4 py-3">
-                          <div className="text-xs lg:text-sm font-medium text-gray-900 break-words max-w-xs">
-                            {order.name || order.acc_id?.name || order.acc_id?.username || "Guest"}
-                          </div>
-                        </td>
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm text-gray-900">{order.acc_id?.phone || order.phone || "N/A"}</td>
-                        <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm text-gray-900 max-w-xs">
-                          <div className="break-words">
-                            {order.addressReceive || "N/A"}
-                          </div>
-                        </td>
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm text-gray-900 text-center">{formatPrice(order.totalPrice)}</td>
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm text-gray-900 text-center">{formatPrice(order.discountAmount || 0)}</td>
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm font-medium text-gray-900 text-center">{formatPrice(order.finalPrice || order.totalPrice)}</td>
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
-                          {editingOrderId === order._id ? (
-                            <select
-                              className="px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs lg:text-sm"
-                              value={editFormData.order_status || order.order_status}
-                              onChange={(e) =>
-                                handleEditChange("order_status", e.target.value)
-                              }
-                              disabled={loading}
-                              aria-label="Edit order status"
-                            >
-                              {orderStatusOptions.map((opt) => (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px]">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">#</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Order ID</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Date</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Name Receive</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Phone</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Address</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Final</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Method</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Payment</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Cancel Reason</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {currentOrders.map((order, index) => (
+                  <React.Fragment key={order._id}>
+                    <tr className="hover:bg-gray-50 transition-colors duration-150">
+                      <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm text-gray-900">
+                        {startIndex + index + 1}
+                      </td>
+                      <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
+                        <div className="text-xs lg:text-sm font-medium text-gray-900" title={order._id}>
+                          {formatOrderId(order._id)}
+                        </div>
+                      </td>
+                      <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm text-gray-900 text-center">{formatDateVN(order.orderDate)}</td>
+                      <td className="px-2 lg:px-4 py-3">
+                        <div className="text-xs lg:text-sm font-medium text-gray-900 break-words max-w-xs">
+                          {order.name || order.acc_id?.name || order.acc_id?.username || "Guest"}
+                        </div>
+                      </td>
+                      <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm text-gray-900">{order.acc_id?.phone || order.phone || "N/A"}</td>
+                      <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm text-gray-900 max-w-xs">
+                        <div className="break-words">
+                          {order.addressReceive || "N/A"}
+                        </div>
+                      </td>
+                      <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm font-medium text-gray-900 text-center">{formatPrice(order.finalPrice || order.totalPrice)}</td>
+                      <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
+                        {editingOrderId === order._id ? (
+                          <select
+                            className="px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs lg:text-sm"
+                            value={editFormData.order_status || order.order_status}
+                            onChange={(e) =>
+                              handleEditChange("order_status", e.target.value)
+                            }
+                            disabled={loading}
+                            aria-label="Edit order status"
+                          >
+                            {orderStatusOptions
+                              .filter((opt) => opt.value !== "cancelled") // Remove 'cancelled' option
+                              .map((opt) => (
                                 <option
                                   key={opt.value}
                                   value={opt.value}
@@ -700,168 +706,237 @@ const Orders = () => {
                                   {opt.label}
                                 </option>
                               ))}
-                            </select>
-                          ) : (
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${order.order_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                              order.order_status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                                order.order_status === 'shipping' ? 'bg-purple-100 text-purple-800' :
-                                  order.order_status === 'delivered' ? 'bg-green-100 text-green-800' :
-                                    order.order_status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                                      'bg-gray-100 text-gray-800'
-                              }`}>
-                              {displayStatus(order.order_status)}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 ${order.payment_method === 'COD' ? 'bg-orange-100 text-orange-800' :
-                            order.payment_method === 'VNPAY' ? 'bg-blue-100 text-blue-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                            {displayStatus(order.payment_method)}
+                          </select>
+                        ) : (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${order.order_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                            order.order_status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                              order.order_status === 'shipping' ? 'bg-purple-100 text-purple-800' :
+                                order.order_status === 'delivered' ? 'bg-green-100 text-green-800' :
+                                  order.order_status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                                    'bg-gray-100 text-gray-800'
+                          }`}>
+                            {displayStatus(order.order_status)}
                           </span>
-                        </td>
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
-                          {editingOrderId === order._id ? (
-                            <select
-                              className="px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs lg:text-sm"
-                              value={editFormData.pay_status || order.pay_status}
-                              onChange={(e) =>
-                                handleEditChange("pay_status", e.target.value)
-                              }
-                              disabled={loading}
-                              aria-label="Edit payment status"
-                            >
-                              {payStatusOptions.map((opt) => (
-                                <option key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${order.pay_status === 'paid' ? 'bg-green-100 text-green-800' :
-                              order.pay_status === 'unpaid' ? 'bg-red-100 text-red-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                              {displayStatus(order.pay_status)}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm font-medium">
-                          {editingOrderId === order._id ? (
-                            <div className="flex items-center space-x-1">
-                              <button
-                                onClick={() => {
-                                  if (!isOrderDataChanged(order)) {
-                                    showToast("No changes detected", "info");
-                                    setEditingOrderId(null);
-                                    setEditFormData({
-                                      order_status: "",
-                                      pay_status: "",
-                                    });
-                                    return;
-                                  }
-                                  updateOrder(order._id, editFormData);
-                                }}
-                                className="p-1.5 text-green-600 hover:text-green-800 hover:bg-green-100 rounded-lg transition-all duration-200 border border-green-200 hover:border-green-300"
-                                disabled={loading}
-                                aria-label={`Update order ${order._id}`}
-                                title="Save changes"
-                              >
-                                <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                              </button>
-                              <button
-                                onClick={() => {
+                        )}
+                      </td>
+                      <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 ${order.payment_method === 'COD' ? 'bg-orange-100 text-orange-800' :
+                          order.payment_method === 'VNPAY' ? 'bg-blue-100 text-blue-800' :
+                            'bg-gray-100 text-gray-800'
+                        }`}>
+                          {displayStatus(order.payment_method)}
+                        </span>
+                      </td>
+                      <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
+                        {editingOrderId === order._id ? (
+                          <select
+                            className="px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs lg:text-sm"
+                            value={editFormData.pay_status || order.pay_status}
+                            onChange={(e) =>
+                              handleEditChange("pay_status", e.target.value)
+                            }
+                            disabled={loading}
+                            aria-label="Edit payment status"
+                          >
+                            {payStatusOptions.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${order.pay_status === 'paid' ? 'bg-green-100 text-green-800' :
+                            order.pay_status === 'unpaid' ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-800'
+                          }`}>
+                            {displayStatus(order.pay_status)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${order.cancelReason ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>
+                          {displayStatus(order.cancelReason || "N/A")}
+                        </span>
+                      </td>
+                      <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm font-medium">
+                        {editingOrderId === order._id ? (
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={() => {
+                                if (!isOrderDataChanged(order)) {
+                                  showToast("No changes detected", "info");
                                   setEditingOrderId(null);
                                   setEditFormData({
                                     order_status: "",
                                     pay_status: "",
                                   });
-                                }}
-                                className="p-1.5 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-200 hover:border-gray-300"
-                                disabled={loading}
-                                aria-label={`Cancel editing order ${order._id}`}
-                                title="Cancel editing"
-                              >
-                                <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center space-x-1">
-                              <button
-                                onClick={() => handleViewOrderDetails(order)}
-                                className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-all duration-200 border border-blue-200 hover:border-blue-300"
-                                aria-label={`View details for order ${order._id}`}
-                                title="View Details"
-                              >
-                                <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                </svg>
-                              </button>
+                                  return;
+                                }
+                                updateOrder(order._id, editFormData);
+                              }}
+                              className="p-1.5 text-green-600 hover:text-green-800 hover:bg-green-100 rounded-lg transition-all duration-200 border border-green-200 hover:border-green-300"
+                              disabled={loading}
+                              aria-label={`Update order ${order._id}`}
+                              title="Save changes"
+                            >
+                              <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingOrderId(null);
+                                setEditFormData({
+                                  order_status: "",
+                                  pay_status: "",
+                                });
+                              }}
+                              className="p-1.5 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-200 hover:border-gray-300"
+                              disabled={loading}
+                              aria-label={`Cancel editing order ${order._id}`}
+                              title="Cancel editing"
+                            >
+                              <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={() => handleViewOrderDetails(order)}
+                              className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-all duration-200 border border-blue-200 hover:border-blue-300"
+                              aria-label={`View details for order ${order._id}`}
+                              title="View Details"
+                            >
+                              <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => {
+                                // Check if refund management is allowed
+                                if (isRefundStatusUpdateAllowed(order.payment_method, order.order_status, order.pay_status)) {
+                                  handleViewOrderDetails(order);
+                                  return;
+                                }
+
+                                // Check if order status update is allowed
+                                if (!isOrderStatusUpdateAllowed(order.order_status)) {
+                                  showToast("Order status cannot be updated for cancelled or delivered orders", "error");
+                                  return;
+                                }
+
+                                setEditingOrderId(order._id);
+                                setEditFormData({
+                                  order_status: order.order_status,
+                                  pay_status: order.pay_status,
+                                });
+                              }}
+                              className={`p-1.5 rounded-lg transition-all duration-200 border ${(isOrderStatusUpdateAllowed(order.order_status) && !shouldDisableUpdate(
+                                order.payment_method,
+                                order.order_status,
+                                order.pay_status
+                              )) || isRefundStatusUpdateAllowed(order.payment_method, order.order_status, order.pay_status)
+                                ? isRefundStatusUpdateAllowed(order.payment_method, order.order_status, order.pay_status)
+                                  ? 'text-orange-600 hover:text-orange-800 hover:bg-orange-100 border-orange-200 hover:border-orange-300'
+                                  : 'text-blue-600 hover:text-blue-800 hover:bg-blue-100 border-blue-200 hover:border-blue-300'
+                                : 'text-gray-400 cursor-not-allowed border-gray-200 bg-gray-50'
+                              }`}
+                              aria-label={`${isRefundStatusUpdateAllowed(order.payment_method, order.order_status, order.pay_status) ? 'Manage refund' : 'Edit order'} ${order._id}`}
+                              disabled={shouldDisableUpdateButton(order.payment_method, order.order_status, order.pay_status)}
+                              title={
+                                isRefundStatusUpdateAllowed(order.payment_method, order.order_status, order.pay_status)
+                                  ? "Manage Refund"
+                                  : !isOrderStatusUpdateAllowed(order.order_status)
+                                    ? "Order status cannot be updated for cancelled or delivered orders"
+                                    : shouldDisableUpdate(order.payment_method, order.order_status, order.pay_status)
+                                      ? "This order is finalized and cannot be updated"
+                                      : "Edit Order"
+                              }
+                            >
+                              <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                {isRefundStatusUpdateAllowed(order.payment_method, order.order_status, order.pay_status) ? (
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                                ) : (
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                )}
+                              </svg>
+                            </button>
+                            {isOrderStatusUpdateAllowed(order.order_status) && (
                               <button
                                 onClick={() => {
-                                  // Check if refund management is allowed
-                                  if (isRefundStatusUpdateAllowed(order.payment_method, order.order_status, order.pay_status)) {
-                                    handleViewOrderDetails(order);
-                                    return;
-                                  }
-
-                                  // Check if order status update is allowed
-                                  if (!isOrderStatusUpdateAllowed(order.order_status)) {
-                                    showToast("Order status cannot be updated for cancelled or delivered orders", "error");
-                                    return;
-                                  }
-
-                                  setEditingOrderId(order._id);
-                                  setEditFormData({
-                                    order_status: order.order_status,
-                                    pay_status: order.pay_status,
-                                  });
+                                  setCancelOrderId(order._id);
+                                  setCancelModalOpen(true);
+                                  setCancelFormData({ cancelReason: "", customReason: "" });
                                 }}
-                                className={`p-1.5 rounded-lg transition-all duration-200 border ${(isOrderStatusUpdateAllowed(order.order_status) && !shouldDisableUpdate(
-                                  order.payment_method,
-                                  order.order_status,
-                                  order.pay_status
-                                )) || isRefundStatusUpdateAllowed(order.payment_method, order.order_status, order.pay_status)
-                                  ? isRefundStatusUpdateAllowed(order.payment_method, order.order_status, order.pay_status)
-                                    ? 'text-orange-600 hover:text-orange-800 hover:bg-orange-100 border-orange-200 hover:border-orange-300'
-                                    : 'text-blue-600 hover:text-blue-800 hover:bg-blue-100 border-blue-200 hover:border-blue-300'
-                                  : 'text-gray-400 cursor-not-allowed border-gray-200 bg-gray-50'
-                                  }`}
-                                aria-label={`${isRefundStatusUpdateAllowed(order.payment_method, order.order_status, order.pay_status) ? 'Manage refund' : 'Edit order'} ${order._id}`}
-                                disabled={shouldDisableUpdateButton(order.payment_method, order.order_status, order.pay_status)}
-                                title={
-                                  isRefundStatusUpdateAllowed(order.payment_method, order.order_status, order.pay_status)
-                                    ? "Manage Refund"
-                                    : !isOrderStatusUpdateAllowed(order.order_status)
-                                      ? "Order status cannot be updated for cancelled or delivered orders"
-                                      : shouldDisableUpdate(order.payment_method, order.order_status, order.pay_status)
-                                        ? "This order is finalized and cannot be updated"
-                                        : "Edit Order"
-                                }
+                                className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all duration-200 border border-red-200 hover:border-red-300"
+                                aria-label={`Cancel order ${order._id}`}
+                                title="Cancel Order"
                               >
                                 <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  {isRefundStatusUpdateAllowed(order.payment_method, order.order_status, order.pay_status) ? (
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                                  ) : (
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                  )}
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                               </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+{/* Cancel Order Modal */}
+<CancelOrderModal
+  isOpen={cancelModalOpen}
+  onClose={() => {
+    setCancelModalOpen(false);
+    setCancelOrderId(null);
+    setCancelFormData({ cancelReason: "", customReason: "" });
+  }}
+  orderId={cancelOrderId}
+  onConfirm={async (reason) => {
+    if (!cancelOrderId || !reason) {
+      showToast("Please select a cancel reason", "error");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const updateData = {
+        order_status: "cancelled",
+        cancelReason: reason
+      };
+
+      const response = await Api.orders.update(cancelOrderId, updateData);
+      console.log("Cancel Order Response:", response);
+
+      // Update local orders state
+      setOrders((prevOrders) =>
+        prevOrders.map((order) =>
+          order._id === cancelOrderId ? { ...order, ...response.data } : order
+        )
+      );
+
+      setCancelModalOpen(false);
+      setCancelOrderId(null);
+      setCancelFormData({ cancelReason: "", customReason: "" });
+      showToast("Order cancelled successfully!", "success");
+    } catch (err) {
+      setError(err.message || "Failed to cancel order");
+      showToast(err.message || "Failed to cancel order", "error");
+      console.error("Cancel Order Error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }}
+/>
           </div>
 
           {/* Pagination */}
