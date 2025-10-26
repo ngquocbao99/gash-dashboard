@@ -12,7 +12,6 @@ const VideoPreview = ({
     onToggleAudio,
     onCheckLiveKit,
     onRefresh,
-    onTogglePublishing,
     isConnected,
     isPublishing,
     connectionState,
@@ -26,47 +25,49 @@ const VideoPreview = ({
         <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Live Video</h2>
 
-            <div className="relative bg-black rounded-lg overflow-hidden mb-4">
-                <video
-                    ref={localVideoRef}
-                    autoPlay
-                    muted
-                    playsInline
-                    controls={false}
-                    className="w-full h-64 object-cover"
-                    style={{ backgroundColor: '#000' }}
-                />
+            <div className="flex justify-center mb-4">
+                <div className="relative bg-black rounded-lg overflow-hidden" style={{ width: '300px', aspectRatio: '9/16' }}>
+                    <video
+                        ref={localVideoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        controls={false}
+                        className="w-full h-full object-cover"
+                        style={{ backgroundColor: '#000' }}
+                    />
 
-                <div className="absolute top-4 left-4 flex items-center gap-2">
-                    <div className="flex items-center gap-2 bg-red-600 text-white px-2 py-1 rounded">
-                        <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                        <span className="text-sm font-medium">LIVE</span>
+                    <div className="absolute top-4 left-4 flex items-center gap-2">
+                        <div className="flex items-center gap-2 bg-red-600 text-white px-2 py-1 rounded">
+                            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                            <span className="text-sm font-medium">LIVE</span>
+                        </div>
                     </div>
+
+                    <div className="absolute top-4 right-16 flex flex-col gap-1">
+                        <div className={`px-2 py-1 rounded text-xs ${isVideoPlaying ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                            }`}>
+                            {isVideoPlaying ? '📹 Video ON' : '📹 Video OFF'}
+                        </div>
+                        <div className={`px-2 py-1 rounded text-xs ${isAudioPlaying ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+                            }`}>
+                            {isAudioPlaying ? '🎤 Audio ON' : '🎤 Audio OFF'}
+                        </div>
+                    </div>
+
+                    {videoDimensions.width > 0 && (
+                        <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
+                            {videoDimensions.width}x{videoDimensions.height}
+                        </div>
+                    )}
+
+                    <button
+                        onClick={onToggleFullscreen}
+                        className="absolute top-4 right-4 bg-black bg-opacity-50 text-white p-2 rounded hover:bg-opacity-70 transition-colors"
+                    >
+                        {isFullscreen ? <FullscreenExit className="w-5 h-5" /> : <Fullscreen className="w-5 h-5" />}
+                    </button>
                 </div>
-
-                <div className="absolute top-4 right-16 flex flex-col gap-1">
-                    <div className={`px-2 py-1 rounded text-xs ${isVideoPlaying ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-                        }`}>
-                        {isVideoPlaying ? '📹 Video ON' : '📹 Video OFF'}
-                    </div>
-                    <div className={`px-2 py-1 rounded text-xs ${isAudioPlaying ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
-                        }`}>
-                        {isAudioPlaying ? '🎤 Audio ON' : '🎤 Audio OFF'}
-                    </div>
-                </div>
-
-                {videoDimensions.width > 0 && (
-                    <div className="absolute bottom-4 left-4 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
-                        {videoDimensions.width}x{videoDimensions.height}
-                    </div>
-                )}
-
-                <button
-                    onClick={onToggleFullscreen}
-                    className="absolute top-4 right-4 bg-black bg-opacity-50 text-white p-2 rounded hover:bg-opacity-70 transition-colors"
-                >
-                    {isFullscreen ? <FullscreenExit className="w-5 h-5" /> : <Fullscreen className="w-5 h-5" />}
-                </button>
             </div>
 
             <div className="flex items-center justify-center gap-4">
@@ -82,17 +83,6 @@ const VideoPreview = ({
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                 >
                     {isAudioPlaying ? 'Tắt Mic' : 'Bật Mic'}
-                </button>
-
-                <button
-                    onClick={onTogglePublishing}
-                    disabled={!isConnected}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isPublishing
-                        ? 'bg-red-600 text-white hover:bg-red-700'
-                        : 'bg-green-600 text-white hover:bg-green-700'
-                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                    {isPublishing ? 'Stop Publishing' : 'Start Publishing'}
                 </button>
 
                 <button
@@ -164,8 +154,8 @@ const VideoPreview = ({
                         </span>
                     </div>
                     <div>
-                        <span className="font-medium">Participants:</span>
-                        <span className="ml-2 text-gray-600">{remoteParticipants.length + (localParticipant ? 1 : 0)}</span>
+                        <span className="font-medium">Viewers:</span>
+                        <span className="ml-2 text-gray-600">{remoteParticipants.length}</span>
                     </div>
                     <div>
                         <span className="font-medium">Room:</span>

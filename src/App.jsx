@@ -5,6 +5,7 @@ import {
   Route,
   Navigate,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
 import { AuthProvider, AuthContext } from "./context/AuthContext.jsx";
 import { ToastProvider } from "./components/Toast.jsx";
@@ -40,6 +41,7 @@ import OrderStatistics from "./pages/OrderStatistics/OrderStatistics.jsx";
 import CustomerStatistics from "./pages/CustomerStatistics/CustomerStatistics.jsx";
 import ProductStatistics from "./pages/ProductStatistics/ProductStatistics.jsx";
 import LiveStream from "./pages/LiveStream/LiveStream.jsx";
+import LiveStreamDashboard from "./pages/LiveStream/LiveStreamDashboard.jsx";
 
 
 // ===============================
@@ -222,6 +224,14 @@ const App = () => {
                 element={
                   <ProtectedRoute>
                     <LiveStream />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/livestream/:livestreamId"
+                element={
+                  <ProtectedRoute>
+                    <LiveStreamDashboard />
                   </ProtectedRoute>
                 }
               />

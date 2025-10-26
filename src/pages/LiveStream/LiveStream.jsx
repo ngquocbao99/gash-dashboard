@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
+import React, { useState, useEffect, useContext, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import Api from '../../common/SummaryAPI';
 import { useToast } from '../../hooks/useToast';
@@ -12,6 +13,7 @@ import { LIVEKIT_CONFIG } from '../../config/livekit';
 const LiveStream = () => {
     const { user } = useContext(AuthContext);
     const { showToast } = useToast();
+    const navigate = useNavigate();
 
     // Main state
     const [isLoading, setIsLoading] = useState(false);
@@ -50,12 +52,7 @@ const LiveStream = () => {
     const streamRef = useRef(null);
     const previewVideoRef = useRef(null);
 
-    // Load data on mount
-    useEffect(() => {
-        loadHostLivestreams();
-        loadLiveStreams();
-        setupMediaDevices();
-    }, []);
+    // Load data on mount - moved after function declarations
 
     // Cleanup - only on unmount
     useEffect(() => {
@@ -85,22 +82,23 @@ const LiveStream = () => {
 
     // Auto-start media stream when modal opens
     useEffect(() => {
-        if (showStartForm && !currentLivestream && isVideoEnabled && isAudioEnabled) {
+        if (showStartForm && !currentLivestream) {
             // Small delay to ensure modal and video elements are rendered
             const timer = setTimeout(() => {
                 if (!streamRef.current) {
                     startMediaStream().catch(error => {
                         console.error('Auto-start media stream failed:', error);
+                        // Error is already handled in startMediaStream with Toast
                     });
                 }
-            }, 300);
+            }, 500);
             return () => clearTimeout(timer);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [showStartForm, currentLivestream, isVideoEnabled, isAudioEnabled]);
+    }, [showStartForm, currentLivestream]);
 
     // Media setup
-    const setupMediaDevices = async () => {
+    const setupMediaDevices = useCallback(async () => {
         try {
             const devices = await navigator.mediaDevices.enumerateDevices();
             const cameras = devices.filter(device => device.kind === 'videoinput');
@@ -120,7 +118,7 @@ const LiveStream = () => {
             console.error('❌ Error loading media devices:', error);
             setMediaError('Không thể truy cập thiết bị media');
         }
-    };
+    }, []);
 
     const startMediaStream = async () => {
         try {
@@ -129,12 +127,12 @@ const LiveStream = () => {
             // Stop existing stream first
             if (streamRef.current) {
                 streamRef.current.getTracks().forEach(track => track.stop());
+                streamRef.current = null;
             }
 
             // Allow both to be off in preview (before starting livestream)
             // The requirement will be checked in handleStartLivestream
             if (!isVideoEnabled && !isAudioEnabled) {
-                streamRef.current = null;
                 setIsVideoPlaying(false);
                 setIsAudioPlaying(false);
                 return null;
@@ -155,7 +153,36 @@ const LiveStream = () => {
             };
 
             console.log('🎥 Requesting media with constraints:', constraints);
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+            // Request media with specific error handling
+            let stream;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+            } catch (error) {
+                console.error('❌ Error requesting media:', error);
+
+                // Show specific error messages
+                if (error.name === 'NotReadableError') {
+                    if (error.message.includes('Device in use')) {
+                        showToast('Camera/microphone đang được sử dụng bởi ứng dụng khác. Vui lòng đóng các tab/ứng dụng khác và tải lại trang.', 'error');
+                        setMediaError('Thiết bị đang được sử dụng bởi ứng dụng khác');
+                    } else {
+                        showToast('Không thể truy cập camera/microphone. Vui lòng kiểm tra kết nối thiết bị.', 'error');
+                        setMediaError('Lỗi kết nối thiết bị');
+                    }
+                } else if (error.name === 'NotAllowedError') {
+                    showToast('Bạn đã từ chối quyền truy cập camera/microphone. Vui lòng bật lại quyền trong trình duyệt.', 'error');
+                    setMediaError('Bị từ chối quyền truy cập');
+                } else if (error.name === 'NotFoundError') {
+                    showToast('Không tìm thấy camera/microphone. Vui lòng kiểm tra thiết bị.', 'error');
+                    setMediaError('Không tìm thấy thiết bị');
+                } else {
+                    showToast(`Lỗi truy cập camera/microphone: ${error.message}`, 'error');
+                    setMediaError(error.message);
+                }
+                throw error;
+            }
+
             streamRef.current = stream;
             console.log('✅ Media stream obtained:', {
                 videoTracks: stream.getVideoTracks().length,
@@ -293,9 +320,35 @@ const LiveStream = () => {
             setLivekitError(null);
             setConnectionState('connecting');
 
+            // Validate inputs
+            if (!roomName || !hostToken) {
+                throw new Error('Room name and token are required');
+            }
+
             const roomOptions = {
                 adaptiveStream: true,
-                dynacast: true
+                dynacast: true,
+                // Disable data channels to prevent DataChannel errors
+                dataChannelOptions: {
+                    ordered: false,
+                    maxRetransmits: 0
+                },
+                defaultAudioCaptureOptions: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                },
+                defaultVideoCaptureOptions: {
+                    resolution: { width: 1920, height: 1080 },
+                    facingMode: 'user'
+                },
+                publishDefaults: {
+                    videoEncoding: {
+                        maxBitrate: 3_000_000,
+                        maxFramerate: 30
+                    },
+                    red: false
+                }
             };
 
             const newRoom = new Room(roomOptions);
@@ -306,31 +359,34 @@ const LiveStream = () => {
                 setConnectionState('connected');
                 setLocalParticipant(newRoom.localParticipant);
 
-                // Auto-publish media after connection - Immediate publish
-                if (streamRef.current) {
-                    console.log('📤 Auto-publishing media after connection...');
-                    try {
-                        const videoTrack = streamRef.current?.getVideoTracks()[0];
-                        const audioTrack = streamRef.current?.getAudioTracks()[0];
+                // Wait a bit before publishing to ensure connection is stable
+                setTimeout(async () => {
+                    if (streamRef.current && newRoom.state === 'connected') {
+                        console.log('📤 Auto-publishing media after connection...');
+                        try {
+                            const videoTrack = streamRef.current?.getVideoTracks()[0];
+                            const audioTrack = streamRef.current?.getAudioTracks()[0];
 
-                        console.log('📹 Tracks found:', { video: !!videoTrack, audio: !!audioTrack });
+                            console.log('📹 Tracks found:', { video: !!videoTrack, audio: !!audioTrack });
 
-                        if (videoTrack && videoTrack.readyState === 'live') {
-                            await newRoom.localParticipant.publishTrack(videoTrack, { name: 'camera' });
-                            console.log('📹 Video track published');
+                            if (videoTrack && videoTrack.readyState === 'live') {
+                                await newRoom.localParticipant.publishTrack(videoTrack, { name: 'camera' });
+                                console.log('📹 Video track published');
+                            }
+
+                            if (audioTrack && audioTrack.readyState === 'live') {
+                                await newRoom.localParticipant.publishTrack(audioTrack, { name: 'microphone' });
+                                console.log('🎤 Audio track published');
+                            }
+
+                            setIsPublishing(true);
+                            console.log('🎉 Media published successfully');
+                        } catch (error) {
+                            console.error('❌ Error auto-publishing:', error);
+                            // Don't disconnect on publish error, just log it
                         }
-
-                        if (audioTrack && audioTrack.readyState === 'live') {
-                            await newRoom.localParticipant.publishTrack(audioTrack, { name: 'microphone' });
-                            console.log('🎤 Audio track published');
-                        }
-
-                        setIsPublishing(true);
-                        console.log('🎉 Media published successfully');
-                    } catch (error) {
-                        console.error('❌ Error auto-publishing:', error);
                     }
-                }
+                }, 1000); // Wait 1 second for connection to stabilize
             });
 
             newRoom.on(RoomEvent.Disconnected, (reason) => {
@@ -339,7 +395,35 @@ const LiveStream = () => {
                 setConnectionState('disconnected');
                 setLocalParticipant(null);
                 setRemoteParticipants([]);
+                setIsPublishing(false);
             });
+
+            // Add connection error handling
+            newRoom.on(RoomEvent.ConnectionStateChanged, (state) => {
+                console.log('🔗 Connection state changed:', state);
+                setConnectionState(state);
+            });
+
+            newRoom.on(RoomEvent.MediaDevicesError, (error) => {
+                console.error('❌ Media devices error:', error);
+                setMediaError('Media device error: ' + error.message);
+            });
+
+            // Handle DataChannel errors - ignore them to prevent disconnection
+            newRoom.on(RoomEvent.DataReceived, (payload, participant, kind, topic) => {
+                // Silently handle data - don't log to prevent console spam
+            });
+
+            // Add global error handler to catch and ignore DataChannel errors
+            const originalConsoleError = console.error;
+            console.error = (...args) => {
+                const message = args[0]?.toString() || '';
+                if (message.includes('DataChannel error') || message.includes('Unknown DataChannel error')) {
+                    // Ignore DataChannel errors to prevent disconnection
+                    return;
+                }
+                originalConsoleError.apply(console, args);
+            };
 
             newRoom.on(RoomEvent.ParticipantConnected, (participant) => {
                 console.log('👤 Participant connected:', participant.identity);
@@ -359,13 +443,34 @@ const LiveStream = () => {
 
             await Promise.race([connectPromise, timeoutPromise]);
             setRoom(newRoom);
+
+            // Restore original console.error
+            console.error = originalConsoleError;
+
             console.log('🎉 Successfully connected to LiveKit room');
 
             return newRoom;
         } catch (error) {
+            // Restore original console.error in case of error
+            if (typeof originalConsoleError !== 'undefined') {
+                console.error = originalConsoleError;
+            }
+
             console.error('❌ Error connecting to LiveKit:', error);
             setLivekitError(error.message);
             setConnectionState('error');
+
+            // Provide specific error messages
+            if (error.message.includes('timeout')) {
+                showToast('Kết nối timeout. Vui lòng kiểm tra kết nối mạng.', 'error');
+            } else if (error.message.includes('token')) {
+                showToast('Token không hợp lệ. Vui lòng thử lại.', 'error');
+            } else if (error.message.includes('server')) {
+                showToast('Không thể kết nối đến server LiveKit.', 'error');
+            } else {
+                showToast('Lỗi kết nối: ' + error.message, 'error');
+            }
+
             throw error;
         }
     };
@@ -375,15 +480,45 @@ const LiveStream = () => {
         if (room) {
             try {
                 console.log('🔌 Disconnecting from LiveKit...');
+
+                // Stop publishing first
+                if (room.localParticipant) {
+                    try {
+                        const videoTracks = Array.from(room.localParticipant.videoTrackPublications.values());
+                        const audioTracks = Array.from(room.localParticipant.audioTrackPublications.values());
+
+                        for (const videoTrack of videoTracks) {
+                            await room.localParticipant.unpublishTrack(videoTrack.track);
+                        }
+                        for (const audioTrack of audioTracks) {
+                            await room.localParticipant.unpublishTrack(audioTrack.track);
+                        }
+                        console.log('📤 Stopped publishing tracks');
+                    } catch (error) {
+                        console.warn('⚠️ Error stopping tracks:', error);
+                    }
+                }
+
+                // Wait a bit before disconnecting
+                await new Promise(resolve => setTimeout(resolve, 500));
+
                 await room.disconnect();
                 setRoom(null);
                 setIsConnected(false);
                 setConnectionState('disconnected');
                 setLocalParticipant(null);
                 setRemoteParticipants([]);
+                setIsPublishing(false);
                 console.log('✅ Disconnected from LiveKit');
             } catch (error) {
                 console.error('❌ Error disconnecting from LiveKit:', error);
+                // Force cleanup even if disconnect fails
+                setRoom(null);
+                setIsConnected(false);
+                setConnectionState('disconnected');
+                setLocalParticipant(null);
+                setRemoteParticipants([]);
+                setIsPublishing(false);
             }
         }
     };
@@ -425,12 +560,13 @@ const LiveStream = () => {
     };
 
     // Load streams
-    const loadHostLivestreams = async () => {
+    const loadHostLivestreams = useCallback(async () => {
         try {
             setIsLoading(true);
             const response = await Api.livestream.getHost();
             if (response.success) {
-                setHostLivestreams(response.data || []);
+                const livestreams = response.data?.livestreams || response.data || [];
+                setHostLivestreams(livestreams);
             } else {
                 showToast('Không thể tải danh sách livestream', 'error');
             }
@@ -440,23 +576,79 @@ const LiveStream = () => {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [showToast]);
 
-    const loadLiveStreams = async () => {
+    const loadLiveStreams = useCallback(async () => {
         try {
             const response = await Api.livestream.getLive();
+            console.log('📡 Dashboard loadLiveStreams response:', response);
             if (response.success) {
-                setLiveStreams(response.data || []);
+                const streams = response.data?.streams || response.data || [];
+                console.log('📡 Dashboard streams found:', streams);
+                setLiveStreams(streams);
             }
         } catch (error) {
             console.error('Error loading live streams:', error);
         }
-    };
+    }, []);
+
+    // Load data on mount - after all function declarations
+    useEffect(() => {
+        loadHostLivestreams();
+        loadLiveStreams();
+        setupMediaDevices();
+    }, [loadHostLivestreams, loadLiveStreams, setupMediaDevices]);
+
+    // Real-time viewer count update for current livestream
+    useEffect(() => {
+        if (!isLive || !currentLivestream) return;
+
+        const updateViewerCount = async () => {
+            try {
+                const response = await Api.livestream.getHost();
+                if (response.success) {
+                    const livestreams = response.data?.livestreams || response.data || [];
+                    const currentStream = livestreams.find(ls => ls._id === currentLivestream.livestreamId);
+                    if (currentStream) {
+                        setCurrentLivestream(prev => ({
+                            ...prev,
+                            currentViewers: currentStream.currentViewers,
+                            peakViewers: currentStream.peakViewers,
+                            minViewers: currentStream.minViewers
+                        }));
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating viewer count:', error);
+            }
+        };
+
+        // Update every 5 seconds
+        const interval = setInterval(updateViewerCount, 5000);
+        return () => clearInterval(interval);
+    }, [isLive, currentLivestream]);
 
     // Start livestream
     const handleStartLivestream = async () => {
         if (!startForm.title.trim()) {
             showToast('Vui lòng nhập tiêu đề livestream', 'error');
+            return;
+        }
+
+        // Debug: Check user authentication and role
+        console.log('🔍 User info:', user);
+        console.log('🔍 User role:', user?.role);
+        console.log('🔍 Is admin/manager:', user?.role === 'admin' || user?.role === 'manager');
+
+        // Check if user is authenticated
+        if (!user) {
+            showToast('Bạn cần đăng nhập để thực hiện chức năng này', 'error');
+            return;
+        }
+
+        // Check if user has required role
+        if (user.role !== 'admin' && user.role !== 'manager') {
+            showToast('Chỉ admin/manager mới có thể bắt đầu livestream', 'error');
             return;
         }
 
@@ -491,19 +683,44 @@ const LiveStream = () => {
                 videoTracks: stream.getVideoTracks().length,
                 audioTracks: stream.getAudioTracks().length
             });
-            const response = await Api.livestream.start({
+
+            // Debug: Log request data
+            const requestData = {
                 title: startForm.title,
                 description: startForm.description
-            });
+            };
+            console.log('📤 Sending livestream start request:', requestData);
+            console.log('📤 API URL:', import.meta.env.VITE_API_URL || 'http://localhost:5000');
+            console.log('📤 Auth token:', localStorage.getItem('token') ? 'Present' : 'Missing');
+
+            const response = await Api.livestream.start(requestData);
+            console.log('📤 Start livestream response:', response);
 
             if (response.success) {
+                console.log('📤 Livestream started successfully:', response.data);
                 setCurrentLivestream(response.data);
                 setIsLive(true);
                 setStartForm({ title: '', description: '' });
                 setShowStartForm(false);
-                showToast('Livestream đã được bắt đầu thành công!', 'success');
+                showToast('Livestream đã được bắt đầu thành công! Chuyển đến dashboard...', 'success');
+
+                // Connect to LiveKit first
                 await connectToLiveKit(response.data.roomName, response.data.hostToken);
-                // Media will auto-publish when connection is established
+
+                // Clean up video elements before navigation to prevent AbortError
+                if (localVideoRef.current) {
+                    localVideoRef.current.srcObject = null;
+                }
+                if (previewVideoRef.current) {
+                    previewVideoRef.current.srcObject = null;
+                }
+
+                // Navigate to dashboard for this livestream
+                const livestreamId = response.data.livestreamId || response.data._id;
+                console.log('🔄 Navigating to dashboard for livestream:', livestreamId);
+                navigate(`/livestream/${livestreamId}`);
+
+                // Update lists in background
                 loadHostLivestreams();
                 loadLiveStreams();
             } else {
@@ -512,7 +729,32 @@ const LiveStream = () => {
             }
         } catch (error) {
             console.error('Error starting livestream:', error);
-            showToast('Lỗi khi bắt đầu livestream', 'error');
+
+            // Provide specific error messages based on error type
+            if (error.response) {
+                // Server responded with error status
+                const status = error.response.status;
+                const message = error.response.data?.message || error.response.data?.error || 'Unknown server error';
+
+                if (status === 400) {
+                    showToast(`Lỗi dữ liệu: ${message}`, 'error');
+                } else if (status === 401) {
+                    showToast('Bạn cần đăng nhập để thực hiện chức năng này', 'error');
+                } else if (status === 403) {
+                    showToast('Bạn không có quyền thực hiện chức năng này. Chỉ admin/manager mới có thể bắt đầu livestream', 'error');
+                } else if (status === 500) {
+                    showToast(`Lỗi server: ${message}`, 'error');
+                } else {
+                    showToast(`Lỗi API (${status}): ${message}`, 'error');
+                }
+            } else if (error.request) {
+                // Network error
+                showToast('Lỗi kết nối mạng. Vui lòng kiểm tra kết nối internet và thử lại', 'error');
+            } else {
+                // Other error
+                showToast(`Lỗi không xác định: ${error.message}`, 'error');
+            }
+
             stopMediaStream();
         } finally {
             setIsLoading(false);
@@ -658,7 +900,7 @@ const LiveStream = () => {
                 {!currentLivestream && isAdminOrManager && (
                     <button
                         onClick={() => setShowStartForm(true)}
-                        className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg"
+                        className="flex items-center gap-2 px-6 py-3 bg-linear-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg"
                     >
                         <LiveTv className="w-5 h-5" />
                         <span className="font-semibold">Bắt đầu Live</span>
@@ -690,6 +932,8 @@ const LiveStream = () => {
                                 <span>ID: {currentLivestream.livestreamId}</span>
                                 <span>Room: {currentLivestream.roomName}</span>
                                 <span>Status: {isLive ? 'Đang live' : 'Đã dừng'}</span>
+                                <span>Viewers: {currentLivestream.currentViewers || 0}</span>
+                                <span>Peak: {currentLivestream.peakViewers || 0}</span>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">

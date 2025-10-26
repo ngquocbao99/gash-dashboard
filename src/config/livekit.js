@@ -1,7 +1,7 @@
 // LiveKit Configuration for Frontend
 export const LIVEKIT_CONFIG = {
     // LiveKit server URL - Update this with your actual LiveKit server URL
-    serverUrl: import.meta.env.VITE_LIVEKIT_SERVER_URL || 'wss://your-livekit-server.com',
+    serverUrl: import.meta.env.VITE_LIVEKIT_SERVER_URL || 'wss://livekit-server.example.com',
 
     // Room settings
     roomSettings: {

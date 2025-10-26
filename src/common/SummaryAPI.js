@@ -276,6 +276,12 @@ const Api = {
         getLive: () => axiosClient.get("/livestream/live").then(response => response.data),
         // View/Join livestream (authenticated users)
         view: (data) => axiosClient.post("/livestream/view", data).then(response => response.data),
+        // Get host token (admin/manager only)
+        getToken: (data) => axiosClient.post("/livestream/token", data).then(response => response.data),
+        // Get all livestreams (with pagination)
+        getAll: (params) => axiosClient.get("/livestream/all", { params }).then(response => response.data),
+        // Get specific livestream details
+        getById: (livestreamId) => axiosClient.get(`/livestream/${livestreamId}`).then(response => response.data),
     },
 };
 
