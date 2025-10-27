@@ -162,7 +162,7 @@ const CustomerStatistics = () => {
         // attempt to fetch top customers (optional endpoint)
         try {
           const topRes = await fetch(
-            `http://localhost:5000/customers/top?period=${timeFilter}`,
+            `http://localhost:5000/statistics/customers/top?period=${timeFilter}`,
             {
               headers: { Authorization: `Bearer ${token}` },
             }
