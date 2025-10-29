@@ -266,22 +266,49 @@ const Api = {
 
     // ==== Livestream ====
     livestream: {
+        // ==== Livestream Management ====
         // Start livestream (admin/manager only)
         start: (data) => axiosClient.post("/livestream/start", data).then(response => response.data),
         // End livestream (admin/manager only)
         end: (livestreamId) => axiosClient.put("/livestream/end", { livestreamId }).then(response => response.data),
         // Get host livestreams (admin/manager only)
-        getHost: () => axiosClient.get("/livestream/host").then(response => response.data),
-        // Get live streams (authenticated users)
-        getLive: () => axiosClient.get("/livestream/live").then(response => response.data),
-        // View/Join livestream (authenticated users)
-        view: (data) => axiosClient.post("/livestream/view", data).then(response => response.data),
+        getHost: () => axiosClient.get("/livestream/my-livestream").then(response => response.data),
         // Get host token (admin/manager only)
-        getToken: (data) => axiosClient.post("/livestream/token", data).then(response => response.data),
-        // Get all livestreams (with pagination)
-        getAll: (params) => axiosClient.get("/livestream/all", { params }).then(response => response.data),
-        // Get specific livestream details
-        getById: (livestreamId) => axiosClient.get(`/livestream/${livestreamId}`).then(response => response.data),
+        getToken: (data) => axiosClient.post("/livestream/host-token", data).then(response => response.data),
+        // Get all livestreams (admin/manager only)
+        getAll: (params) => axiosClient.get("/livestream/all-livestream", { params }).then(response => response.data),
+        // Get specific livestream details (admin/manager only)
+        getById: (livestreamId) => axiosClient.get(`/livestream/livestream-by-id/${livestreamId}`).then(response => response.data),
+
+        // ==== Livestream Comments ====
+        // Add comment to livestream
+        addComment: (data) => axiosClient.post("/livestream-comments/add-comment", data).then(response => response.data),
+        // Get comments for a livestream (User - only non-deleted comments)
+        getComments: (liveId, params = {}) => axiosClient.get(`/livestream-comments/comments/${liveId}`, { params }).then(response => response.data),
+        // Get comments for a livestream (Admin - all comments, including deleted)
+        getAdminComments: (liveId, params = {}) => axiosClient.get(`/livestream-comments/admin/comments/${liveId}`, { params }).then(response => response.data),
+        // Hide/Delete comment (Sender hoặc Admin/Manager)
+        hideComment: (commentId) => axiosClient.delete(`/livestream-comments/${commentId}/hide-comment`).then(response => response.data),
+        // Pin comment (Admin only)
+        pinComment: (commentId, liveId) => axiosClient.post(`/livestream-comments/${commentId}/pin-comment`, { liveId }).then(response => response.data),
+        // Remove pin from comment (Admin only)
+        unpinComment: (commentId, liveId) => axiosClient.post(`/livestream-comments/${commentId}/unpin-comment`, { liveId }).then(response => response.data),
+
+        // ==== Livestream Products ====
+        // Add product to livestream (Admin only)
+        addProduct: (data) => axiosClient.post("/livestream-products/add-live-product", data).then(response => response.data),
+        // Remove product from livestream (Admin only)
+        removeProduct: (data) => axiosClient.post("/livestream-products/remove-live-product", data).then(response => response.data),
+        // Pin product (Admin only)
+        pinProduct: (liveProductId, data) => axiosClient.post(`/livestream-products/${liveProductId}/pin-live-product`, data).then(response => response.data),
+        // Remove pin from product (Admin only)
+        unpinProduct: (liveProductId, data) => axiosClient.post(`/livestream-products/${liveProductId}/unpin-live-product`, data).then(response => response.data),
+        // Get all active products in a livestream (User và Admin dùng chung - chỉ active products)
+        getLiveProducts: (liveId) => axiosClient.get(`/livestream-products/${liveId}/live-products`).then(response => response.data),
+
+        // ==== Livestream Reactions ====
+        // Get reaction counts for a livestream (User và Admin dùng chung - reaction ko có xóa)
+        getReactions: (liveId) => axiosClient.get(`/livestream-reactions/reactions/${liveId}`).then(response => response.data),
     },
 };
 

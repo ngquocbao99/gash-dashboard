@@ -42,6 +42,7 @@ import CustomerStatistics from "./pages/CustomerStatistics/CustomerStatistics.js
 import ProductStatistics from "./pages/ProductStatistics/ProductStatistics.jsx";
 import LiveStream from "./pages/LiveStream/LiveStream.jsx";
 import LiveStreamDashboard from "./pages/LiveStream/LiveStreamDashboard.jsx";
+import LiveStreamDetails from "./pages/LiveStream/LiveStreamDetails.jsx";
 
 
 // ===============================
@@ -228,10 +229,18 @@ const App = () => {
                 }
               />
               <Route
-                path="/livestream/:livestreamId"
+                path="/manage-livestream/:livestreamId"
                 element={
                   <ProtectedRoute>
                     <LiveStreamDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/livestream/details/:livestreamId"
+                element={
+                  <ProtectedRoute>
+                    <LiveStreamDetails />
                   </ProtectedRoute>
                 }
               />

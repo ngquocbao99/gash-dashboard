@@ -18,12 +18,18 @@ const LiveStream = () => {
     // Main state
     const [isLoading, setIsLoading] = useState(false);
     const [currentLivestream, setCurrentLivestream] = useState(null);
-    const [hostLivestreams, setHostLivestreams] = useState([]);
-    const [liveStreams, setLiveStreams] = useState([]);
     const [isLive, setIsLive] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [startForm, setStartForm] = useState({ title: '', description: '' });
     const [showStartForm, setShowStartForm] = useState(false);
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [totalItems, setTotalItems] = useState(0);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'live', 'ended'
 
     // LiveKit state
     const [room, setRoom] = useState(null);
@@ -116,7 +122,7 @@ const LiveStream = () => {
             console.log('✅ Media devices loaded:', { cameras: cameras.length, microphones: microphones.length });
         } catch (error) {
             console.error('❌ Error loading media devices:', error);
-            setMediaError('Không thể truy cập thiết bị media');
+            setMediaError('Unable to access media devices');
         }
     }, []);
 
@@ -164,20 +170,20 @@ const LiveStream = () => {
                 // Show specific error messages
                 if (error.name === 'NotReadableError') {
                     if (error.message.includes('Device in use')) {
-                        showToast('Camera/microphone đang được sử dụng bởi ứng dụng khác. Vui lòng đóng các tab/ứng dụng khác và tải lại trang.', 'error');
-                        setMediaError('Thiết bị đang được sử dụng bởi ứng dụng khác');
+                        showToast('Camera/microphone is being used by another application. Please close other tabs/apps and reload the page.', 'error');
+                        setMediaError('Device is being used by another application');
                     } else {
-                        showToast('Không thể truy cập camera/microphone. Vui lòng kiểm tra kết nối thiết bị.', 'error');
-                        setMediaError('Lỗi kết nối thiết bị');
+                        showToast('Unable to access camera/microphone. Please check device connection.', 'error');
+                        setMediaError('Device connection error');
                     }
                 } else if (error.name === 'NotAllowedError') {
-                    showToast('Bạn đã từ chối quyền truy cập camera/microphone. Vui lòng bật lại quyền trong trình duyệt.', 'error');
-                    setMediaError('Bị từ chối quyền truy cập');
+                    showToast('Camera/microphone permission denied. Please enable permissions in browser.', 'error');
+                    setMediaError('Permission denied');
                 } else if (error.name === 'NotFoundError') {
-                    showToast('Không tìm thấy camera/microphone. Vui lòng kiểm tra thiết bị.', 'error');
-                    setMediaError('Không tìm thấy thiết bị');
+                    showToast('Camera/microphone not found. Please check your devices.', 'error');
+                    setMediaError('Device not found');
                 } else {
-                    showToast(`Lỗi truy cập camera/microphone: ${error.message}`, 'error');
+                    showToast(`Camera/microphone access error: ${error.message}`, 'error');
                     setMediaError(error.message);
                 }
                 throw error;
@@ -220,8 +226,8 @@ const LiveStream = () => {
             return stream;
         } catch (error) {
             console.error('❌ Error starting media stream:', error);
-            setMediaError('Không thể truy cập camera/microphone: ' + error.message);
-            showToast('Không thể truy cập camera/microphone. Vui lòng kiểm tra quyền truy cập.', 'error');
+            setMediaError('Unable to access camera/microphone: ' + error.message);
+            showToast('Unable to access camera/microphone. Please check permissions.', 'error');
             throw error;
         }
     };
@@ -462,13 +468,13 @@ const LiveStream = () => {
 
             // Provide specific error messages
             if (error.message.includes('timeout')) {
-                showToast('Kết nối timeout. Vui lòng kiểm tra kết nối mạng.', 'error');
+                showToast('Connection timeout. Please check your network connection.', 'error');
             } else if (error.message.includes('token')) {
-                showToast('Token không hợp lệ. Vui lòng thử lại.', 'error');
+                showToast('Invalid token. Please try again.', 'error');
             } else if (error.message.includes('server')) {
-                showToast('Không thể kết nối đến server LiveKit.', 'error');
+                showToast('Unable to connect to LiveKit server.', 'error');
             } else {
-                showToast('Lỗi kết nối: ' + error.message, 'error');
+                showToast('Connection error: ' + error.message, 'error');
             }
 
             throw error;
@@ -559,79 +565,32 @@ const LiveStream = () => {
         }
     };
 
-    // Load streams
-    const loadHostLivestreams = useCallback(async () => {
-        try {
-            setIsLoading(true);
-            const response = await Api.livestream.getHost();
-            if (response.success) {
-                const livestreams = response.data?.livestreams || response.data || [];
-                setHostLivestreams(livestreams);
-            } else {
-                showToast('Không thể tải danh sách livestream', 'error');
-            }
-        } catch (error) {
-            console.error('Error loading host livestreams:', error);
-            showToast('Lỗi khi tải danh sách livestream', 'error');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [showToast]);
-
-    const loadLiveStreams = useCallback(async () => {
-        try {
-            const response = await Api.livestream.getLive();
-            console.log('📡 Dashboard loadLiveStreams response:', response);
-            if (response.success) {
-                const streams = response.data?.streams || response.data || [];
-                console.log('📡 Dashboard streams found:', streams);
-                setLiveStreams(streams);
-            }
-        } catch (error) {
-            console.error('Error loading live streams:', error);
-        }
-    }, []);
 
     // Load data on mount - after all function declarations
     useEffect(() => {
-        loadHostLivestreams();
-        loadLiveStreams();
         setupMediaDevices();
-    }, [loadHostLivestreams, loadLiveStreams, setupMediaDevices]);
+    }, [setupMediaDevices]);
 
-    // Real-time viewer count update for current livestream
+    // Debounce search term
     useEffect(() => {
-        if (!isLive || !currentLivestream) return;
+        const timer = setTimeout(() => {
+            setDebouncedSearchTerm(searchTerm);
+            setCurrentPage(1); // Reset to first page when searching
+        }, 500); // 500ms delay
 
-        const updateViewerCount = async () => {
-            try {
-                const response = await Api.livestream.getHost();
-                if (response.success) {
-                    const livestreams = response.data?.livestreams || response.data || [];
-                    const currentStream = livestreams.find(ls => ls._id === currentLivestream.livestreamId);
-                    if (currentStream) {
-                        setCurrentLivestream(prev => ({
-                            ...prev,
-                            currentViewers: currentStream.currentViewers,
-                            peakViewers: currentStream.peakViewers,
-                            minViewers: currentStream.minViewers
-                        }));
-                    }
-                }
-            } catch (error) {
-                console.error('Error updating viewer count:', error);
-            }
-        };
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
 
-        // Update every 5 seconds
-        const interval = setInterval(updateViewerCount, 5000);
-        return () => clearInterval(interval);
-    }, [isLive, currentLivestream]);
+    // Reset to first page when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [statusFilter, itemsPerPage]);
+
 
     // Start livestream
     const handleStartLivestream = async () => {
         if (!startForm.title.trim()) {
-            showToast('Vui lòng nhập tiêu đề livestream', 'error');
+            showToast('Please enter livestream title', 'error');
             return;
         }
 
@@ -648,13 +607,13 @@ const LiveStream = () => {
 
         // Check if user has required role
         if (user.role !== 'admin' && user.role !== 'manager') {
-            showToast('Chỉ admin/manager mới có thể bắt đầu livestream', 'error');
+            showToast('Only admin/manager can start livestream', 'error');
             return;
         }
 
         // Require both video and audio to start livestream
         if (!isVideoEnabled || !isAudioEnabled) {
-            showToast('Vui lòng bật cả video và audio để bắt đầu livestream', 'warning');
+            showToast('Please enable both video and audio to start livestream', 'warning');
             return;
         }
 
@@ -698,14 +657,13 @@ const LiveStream = () => {
 
             if (response.success) {
                 console.log('📤 Livestream started successfully:', response.data);
-                setCurrentLivestream(response.data);
-                setIsLive(true);
-                setStartForm({ title: '', description: '' });
-                setShowStartForm(false);
-                showToast('Livestream đã được bắt đầu thành công! Chuyển đến dashboard...', 'success');
 
-                // Connect to LiveKit first
-                await connectToLiveKit(response.data.roomName, response.data.hostToken);
+                // Get livestream ID for navigation
+                const livestreamId = response.data.livestreamId || response.data._id;
+                console.log('🔄 Navigating to dashboard for livestream:', livestreamId);
+
+                // Show success message
+                showToast('Livestream started successfully! Redirecting to dashboard...', 'success');
 
                 // Clean up video elements before navigation to prevent AbortError
                 if (localVideoRef.current) {
@@ -715,16 +673,25 @@ const LiveStream = () => {
                     previewVideoRef.current.srcObject = null;
                 }
 
-                // Navigate to dashboard for this livestream
-                const livestreamId = response.data.livestreamId || response.data._id;
-                console.log('🔄 Navigating to dashboard for livestream:', livestreamId);
-                navigate(`/livestream/${livestreamId}`);
+                // Stop media stream here (LiveStreamDashboard will start its own)
+                if (streamRef.current) {
+                    streamRef.current.getTracks().forEach(track => track.stop());
+                    streamRef.current = null;
+                }
 
-                // Update lists in background
-                loadHostLivestreams();
-                loadLiveStreams();
+                // Reset form and state
+                setStartForm({ title: '', description: '' });
+                setShowStartForm(false);
+                setCurrentLivestream(null);
+                setIsLive(false);
+
+                // Small delay to ensure cleanup completes before navigation
+                setTimeout(() => {
+                    // Navigate to dashboard - it will handle LiveKit connection itself
+                    navigate(`/manage-livestream/${livestreamId}`);
+                }, 300);
             } else {
-                showToast(response.message || 'Không thể bắt đầu livestream', 'error');
+                showToast(response.message || 'Unable to start livestream', 'error');
                 stopMediaStream();
             }
         } catch (error) {
@@ -737,22 +704,22 @@ const LiveStream = () => {
                 const message = error.response.data?.message || error.response.data?.error || 'Unknown server error';
 
                 if (status === 400) {
-                    showToast(`Lỗi dữ liệu: ${message}`, 'error');
+                    showToast(`Data error: ${message}`, 'error');
                 } else if (status === 401) {
-                    showToast('Bạn cần đăng nhập để thực hiện chức năng này', 'error');
+                    showToast('Please login to perform this action', 'error');
                 } else if (status === 403) {
-                    showToast('Bạn không có quyền thực hiện chức năng này. Chỉ admin/manager mới có thể bắt đầu livestream', 'error');
+                    showToast('You do not have permission. Only admin/manager can start livestream', 'error');
                 } else if (status === 500) {
-                    showToast(`Lỗi server: ${message}`, 'error');
+                    showToast(`Server error: ${message}`, 'error');
                 } else {
-                    showToast(`Lỗi API (${status}): ${message}`, 'error');
+                    showToast(`API error (${status}): ${message}`, 'error');
                 }
             } else if (error.request) {
                 // Network error
-                showToast('Lỗi kết nối mạng. Vui lòng kiểm tra kết nối internet và thử lại', 'error');
+                showToast('Network error. Please check your internet connection and try again', 'error');
             } else {
                 // Other error
-                showToast(`Lỗi không xác định: ${error.message}`, 'error');
+                showToast(`Unknown error: ${error.message}`, 'error');
             }
 
             stopMediaStream();
@@ -775,15 +742,13 @@ const LiveStream = () => {
             if (response.success) {
                 setCurrentLivestream(null);
                 setIsLive(false);
-                showToast('Livestream đã được dừng thành công!', 'success');
-                loadHostLivestreams();
-                loadLiveStreams();
+                showToast('Livestream stopped successfully!', 'success');
             } else {
-                showToast(response.message || 'Không thể dừng livestream', 'error');
+                showToast(response.message || 'Unable to stop livestream', 'error');
             }
         } catch (error) {
             console.error('Error ending livestream:', error);
-            showToast('Lỗi khi dừng livestream', 'error');
+            showToast('Error stopping livestream', 'error');
         } finally {
             setIsLoading(false);
         }
@@ -818,12 +783,12 @@ const LiveStream = () => {
     // Toggle LiveKit publishing
     const toggleLiveKitPublishing = async () => {
         if (!room || !isConnected) {
-            showToast('Chưa kết nối với LiveKit', 'warning');
+            showToast('Not connected to LiveKit', 'warning');
             return;
         }
 
         if (!streamRef.current) {
-            showToast('Không có media stream', 'warning');
+            showToast('No media stream available', 'warning');
             return;
         }
 
@@ -842,7 +807,7 @@ const LiveStream = () => {
                 }
 
                 setIsPublishing(false);
-                showToast('Đã dừng publish', 'success');
+                showToast('Stopped publishing', 'success');
             } else {
                 // Re-publish
                 console.log('🔄 Re-publishing media...');
@@ -860,11 +825,11 @@ const LiveStream = () => {
                 }
 
                 setIsPublishing(true);
-                showToast('Đã bật publish', 'success');
+                showToast('Started publishing', 'success');
             }
         } catch (error) {
             console.error('Error toggling publishing:', error);
-            showToast('Lỗi khi toggle publish', 'error');
+            showToast('Error toggling publishing', 'error');
             setLivekitError(error.message);
         }
     };
@@ -885,45 +850,143 @@ const LiveStream = () => {
     const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
 
     return (
-        <div className="p-6">
-            {/* Header */}
-            <div className="mb-6 flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <LiveTv className="w-8 h-8 text-blue-600" />
-                        Livestream Management
-                    </h1>
-                    <p className="text-gray-600 mt-1">Quản lý và bắt đầu livestream</p>
+        <div className="min-h-screen bg-gray-50 p-2 sm:p-3 lg:p-4 xl:p-6">
+            {/* Header Section */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4">
+                    <div className="flex-1 min-w-0">
+                        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-2">Livestream Management</h1>
+                        <p className="text-gray-600 text-sm sm:text-base lg:text-lg">Manage and start livestreams</p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 lg:gap-4 shrink-0">
+                        {totalItems > 0 && (
+                            <div className="bg-gray-50 px-2 lg:px-4 py-1 lg:py-2 rounded-lg border border-gray-200">
+                                <span className="text-xs lg:text-sm font-medium text-gray-700">
+                                    {totalItems} livestream{totalItems !== 1 ? 's' : ''}
+                                </span>
+                            </div>
+                        )}
+                        {!currentLivestream && isAdminOrManager && (
+                            <button
+                                onClick={() => setShowStartForm(true)}
+                                className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-xs lg:text-sm"
+                            >
+                                <LiveTv className="w-3 h-3 lg:w-4 lg:h-4" />
+                                <span className="font-medium">Start Live</span>
+                            </button>
+                        )}
+                    </div>
                 </div>
-
-                {/* Start Live Button - Top Right */}
-                {!currentLivestream && isAdminOrManager && (
-                    <button
-                        onClick={() => setShowStartForm(true)}
-                        className="flex items-center gap-2 px-6 py-3 bg-linear-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg"
-                    >
-                        <LiveTv className="w-5 h-5" />
-                        <span className="font-semibold">Bắt đầu Live</span>
-                    </button>
-                )}
             </div>
 
-            {/* Streams Lists */}
+            {/* Search and Filter Controls */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6">
+                <h2 className="text-base lg:text-lg font-semibold text-gray-900 mb-3 lg:mb-4">Search & Filter</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+                    <div>
+                        <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Search Livestream</label>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="Search by title, description..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base pr-10"
+                            />
+                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Status</label>
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
+                        >
+                            <option value="all">All Statuses</option>
+                            <option value="live">Live</option>
+                            <option value="ended">Ended</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Items per Page</label>
+                        <select
+                            value={itemsPerPage}
+                            onChange={(e) => {
+                                setItemsPerPage(Number(e.target.value));
+                                setCurrentPage(1);
+                            }}
+                            className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
+                        >
+                            <option value={5}>5</option>
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                            <option value={50}>50</option>
+                        </select>
+                    </div>
+                    <div className="flex items-end">
+                        <button
+                            onClick={() => {
+                                setSearchTerm('');
+                                setStatusFilter('all');
+                                setCurrentPage(1);
+                            }}
+                            disabled={!searchTerm && statusFilter === 'all'}
+                            className="w-full px-3 py-2 lg:px-4 lg:py-3 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium text-sm lg:text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Clear Filters
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Streams List */}
             <StreamsList
-                title="Streams đang live"
-                streams={liveStreams}
-                emptyMessage="Không có stream nào đang live"
+                title="Your Livestreams"
+                emptyMessage="No livestreams yet"
+                type="all"
+                currentPage={currentPage}
+                itemsPerPage={itemsPerPage}
+                searchTerm={debouncedSearchTerm}
+                statusFilter={statusFilter}
+                onPageChange={setCurrentPage}
+                onTotalItemsChange={setTotalItems}
             />
 
-            <StreamsList
-                title="Livestream của bạn"
-                streams={hostLivestreams}
-                emptyMessage="Chưa có livestream nào"
-            />
+            {/* Pagination Summary */}
+            {totalItems > 0 && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 lg:p-6">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className="text-xs lg:text-sm text-gray-600">
+                            Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} results
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs lg:text-sm text-gray-600">Go to page:</span>
+                            <input
+                                type="number"
+                                min="1"
+                                max={Math.ceil(totalItems / itemsPerPage)}
+                                value={currentPage}
+                                onChange={(e) => {
+                                    const page = parseInt(e.target.value);
+                                    if (page >= 1 && page <= Math.ceil(totalItems / itemsPerPage)) {
+                                        setCurrentPage(page);
+                                    }
+                                }}
+                                className="w-16 px-2 lg:px-3 py-1 lg:py-2 text-xs lg:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Current Livestream Status */}
             {currentLivestream && (
-                <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6">
                     <div className="flex items-center justify-between">
                         <div>
                             <h3 className="text-lg font-semibold text-gray-900">{currentLivestream.title}</h3>
@@ -931,9 +994,7 @@ const LiveStream = () => {
                             <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                                 <span>ID: {currentLivestream.livestreamId}</span>
                                 <span>Room: {currentLivestream.roomName}</span>
-                                <span>Status: {isLive ? 'Đang live' : 'Đã dừng'}</span>
-                                <span>Viewers: {currentLivestream.currentViewers || 0}</span>
-                                <span>Peak: {currentLivestream.peakViewers || 0}</span>
+                                <span>Status: {isLive ? 'Live' : 'Stopped'}</span>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -944,11 +1005,11 @@ const LiveStream = () => {
                                     className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
                                 >
                                     <Stop className="w-4 h-4" />
-                                    {isLoading ? 'Đang dừng...' : 'Dừng Stream'}
+                                    {isLoading ? 'Stopping...' : 'Stop Stream'}
                                 </button>
                             ) : (
                                 <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">
-                                    Đã dừng
+                                    Stopped
                                 </span>
                             )}
                         </div>
@@ -968,7 +1029,6 @@ const LiveStream = () => {
                     onToggleVideo={toggleVideo}
                     onToggleAudio={toggleAudio}
                     onCheckLiveKit={checkLiveKitStatus}
-                    onRefresh={loadHostLivestreams}
                     onTogglePublishing={toggleLiveKitPublishing}
                     isConnected={isConnected}
                     isPublishing={isPublishing}
@@ -987,7 +1047,7 @@ const LiveStream = () => {
                     <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
                         {/* Modal Header */}
                         <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between z-10">
-                            <h2 className="text-xl font-semibold text-gray-900">Bắt đầu Livestream mới</h2>
+                            <h2 className="text-xl font-semibold text-gray-900">Start New Livestream</h2>
                             <button
                                 onClick={() => {
                                     setShowStartForm(false);
@@ -1022,29 +1082,29 @@ const LiveStream = () => {
 
                             {/* Start Form */}
                             <div>
-                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Thông tin Livestream</h3>
+                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Livestream Information</h3>
                                 <div className="space-y-4">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Tiêu đề Stream *
+                                            Stream Title *
                                         </label>
                                         <input
                                             type="text"
                                             value={startForm.title}
                                             onChange={(e) => setStartForm({ ...startForm, title: e.target.value })}
-                                            placeholder="Nhập tiêu đề livestream..."
+                                            placeholder="Enter livestream title..."
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                         />
                                     </div>
 
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Mô tả Stream
+                                            Stream Description
                                         </label>
                                         <textarea
                                             value={startForm.description}
                                             onChange={(e) => setStartForm({ ...startForm, description: e.target.value })}
-                                            placeholder="Nhập mô tả livestream..."
+                                            placeholder="Enter livestream description..."
                                             rows={3}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                         />
@@ -1064,7 +1124,7 @@ const LiveStream = () => {
                                 disabled={isLoading}
                                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
                             >
-                                Hủy
+                                Cancel
                             </button>
                             <button
                                 onClick={handleStartLivestream}
@@ -1072,7 +1132,7 @@ const LiveStream = () => {
                                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                             >
                                 <PlayArrow className="w-4 h-4" />
-                                {isLoading ? 'Đang tạo...' : 'Bắt đầu Stream'}
+                                {isLoading ? 'Starting...' : 'Start Stream'}
                             </button>
                         </div>
                     </div>
