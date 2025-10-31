@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import Api from '../../common/SummaryAPI';
 import { useToast } from '../../hooks/useToast';
-import { ArrowBack, LiveTv, Videocam, VideocamOff, VolumeUp, VolumeOff, People, TrendingUp, Schedule, Flag, Dashboard } from '@mui/icons-material';
+import { ArrowBack, LiveTv, Videocam, VideocamOff, VolumeUp, VolumeOff, People, TrendingUp, TrendingDown, Schedule, Flag, Dashboard, Fingerprint, Comment } from '@mui/icons-material';
 import Loading from '../../components/Loading';
 import { format } from 'date-fns';
 
@@ -16,50 +16,64 @@ const LiveStreamDetails = () => {
     // State
     const [isLoading, setIsLoading] = useState(false);
     const [livestream, setLivestream] = useState(null);
+    const [products, setProducts] = useState([]);
+    const [comments, setComments] = useState([]);
+    const [reactions, setReactions] = useState(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [viewerStats, setViewerStats] = useState({
         peak: 0,
         min: 0,
         current: 0
     });
+    const [showAllComments, setShowAllComments] = useState(false);
 
     // Load livestream details
     const loadLivestreamDetails = async () => {
         try {
             setIsLoading(true);
-            console.log('📋 Loading livestream details for ID:', livestreamId);
 
             const response = await Api.livestream.getById(livestreamId);
-            console.log('📋 API Response:', response);
+
 
             if (response.success) {
-                // Backend returns: { success: true, message: "...", data: { livestream: {...} } }
-                const data = response.data?.livestream || response.data;
-                console.log('📋 Livestream data:', data);
+                // Backend returns: { success: true, message: "...", data: { livestream: {...}, products: [...], comments: [...], reactions: {...} } }
+                const { livestream: livestreamData, products: productsData, comments: commentsData, reactions: reactionsData } = response.data || {};
 
-                // Handle the livestream data
-                const livestreamData = {
-                    _id: data._id,
-                    hostId: data.hostId,
-                    title: data.title,
-                    description: data.description,
-                    image: data.image,
-                    roomName: data.roomName,
-                    status: data.status,
-                    startTime: data.startTime,
-                    endTime: data.endTime,
-                    peakViewers: data.peakViewers,
-                    minViewers: data.minViewers,
-                    currentViewers: data.currentViewers,
-                    liveProducts: data.liveProducts || [],
-                    liveComments: data.liveComments || []
-                };
+                if (!livestreamData) {
+                    showToast('Livestream data not found in response', 'error');
+                    navigate('/livestream');
+                    return;
+                }
 
-                setLivestream(livestreamData);
+                // Set livestream data (backend includes currentViewers, duration)
+                setLivestream({
+                    _id: livestreamData._id,
+                    hostId: livestreamData.hostId,
+                    title: livestreamData.title,
+                    description: livestreamData.description,
+                    image: livestreamData.image,
+                    roomName: livestreamData.roomName,
+                    status: livestreamData.status,
+                    startTime: livestreamData.startTime,
+                    endTime: livestreamData.endTime,
+                    createdAt: livestreamData.createdAt,
+                    updatedAt: livestreamData.updatedAt,
+                    peakViewers: livestreamData.peakViewers || 0,
+                    minViewers: livestreamData.minViewers || 0,
+                    currentViewers: livestreamData.currentViewers || 0,
+                    duration: livestreamData.duration // Duration in milliseconds (null if still live)
+                });
+
+                // Set products, comments, reactions separately
+                setProducts(productsData || []);
+                setComments(commentsData || []);
+                setReactions(reactionsData || null);
+
+                // Set viewer stats
                 setViewerStats({
-                    peak: data.peakViewers || 0,
-                    min: data.minViewers || 0,
-                    current: data.currentViewers || 0
+                    peak: livestreamData.peakViewers || 0,
+                    min: livestreamData.minViewers || 0,
+                    current: livestreamData.currentViewers || 0
                 });
             } else {
                 showToast(response.message || 'Unable to load livestream information', 'error');
@@ -106,7 +120,24 @@ const LiveStreamDetails = () => {
     };
 
     // Calculate duration
-    const calculateDuration = (startTime, endTime) => {
+    const calculateDuration = (startTime, endTime, durationMs = null) => {
+        // If backend provides duration (for ended streams), use it
+        if (durationMs !== null && durationMs > 0) {
+            const diff = Math.floor(durationMs / 1000); // Convert ms to seconds
+            const hours = Math.floor(diff / 3600);
+            const minutes = Math.floor((diff % 3600) / 60);
+            const seconds = diff % 60;
+
+            if (hours > 0) {
+                return `${hours}h ${minutes}m ${seconds}s`;
+            } else if (minutes > 0) {
+                return `${minutes}m ${seconds}s`;
+            } else {
+                return `${seconds}s`;
+            }
+        }
+
+        // Fallback: calculate from startTime and endTime
         if (!startTime) return 'N/A';
 
         const start = new Date(startTime);
@@ -238,13 +269,32 @@ const LiveStreamDetails = () => {
                     </div>
 
                     {/* Details Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                        <div className="border border-gray-200 rounded-lg p-4">
+                            <div className="flex items-center gap-2 text-gray-600 mb-2">
+                                <Fingerprint className="w-5 h-5" />
+                                <span className="text-sm font-medium">Stream ID</span>
+                            </div>
+                            <p className="text-xs font-semibold text-gray-900 break-all">{livestream._id}</p>
+                        </div>
+
                         <div className="border border-gray-200 rounded-lg p-4">
                             <div className="flex items-center gap-2 text-gray-600 mb-2">
                                 <Videocam className="w-5 h-5" />
                                 <span className="text-sm font-medium">Room Name</span>
                             </div>
-                            <p className="text-lg font-semibold text-gray-900 break-all">{livestream.roomName}</p>
+                            <p className="text-xs font-semibold text-gray-900 break-all">{livestream.roomName}</p>
+                        </div>
+
+                        <div className="border border-gray-200 rounded-lg p-4">
+                            <div className="flex items-center gap-2 text-gray-600 mb-2">
+                                <Flag className="w-5 h-5" />
+                                <span className="text-sm font-medium">Status</span>
+                            </div>
+                            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium border ${statusBadge.className}`}>
+                                {statusBadge.icon}
+                                {statusBadge.text}
+                            </span>
                         </div>
 
                         <div className="border border-gray-200 rounded-lg p-4">
@@ -265,13 +315,87 @@ const LiveStreamDetails = () => {
 
                         <div className="border border-gray-200 rounded-lg p-4">
                             <div className="flex items-center gap-2 text-gray-600 mb-2">
+                                <TrendingDown className="w-5 h-5" />
+                                <span className="text-sm font-medium">Min Viewers</span>
+                            </div>
+                            <p className="text-lg font-semibold text-gray-900">{viewerStats.min} viewers</p>
+                        </div>
+
+                        <div className="border border-gray-200 rounded-lg p-4">
+                            <div className="flex items-center gap-2 text-gray-600 mb-2">
                                 <Schedule className="w-5 h-5" />
                                 <span className="text-sm font-medium">Duration</span>
                             </div>
-                            <p className="text-lg font-semibold text-gray-900">{calculateDuration(livestream.startTime, livestream.endTime)}</p>
+                            <p className="text-lg font-semibold text-gray-900">
+                                {calculateDuration(livestream.startTime, livestream.endTime, livestream.duration)}
+                            </p>
+                        </div>
+
+                        {reactions && reactions.total > 0 && (
+                            <div className="border border-gray-200 rounded-lg p-4">
+                                <div className="flex items-center gap-2 text-gray-600 mb-2">
+                                    <LiveTv className="w-5 h-5" />
+                                    <span className="text-sm font-medium">Reactions</span>
+                                </div>
+                                <p className="text-lg font-semibold text-gray-900">
+                                    {reactions.total || 0} total
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="border border-gray-200 rounded-lg p-4">
+                            <div className="flex items-center gap-2 text-gray-600 mb-2">
+                                <Comment className="w-5 h-5" />
+                                <span className="text-sm font-medium">Comments</span>
+                            </div>
+                            <p className="text-lg font-semibold text-gray-900">
+                                {comments?.filter(c => !c.isDeleted).length || 0} total
+                            </p>
                         </div>
                     </div>
                 </div>
+
+                {/* Reactions Details */}
+                {reactions && reactions.total > 0 && (
+                    <div className="bg-white rounded-lg shadow-sm border p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                            Reactions ({reactions.total})
+                        </h3>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                            {[
+                                { type: 'like', emoji: '👍', label: 'Like', color: '#3B82F6' },
+                                { type: 'love', emoji: '❤️', label: 'Love', color: '#EF4444' },
+                                { type: 'haha', emoji: '😂', label: 'Haha', color: '#F59E0B' },
+                                { type: 'wow', emoji: '😮', label: 'Wow', color: '#8B5CF6' },
+                                { type: 'sad', emoji: '😢', label: 'Sad', color: '#6B7280' },
+                                { type: 'angry', emoji: '😡', label: 'Angry', color: '#DC2626' },
+                            ].map(({ type, emoji, label, color }) => {
+                                const count = reactions[type] || 0;
+                                const percentage = reactions.total > 0 ? (count / reactions.total) * 100 : 0;
+
+                                return (
+                                    <div key={type} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                                        <div className="flex items-center justify-center mb-3">
+                                            <div
+                                                className="p-3 rounded-xl flex items-center justify-center shadow-sm"
+                                                style={{ backgroundColor: `${color}20` }}
+                                            >
+                                                <span className="text-3xl leading-none">{emoji}</span>
+                                            </div>
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wider">{label}</p>
+                                            <p className="text-2xl font-bold text-gray-900">{count}</p>
+                                            {percentage > 0 && (
+                                                <p className="text-xs text-gray-500 mt-1">{percentage.toFixed(1)}%</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
 
                 {/* Timeline */}
                 <div className="bg-white rounded-lg shadow-sm border p-6">
@@ -301,78 +425,163 @@ const LiveStreamDetails = () => {
                     </div>
                 </div>
 
-                {/* Statistics */}
-                <div className="bg-white rounded-lg shadow-sm border p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Statistics</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-blue-600 font-medium">Peak Viewers</p>
-                                    <p className="text-2xl font-bold text-blue-900">{viewerStats.peak}</p>
-                                </div>
-                                <TrendingUp className="w-8 h-8 text-blue-600" />
-                            </div>
-                        </div>
-
-                        <div className="bg-green-50 rounded-lg p-4 border border-green-100">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-green-600 font-medium">Min Viewers</p>
-                                    <p className="text-2xl font-bold text-green-900">{viewerStats.min}</p>
-                                </div>
-                                <People className="w-8 h-8 text-green-600" />
-                            </div>
-                        </div>
-
-                        <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-purple-600 font-medium">Current Viewers</p>
-                                    <p className="text-2xl font-bold text-purple-900">{viewerStats.current}</p>
-                                </div>
-                                <LiveTv className="w-8 h-8 text-purple-600" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 {/* Additional Information */}
                 <div className="bg-white rounded-lg shadow-sm border p-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Additional Information</h3>
-                    <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <dl>
                         <div>
-                            <dt className="text-sm font-medium text-gray-500">Host</dt>
-                            <dd className="mt-1 text-sm text-gray-900 break-all">
+                            <dt className="text-sm font-medium text-gray-500 mb-2">Host</dt>
+                            <dd className="text-sm text-gray-900 break-all">
                                 {typeof livestream.hostId === 'object' ? (
                                     <div className="space-y-1">
                                         <p className="font-semibold">{livestream.hostId?.name || 'Unknown'}</p>
-                                        <p className="text-xs text-gray-500">{livestream.hostId?.email || ''}</p>
+                                        {livestream.hostId?.email && (
+                                            <p className="text-xs text-gray-500">{livestream.hostId.email}</p>
+                                        )}
+                                        {livestream.hostId?.username && (
+                                            <p className="text-xs text-gray-500">@{livestream.hostId.username}</p>
+                                        )}
                                     </div>
                                 ) : (
                                     livestream.hostId
                                 )}
                             </dd>
                         </div>
-                        <div>
-                            <dt className="text-sm font-medium text-gray-500">Stream ID</dt>
-                            <dd className="mt-1 text-sm text-gray-900 break-all">{livestream._id}</dd>
-                        </div>
-                        <div>
-                            <dt className="text-sm font-medium text-gray-500">Min Viewers</dt>
-                            <dd className="mt-1 text-sm text-gray-900">{viewerStats.min} viewers</dd>
-                        </div>
-                        <div>
-                            <dt className="text-sm font-medium text-gray-500">Status</dt>
-                            <dd className="mt-1">
-                                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${statusBadge.className}`}>
-                                    {statusBadge.icon}
-                                    {statusBadge.text}
-                                </span>
-                            </dd>
-                        </div>
                     </dl>
                 </div>
+
+                {/* Live Products */}
+                {products && products.length > 0 && (
+                    <div className="bg-white rounded-lg shadow-sm border p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                            Live Products ({products.length})
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {products.map((liveProduct) => {
+                                const isActive = liveProduct.isActive && !liveProduct.removedAt;
+                                return (
+                                    <div key={liveProduct._id} className={`border rounded-lg p-4 hover:shadow-md transition-shadow ${!isActive ? 'opacity-60 bg-gray-50' : ''}`}>
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div className="flex items-center gap-2">
+                                                {liveProduct.isPinned && (
+                                                    <span className="text-xs font-medium px-2 py-1 rounded bg-yellow-100 text-yellow-800">
+                                                        📌 Pinned
+                                                    </span>
+                                                )}
+                                                {isActive ? (
+                                                    <span className="text-xs font-medium px-2 py-1 rounded bg-green-100 text-green-800">
+                                                        Active
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-xs font-medium px-2 py-1 rounded bg-red-100 text-red-800">
+                                                        Removed
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {liveProduct.productId && (
+                                            <div>
+                                                <h4 className="font-semibold text-gray-900 mb-1">
+                                                    {liveProduct.productId.productName || 'Unknown Product'}
+                                                </h4>
+                                                {liveProduct.productId.categoryId && (
+                                                    <p className="text-xs text-gray-500 mb-2">
+                                                        {liveProduct.productId.categoryId.cat_name}
+                                                    </p>
+                                                )}
+                                                {liveProduct.productId.productImageIds && liveProduct.productId.productImageIds.length > 0 && (
+                                                    <div className="mt-2">
+                                                        <img
+                                                            src={liveProduct.productId.productImageIds[0]?.imageUrl || ''}
+                                                            alt={liveProduct.productId.productName}
+                                                            className="w-full h-32 object-cover rounded"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        <div className="mt-2 space-y-1">
+                                            <p className="text-xs text-gray-500">
+                                                Added: {formatDate(liveProduct.addedAt)}
+                                            </p>
+                                            {(liveProduct.addedBy || liveProduct.addBy) && (
+                                                <p className="text-xs text-gray-500">
+                                                    Added by: {typeof (liveProduct.addedBy || liveProduct.addBy) === 'object'
+                                                        ? ((liveProduct.addedBy || liveProduct.addBy)?.name || (liveProduct.addedBy || liveProduct.addBy)?.username || 'Unknown')
+                                                        : 'Unknown'}
+                                                </p>
+                                            )}
+                                            {liveProduct.removedAt && (
+                                                <>
+                                                    <p className="text-xs text-red-600">
+                                                        Removed: {formatDate(liveProduct.removedAt)}
+                                                    </p>
+                                                    {(liveProduct.removedBy || liveProduct.removeBy) && (
+                                                        <p className="text-xs text-red-600">
+                                                            Removed by: {typeof (liveProduct.removedBy || liveProduct.removeBy) === 'object'
+                                                                ? ((liveProduct.removedBy || liveProduct.removeBy)?.name || (liveProduct.removedBy || liveProduct.removeBy)?.username || 'Unknown')
+                                                                : 'Unknown'}
+                                                        </p>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* Live Comments */}
+                {(() => {
+                    const activeComments = comments.filter(c => !c.isDeleted);
+                    return activeComments.length > 0 && (
+                        <div className="bg-white rounded-lg shadow-sm border p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-semibold text-gray-900">
+                                    Comments ({activeComments.length})
+                                </h3>
+                                {activeComments.length > 20 && (
+                                    <button
+                                        onClick={() => setShowAllComments(!showAllComments)}
+                                        className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                                    >
+                                        {showAllComments ? 'Show Less' : `View All (${activeComments.length})`}
+                                    </button>
+                                )}
+                            </div>
+                            <div className={`space-y-3 ${showAllComments ? '' : 'max-h-96'} overflow-y-auto`}>
+                                {(showAllComments ? activeComments : activeComments.slice(0, 20)).map((comment) => (
+                                    <div key={comment._id} className="border rounded-lg p-3 bg-gray-50 border-gray-200">
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    {comment.senderId && (
+                                                        <span className="font-semibold text-sm text-gray-900">
+                                                            {comment.senderId.name || comment.senderId.username || 'Unknown'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-sm text-gray-700">{comment.commentText || comment.content}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center justify-between mt-2">
+                                            <span className="text-xs text-gray-500">
+                                                {formatDate(comment.createdAt)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            {!showAllComments && activeComments.length > 20 && (
+                                <p className="text-sm text-gray-500 mt-4 text-center">
+                                    Showing 20 of {activeComments.length} comments
+                                </p>
+                            )}
+                        </div>
+                    );
+                })()}
             </div>
         </div>
     );

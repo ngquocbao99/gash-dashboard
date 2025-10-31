@@ -32,17 +32,14 @@ const StreamsList = ({
     const loadAllLivestreams = useCallback(async (page = 1, limit = 10, search = '', status = 'all') => {
         try {
             setIsLoading(true);
-            // console.log('🔍 Loading all livestreams with params:', { page, limit, search, status });
 
             // For client-side filtering, we need to load all data first
             // Then apply filters and pagination
             const response = await Api.livestream.getAll({ page: 1, limit: 1000 }); // Load more data for filtering
-            // console.log('🔍 API Response:', response);
 
             if (response.success) {
                 // Backend returns: { success: true, data: { livestreams: [...], count: N } }
                 let allLivestreams = response.data?.livestreams || [];
-                // console.log('🔍 All livestreams loaded:', allLivestreams.length);
 
                 // Apply client-side filtering
                 if (status !== 'all') {
@@ -54,7 +51,6 @@ const StreamsList = ({
                         }
                         return true;
                     });
-                    // console.log('🔍 After status filter:', allLivestreams.length);
                 }
 
                 // Apply client-side search
@@ -64,7 +60,6 @@ const StreamsList = ({
                         stream.description?.toLowerCase().includes(search.toLowerCase()) ||
                         stream.hostId?.name?.toLowerCase().includes(search.toLowerCase())
                     );
-                    // console.log('🔍 After search filter:', allLivestreams.length);
                 }
 
                 // Apply pagination to filtered results
@@ -82,9 +77,6 @@ const StreamsList = ({
                     totalItems: totalItems,
                     itemsPerPage: limit
                 };
-
-                // console.log('🔍 Setting streams (after filtering and pagination):', paginatedLivestreams);
-                // console.log('🔍 Setting pagination:', paginationData);
 
                 setStreams(paginatedLivestreams);
                 setPagination(paginationData);

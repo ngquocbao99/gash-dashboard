@@ -76,20 +76,20 @@ const Api = {
     },
 
     // ==== Products ====
-    products: {
-        // Get single product (old API - deprecated)
-        getProduct: (productId) => axiosClient.get(`/products/${productId}`),
-        // Get product variants (old API - deprecated)
-        getVariants: (productId) => axiosClient.get(`/variants?pro_id=${productId}`),
-        // Get product feedbacks
-        getFeedbacks: (productId) => axiosClient.get(`/order-details/product/${productId}`),
-        search: (query) => {
-            const sanitizedQuery = query.trim().replace(/[<>]/g, "");
-            return axiosClient.get("/products/search", {
-                params: { q: sanitizedQuery },
-            });
-        },
-    },
+    // products: {
+    //     // Get single product (old API - deprecated)
+    //     getProduct: (productId) => axiosClient.get(`/products/${productId}`),
+    //     // Get product variants (old API - deprecated)
+    //     getVariants: (productId) => axiosClient.get(`/variants?pro_id=${productId}`),
+    //     // Get product feedbacks
+    //     getFeedbacks: (productId) => axiosClient.get(`/order-details/product/${productId}`),
+    //     search: (query) => {
+    //         const sanitizedQuery = query.trim().replace(/[<>]/g, "");
+    //         return axiosClient.get("/products/search", {
+    //             params: { q: sanitizedQuery },
+    //         });
+    //     },
+    // },
 
     // ==== New Products ====
     newProducts: {
@@ -305,6 +305,8 @@ const Api = {
         unpinProduct: (liveProductId, data) => axiosClient.post(`/livestream-products/${liveProductId}/unpin-live-product`, data).then(response => response.data),
         // Get all active products in a livestream (User và Admin dùng chung - chỉ active products)
         getLiveProducts: (liveId) => axiosClient.get(`/livestream-products/${liveId}/live-products`).then(response => response.data),
+        // Get all live products including removed (Admin only)
+        getAllLiveProductsForAdmin: (liveId) => axiosClient.get(`/livestream-products/${liveId}/live-products/all`).then(response => response.data),
 
         // ==== Livestream Reactions ====
         // Get reaction counts for a livestream (User và Admin dùng chung - reaction ko có xóa)

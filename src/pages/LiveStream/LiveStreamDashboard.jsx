@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import Api from '../../common/SummaryAPI';
 import { useToast } from '../../hooks/useToast';
-import { Stop, Fullscreen, FullscreenExit } from '@mui/icons-material';
+import { Stop } from '@mui/icons-material';
 import { Room, RoomEvent } from 'livekit-client';
 import VideoPreview from './components/VideoPreview';
 import LiveStreamComments from './components/LiveStreamComments';
@@ -11,6 +11,17 @@ import LiveStreamReactions from './components/LiveStreamReactions';
 import { LIVEKIT_CONFIG } from '../../config/livekit';
 import Loading from '../../components/Loading';
 import { Chat } from '@mui/icons-material';
+import LiveStreamProducts from './components/LiveStreamProducts';
+import io from 'socket.io-client';
+
+// Normalize socket URL - remove trailing slash and ensure proper format
+const getSocketURL = () => {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    // Remove trailing slash if present
+    return apiUrl.replace(/\/$/, '');
+};
+
+const SOCKET_URL = getSocketURL();
 
 const LiveStreamDashboard = () => {
     const { user } = useContext(AuthContext);
@@ -23,7 +34,7 @@ const LiveStreamDashboard = () => {
     const [currentLivestream, setCurrentLivestream] = useState(null);
     const [isLive, setIsLive] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
-    const [showComments, setShowComments] = useState(false);
+    const [showComments, setShowComments] = useState(true); // Default: show comments
 
     // LiveKit state
     const [room, setRoom] = useState(null);
@@ -41,25 +52,17 @@ const LiveStreamDashboard = () => {
     const [isVideoPlaying, setIsVideoPlaying] = useState(true);
     const [isAudioPlaying, setIsAudioPlaying] = useState(true);
     const [videoDimensions, setVideoDimensions] = useState({ width: 0, height: 0 });
+    const [liveDuration, setLiveDuration] = useState('00:00:00');
 
     // Refs
     const localVideoRef = useRef(null);
-    const videoRef = useRef(null);
     const streamRef = useRef(null);
     const currentLivestreamRef = useRef(null);
     const isLiveRef = useRef(false);
     const isPublishingRef = useRef(false);
-    const reconnectAttemptsRef = useRef(0);
-    const maxReconnectAttempts = 5;
     const roomRef = useRef(null); // Store room ref to prevent stale disconnect
     const isReconnectingRef = useRef(false); // Flag to prevent multiple simultaneous reconnects
     const autoConnectAttemptedRef = useRef(false); // Flag to prevent multiple auto-connect attempts
-
-    // Performance optimization: Cache for API responses (similar to backend)
-    const apiCacheRef = useRef({
-        viewerCount: null, // Cached viewer count data
-    });
-    const CACHE_TTL = 4000; // 4 seconds (matching backend cache)
 
     // Track ongoing API calls to prevent duplicate requests
     const ongoingCallsRef = useRef({
@@ -71,11 +74,11 @@ const LiveStreamDashboard = () => {
         try {
             setIsLoading(true);
             const response = await Api.livestream.getHost();
-            // console.log('📋 Response from getHost:', response);
+
             if (response.success) {
-                // Backend returns: { success: true, data: { livestream: {...} } }
+
                 const livestream = response.data?.livestream;
-                // console.log('📋 Livestream object:', livestream);
+
 
                 if (livestream && (livestream._id === livestreamId || livestream.livestreamId === parseInt(livestreamId))) {
                     // Ensure _id is set correctly (may be undefined)
@@ -105,8 +108,42 @@ const LiveStreamDashboard = () => {
     // Load livestream data on mount
     useEffect(() => {
         loadLivestreamDetails();
-        setupMediaDevices();
     }, [livestreamId, loadLivestreamDetails]);
+
+    // Timer for live duration
+    useEffect(() => {
+        if (!currentLivestream?.startTime) return;
+
+        const updateTimer = () => {
+            const startTime = new Date(currentLivestream.startTime);
+            const endTime = currentLivestream.endTime ? new Date(currentLivestream.endTime) : null;
+            const now = new Date();
+            const end = endTime || now;
+
+            const diffMs = end - startTime;
+            const totalSeconds = Math.floor(diffMs / 1000);
+
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+
+            const formatted = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            setLiveDuration(formatted);
+        };
+
+        // Update immediately
+        updateTimer();
+
+        // Update every second if live
+        let interval;
+        if (isLive && !currentLivestream.endTime) {
+            interval = setInterval(updateTimer, 1000);
+        }
+
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [currentLivestream?.startTime, currentLivestream?.endTime, isLive]);
 
     // Handle viewer count update from socket (real-time)
     const handleViewerCountUpdate = useCallback((count) => {
@@ -127,49 +164,109 @@ const LiveStreamDashboard = () => {
                 minViewers: newMin
             };
         });
-
-        // Update cache
-        apiCacheRef.current.viewerCount = {
-            viewers: count,
-            peakViewers: Math.max(apiCacheRef.current.viewerCount?.peakViewers || 0, count),
-            minViewers: apiCacheRef.current.viewerCount?.minViewers !== undefined
-                ? Math.min(apiCacheRef.current.viewerCount.minViewers, count)
-                : count,
-            timestamp: Date.now()
-        };
     }, []);
 
-    // Setup socket for viewer count updates (real-time via socket, with periodic sync)
+    // Setup Socket.IO for viewer count updates (real-time via socket, with periodic sync)
     useEffect(() => {
         if (!isLive || !currentLivestream?._id) return;
 
-        const socket = new WebSocket(`${import.meta.env.VITE_SOCKET_URL}/livestream/${currentLivestream?._id}`);
+        const livestreamIdForSocket = currentLivestream?._id;
 
-        socket.onopen = () => {
-            // console.log('🔗 Socket connected for viewer count updates');
-        };
+        if (!livestreamIdForSocket) {
+            return;
+        }
 
-        socket.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (data.type === 'viewerCountUpdate') {
-                    handleViewerCountUpdate(data.count);
-                }
-            } catch (e) {
-                console.error('Error parsing socket message:', e);
+        // Create socket with proper configuration
+        const socket = io(SOCKET_URL, {
+            transports: ['polling', 'websocket'], // Try polling first, then upgrade to websocket
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            timeout: 20000,
+            forceNew: false,
+            autoConnect: true,
+            // Additional options for better compatibility
+            upgrade: true,
+            rememberUpgrade: true,
+        });
+
+        let isConnected = false;
+        let joinRoomAttempted = false;
+
+        const joinRoom = () => {
+            if (socket.connected && !joinRoomAttempted) {
+                joinRoomAttempted = true;
+                socket.emit('joinLivestreamRoom', livestreamIdForSocket);
             }
         };
 
-        socket.onerror = (error) => {
-            console.error('Socket error:', error);
-        };
+        socket.on('connect', () => {
+            isConnected = true;
+            joinRoomAttempted = false;
+            // Join livestream room to receive viewer count updates
+            joinRoom();
+        });
 
-        socket.onclose = () => {
-            // console.log('Socket closed for viewer count updates');
-        };
+        socket.on('disconnect', (reason) => {
+            isConnected = false;
+            joinRoomAttempted = false;
+            // Allow automatic reconnection
+        });
+
+        socket.on('connect_error', (error) => {
+            // Socket.IO will automatically retry
+            // Only log after multiple failures
+            if (socket.io.reconnecting) {
+                // Reconnecting, don't log
+            }
+        });
+
+        socket.on('reconnect', (attemptNumber) => {
+            isConnected = true;
+            // Re-join room after reconnection
+            joinRoom();
+        });
+
+        // Listen for viewer count updates from backend
+        socket.on('viewer:count', (data) => {
+            try {
+                if (data?.liveId === livestreamIdForSocket && typeof data?.count === 'number') {
+                    handleViewerCountUpdate(data.count);
+                }
+            } catch (e) {
+                console.error('Error handling viewer count update:', e);
+            }
+        });
 
         return () => {
-            socket.close();
+            // Cleanup function
+            try {
+                // Remove all listeners first
+                socket.off('connect');
+                socket.off('disconnect');
+                socket.off('connect_error');
+                socket.off('reconnect');
+                socket.off('viewer:count');
+
+                // Leave room before disconnecting (only if connected)
+                if (socket.connected && joinRoomAttempted) {
+                    socket.emit('leaveLivestreamRoom', livestreamIdForSocket);
+                    // Wait a bit for the emit to complete
+                    setTimeout(() => {
+                        socket.disconnect();
+                    }, 100);
+                } else {
+                    socket.disconnect();
+                }
+            } catch (error) {
+                // Force disconnect if cleanup fails
+                try {
+                    socket.disconnect();
+                } catch (e) {
+                    // Ignore
+                }
+            }
         };
     }, [isLive, currentLivestream?._id, handleViewerCountUpdate]);
 
@@ -193,14 +290,6 @@ const LiveStreamDashboard = () => {
 
                         if (currentStream && (currentStream._id === livestreamId || currentStream.livestreamId === parseInt(livestreamId))) {
                             const newViewers = currentStream.currentViewers ?? 0;
-
-                            // Cache the result
-                            apiCacheRef.current.viewerCount = {
-                                viewers: newViewers,
-                                peakViewers: currentStream.peakViewers,
-                                minViewers: currentStream.minViewers,
-                                timestamp: Date.now()
-                            };
 
                             // Only update if changed (optimize re-renders)
                             setCurrentLivestream(prev => {
@@ -243,7 +332,6 @@ const LiveStreamDashboard = () => {
     // Cleanup on unmount - CRITICAL for preventing reconnect loops
     useEffect(() => {
         return () => {
-            // console.log('🧹 Cleaning up on unmount...');
             const roomToClean = roomRef.current || room;
 
             if (roomToClean) {
@@ -270,7 +358,6 @@ const LiveStreamDashboard = () => {
             isPublishingRef.current = false;
             autoConnectAttemptedRef.current = false;
             isReconnectingRef.current = false;
-            reconnectAttemptsRef.current = 0;
 
             // Clear room refs
             if (roomRef.current) {
@@ -280,27 +367,10 @@ const LiveStreamDashboard = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Auto-show video when going live
-    useEffect(() => {
-        if (isLive && streamRef.current) {
-            setTimeout(() => {
-                ensureVideoVisible();
-            }, 500);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isLive]);
 
     // Auto-connect and start live when data is loaded
     useEffect(() => {
         const connectIfNeeded = async () => {
-            // console.log('🔗 connectIfNeeded called', {
-            //     autoConnectAttempted: autoConnectAttemptedRef.current,
-            //     isReconnecting: isReconnectingRef.current,
-            //     hasCurrentLivestream: !!currentLivestream,
-            //     hasRoomName: !!currentLivestream?.roomName,
-            //     isLive,
-            //     isConnected
-            // });
 
             // Prevent multiple attempts
             if (autoConnectAttemptedRef.current) {
@@ -310,19 +380,26 @@ const LiveStreamDashboard = () => {
 
             if (currentLivestream && isLive && currentLivestream.roomName && !isConnected && !isReconnectingRef.current) {
                 autoConnectAttemptedRef.current = true;
-                // console.log('🔄 Auto-connecting to livestream...', {
-                //     roomName: currentLivestream.roomName,
-                //     isLive,
-                //     isConnected,
-                //     hasStream: !!streamRef.current
-                // });
+
 
                 // Ensure media stream is started before connecting
                 if (!streamRef.current) {
                     // console.log('🎥 Starting media stream before connect...');
                     try {
+                        // Ensure audio is enabled before starting stream
+                        if (!isAudioEnabled) {
+                            setIsAudioEnabled(true);
+                        }
                         await startMediaStream();
                         // console.log('✅ Media stream started successfully');
+
+                        // Verify audio track exists and is enabled
+                        const audioTrack = streamRef.current?.getAudioTracks()[0];
+                        if (audioTrack) {
+                            audioTrack.enabled = true;
+                            setIsAudioEnabled(true);
+                            setIsAudioPlaying(true);
+                        }
                     } catch (error) {
                         console.error('❌ Failed to start media stream:', error);
                         autoConnectAttemptedRef.current = false;
@@ -330,12 +407,17 @@ const LiveStreamDashboard = () => {
                         return;
                     }
                 } else {
-                    // console.log('ℹ️ Media stream already active');
+                    // Ensure audio is enabled in existing stream
+                    const audioTrack = streamRef.current?.getAudioTracks()[0];
+                    if (audioTrack) {
+                        audioTrack.enabled = true;
+                        setIsAudioEnabled(true);
+                        setIsAudioPlaying(true);
+                    }
                 }
 
                 // Try to get host token from API
                 try {
-                    // console.log('🎫 Getting host token...');
                     const tokenResponse = await Api.livestream.getToken({ roomName: currentLivestream.roomName });
                     if (tokenResponse.success) {
                         // console.log('✅ Token obtained, connecting to LiveKit...');
@@ -351,23 +433,11 @@ const LiveStreamDashboard = () => {
                     autoConnectAttemptedRef.current = false; // Reset on error to allow retry
                 }
             } else {
-                // console.log('⏭️ Conditions not met for auto-connect:', {
-                //     hasCurrentLivestream: !!currentLivestream,
-                //     isLive,
-                //     hasRoomName: !!currentLivestream?.roomName,
-                //     isConnected,
-                //     isReconnecting: isReconnectingRef.current
-                // });
             }
         };
 
         // Trigger auto-connect when conditions change
         if (currentLivestream && isLive && currentLivestream.roomName && !isConnected && !autoConnectAttemptedRef.current) {
-            // console.log('⏰ Scheduling auto-connect in 1.5s...', {
-            //     roomName: currentLivestream.roomName,
-            //     isLive,
-            //     isConnected
-            // });
             // Debounce auto-connect to prevent multiple calls
             const timeoutId = setTimeout(connectIfNeeded, 1500);
             return () => {
@@ -378,30 +448,11 @@ const LiveStreamDashboard = () => {
 
         // Reset flag when disconnected or stream changes
         if (!isLive || !currentLivestream || isConnected) {
-            // if (autoConnectAttemptedRef.current) {
-            //     console.log('🔄 Resetting auto-connect flag', {
-            //         isLive,
-            //         hasStream: !!currentLivestream,
-            //         isConnected
-            //     });
-            // }
             autoConnectAttemptedRef.current = false;
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentLivestream, isLive, isConnected]);
 
-    const setupMediaDevices = async () => {
-        try {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const cameras = devices.filter(device => device.kind === 'videoinput');
-            const microphones = devices.filter(device => device.kind === 'audioinput');
-
-            // console.log('✅ Media devices loaded:', { cameras: cameras.length, microphones: microphones.length });
-        } catch (error) {
-            console.error('❌ Error loading media devices:', error);
-            setMediaError('Unable to access media devices');
-        }
-    };
 
     const startMediaStream = useCallback(async () => {
         try {
@@ -411,54 +462,76 @@ const LiveStreamDashboard = () => {
                 streamRef.current.getTracks().forEach(track => track.stop());
             }
 
-            const constraints = {
+            // Always request audio by default (unless explicitly disabled)
+            // This ensures audio is available even if isAudioEnabled state hasn't been set yet
+            const shouldRequestAudio = isAudioEnabled !== false;
+
+            // Try with enhanced audio constraints first (for Chrome/Edge)
+            let constraints = {
                 video: isVideoEnabled ? {
                     facingMode: 'user',
                     height: { ideal: 1920 },
                     width: { ideal: 1080 }
                 } : false,
-                audio: isAudioEnabled ? {
+                audio: shouldRequestAudio ? {
                     echoCancellation: true,
                     noiseSuppression: true,
                     autoGainControl: true,
                     sampleRate: 48000,
-                    channelCount: 1, // Mono audio
-                    sampleSize: 16
+                    channelCount: 1,
+                    googEchoCancellation: true,
+                    googAutoGainControl: true,
+                    googNoiseSuppression: true,
+                    googHighpassFilter: true,
+                    googTypingNoiseDetection: true
                 } : false
             };
 
-            // console.log('🎥 Requesting media with constraints:', constraints);
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            let stream;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+            } catch (error) {
+                // Fallback to basic constraints if enhanced constraints fail
+                if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
+                    console.warn('⚠️ Enhanced audio constraints not supported, using basic constraints');
+                    constraints = {
+                        video: isVideoEnabled ? {
+                            facingMode: 'user',
+                            height: { ideal: 1920 },
+                            width: { ideal: 1080 }
+                        } : false,
+                        audio: shouldRequestAudio ? {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true
+                        } : false
+                    };
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                } else {
+                    throw error;
+                }
+            }
             streamRef.current = stream;
-            // console.log('✅ Media stream obtained:', {
-            //     videoTracks: stream.getVideoTracks().length,
-            //     audioTracks: stream.getAudioTracks().length
-            // });
 
             // Ensure audio tracks are enabled and not muted
             const audioTracks = stream.getAudioTracks();
             audioTracks.forEach((track, index) => {
-                // console.log(`🎤 Audio track ${index}:`, {
-                //     enabled: track.enabled,
-                //     muted: track.muted,
-                //     readyState: track.readyState,
-                //     label: track.label,
-                //     kind: track.kind,
-                //     settings: track.getSettings()
-                // });
 
-                // Ensure audio track is enabled
-                if (!track.enabled) {
-                    track.enabled = true;
-                    // console.log(`🎤 Enabled audio track ${index}`);
-                }
+
+                // Always ensure audio track is enabled
+                track.enabled = true;
+                // console.log(`✅ Audio track ${index} enabled:`, track.enabled);
 
                 // Ensure audio track is not muted
                 if (track.muted) {
-                    // Note: muted is read-only, but we can check settings
-                    console.warn(`⚠️ Audio track ${index} is muted - check browser permissions`);
+                    // console.warn(`⚠️ Audio track ${index} is muted - check browser permissions`);
                 }
             });
+
+            // Log audio track info
+            if (audioTracks.length === 0) {
+                console.warn('⚠️ No audio tracks found in stream');
+            }
 
             if (localVideoRef.current) {
                 // Only set srcObject if it's different to avoid AbortError
@@ -623,16 +696,12 @@ const LiveStreamDashboard = () => {
         if (streamRef.current) {
             const audioTrack = streamRef.current.getAudioTracks()[0];
             if (audioTrack) {
-                // Enable/disable the audio track
+
+                // Always enable/disable the audio track
                 audioTrack.enabled = newValue;
-                // console.log(`🎤 Audio track enabled set to: ${newValue}`, {
-                //     trackId: audioTrack.id,
-                //     muted: audioTrack.muted,
-                //     readyState: audioTrack.readyState
-                // });
 
                 // Update LiveKit track if published
-                if (room && room.localParticipant) {
+                if (room && room.localParticipant && room.state === 'connected') {
                     const publications = Array.from(room.localParticipant.audioTrackPublications.values());
                     let found = false;
 
@@ -644,56 +713,104 @@ const LiveStreamDashboard = () => {
                                 publication.track.enabled = newValue;
                             }
                             audioTrack.enabled = newValue;
-                            // console.log('🎤 LiveKit audio track enabled:', newValue, {
-                            //     publicationSid: publication.trackSid,
-                            //     isMuted: publication.isMuted,
-                            //     isSubscribed: publication.isSubscribed,
-                            //     trackEnabled: publication.track?.enabled ?? audioTrack.enabled
-                            // });
                             found = true;
                             break;
                         }
                     }
 
                     // If not published yet and we're enabling audio, try to publish
-                    if (!found && newValue && audioTrack.readyState === 'live') {
-                        // console.log('🎤 Audio not published yet, attempting to publish...');
+                    if (!found && newValue) {
                         try {
-                            if (room.state !== 'connected') {
-                                console.warn('⚠️ Room not connected, skipping audio publish');
-                                return;
+                            // Ensure track is enabled before publishing
+                            audioTrack.enabled = true;
+
+                            // Wait for track to be ready if needed
+                            let retries = 0;
+                            while (audioTrack.readyState !== 'live' && retries < 5) {
+                                await new Promise(resolve => setTimeout(resolve, 200));
+                                retries++;
                             }
 
                             // Double-check: verify track is not already published (by ID)
                             const existingByTrackId = Array.from(room.localParticipant.audioTrackPublications.values())
-                                .some(pub => pub.track?.id === audioTrack.id);
+                                .some(pub => pub.track?.id === audioTrack.id || pub.source === 'microphone');
 
                             if (existingByTrackId) {
-                                // console.log('ℹ️ Track already published (by ID), enabling it');
-                                audioTrack.enabled = newValue;
+                                console.log('ℹ️ Track already published (by ID), enabling it');
+                                const existingPub = Array.from(room.localParticipant.audioTrackPublications.values())
+                                    .find(pub => pub.track?.id === audioTrack.id || pub.source === 'microphone');
+                                if (existingPub?.track) {
+                                    existingPub.track.enabled = true;
+                                }
+                                audioTrack.enabled = true;
+                                setIsPublishing(true);
+                                isPublishingRef.current = true;
                                 return;
                             }
 
-                            // Add timeout to prevent hanging
-                            const publishPromise = room.localParticipant.publishTrack(audioTrack, {
-                                name: 'microphone',
-                                source: 'microphone'
-                            });
-                            const timeoutPromise = new Promise((_, reject) =>
-                                setTimeout(() => reject(new Error('Publish timeout after 10 seconds')), 10000)
-                            );
+                            // Only publish if track is ready
+                            if (audioTrack.readyState === 'live') {
+                                // Add timeout to prevent hanging
+                                const publishPromise = room.localParticipant.publishTrack(audioTrack, {
+                                    name: 'microphone',
+                                    source: 'microphone'
+                                });
+                                const timeoutPromise = new Promise((_, reject) =>
+                                    setTimeout(() => reject(new Error('Publish timeout after 10 seconds')), 10000)
+                                );
 
-                            await Promise.race([publishPromise, timeoutPromise]);
-                            // console.log('🎤 Audio track published successfully after toggle');
-                            setIsPublishing(true);
-                            isPublishingRef.current = true;
+                                const publication = await Promise.race([publishPromise, timeoutPromise]);
+
+                                // CRITICAL: Ensure track is enabled after publishing
+                                audioTrack.enabled = true;
+
+                                // Wait for publication to be attached
+                                await new Promise(resolve => setTimeout(resolve, 300));
+
+                                // Verify publication and ensure track is enabled
+                                const publishedAudio = Array.from(room.localParticipant.audioTrackPublications.values());
+                                const publishedTrack = publishedAudio.find(pub =>
+                                    pub.track?.id === audioTrack.id ||
+                                    pub.trackSid === publication?.trackSid ||
+                                    pub.source === 'microphone'
+                                );
+
+                                if (publishedTrack) {
+                                    if (publishedTrack.track) {
+                                        publishedTrack.track.enabled = true;
+                                    }
+                                    if (typeof publishedTrack.setEnabled === 'function') {
+                                        try {
+                                            publishedTrack.setEnabled(true);
+                                        } catch (e) {
+                                            // Ignore
+                                        }
+                                    }
+                                }
+
+                                // Ensure source track is enabled
+                                audioTrack.enabled = true;
+
+                                setIsPublishing(true);
+                                isPublishingRef.current = true;
+                                console.log('✅ Audio track published via toggle');
+                            } else {
+                                console.warn('⚠️ Audio track not ready for publishing:', audioTrack.readyState);
+                                audioTrack.enabled = newValue;
+                            }
                         } catch (publishError) {
                             // Handle TrackInvalidError gracefully
                             if (publishError.message?.includes('already been published') ||
                                 publishError.message?.includes('same ID')) {
-                                // console.log('ℹ️ Track already published (duplicate detected), enabling it');
-                                audioTrack.enabled = newValue;
+                                console.log('ℹ️ Track already published (duplicate detected), enabling it');
+                                const existingPub = Array.from(room.localParticipant.audioTrackPublications.values())
+                                    .find(pub => pub.track?.id === audioTrack.id || pub.source === 'microphone');
+                                if (existingPub?.track) {
+                                    existingPub.track.enabled = true;
+                                }
+                                audioTrack.enabled = true;
                                 setIsPublishing(true);
+                                isPublishingRef.current = true;
                             } else {
                                 console.error('❌ Error publishing audio track:', publishError);
                                 showToast('Unable to enable microphone', 'error');
@@ -703,7 +820,7 @@ const LiveStreamDashboard = () => {
                                 audioTrack.enabled = false;
                             }
                         }
-                    } else {
+                    } else if (!found && newValue) {
                         audioTrack.enabled = newValue;
                     }
                 } else if (newValue && !streamRef.current.getAudioTracks().length) {
@@ -822,7 +939,6 @@ const LiveStreamDashboard = () => {
             // Clean up existing room connection properly
             const existingRoom = roomRef.current || room;
             if (existingRoom) {
-                // console.log('🔌 Cleaning up existing room connection...', existingRoom.state);
                 try {
                     // Remove all event listeners first to prevent memory leaks
                     existingRoom.removeAllListeners();
@@ -835,12 +951,10 @@ const LiveStreamDashboard = () => {
                                 existingRoom.disconnect(),
                                 new Promise((_, reject) => setTimeout(() => reject(new Error('Disconnect timeout')), 3000))
                             ]);
-                            // console.log('✅ Existing room disconnected');
                         } catch (disconnectError) {
                             console.warn('⚠️ Disconnect timeout or error:', disconnectError.message);
                         }
                     } else {
-                        // console.log('ℹ️ Room already in disconnected/disconnecting state');
                     }
 
                     // Wait longer for cleanup to complete (WebSocket needs time to close)
@@ -860,6 +974,22 @@ const LiveStreamDashboard = () => {
             // Start media stream first
             await startMediaStream();
 
+            // Verify stream was created successfully
+            if (!streamRef.current) {
+                setLivekitError('Unable to start media stream');
+                autoConnectAttemptedRef.current = false;
+                showToast('Unable to access camera/microphone', 'error');
+                return;
+            }
+
+            // Ensure audio track is enabled
+            const audioTrack = streamRef.current.getAudioTracks()[0];
+            if (audioTrack) {
+                audioTrack.enabled = true;
+                setIsAudioEnabled(true);
+                setIsAudioPlaying(true);
+            }
+
             const roomOptions = {
                 adaptiveStream: true,
                 dynacast: true,
@@ -871,7 +1001,9 @@ const LiveStreamDashboard = () => {
                 defaultAudioCaptureOptions: {
                     echoCancellation: true,
                     noiseSuppression: true,
-                    autoGainControl: true
+                    autoGainControl: true,
+                    sampleRate: 48000,
+                    channelCount: 1
                 },
                 defaultVideoCaptureOptions: {
                     resolution: { width: 1920, height: 1080 },
@@ -889,55 +1021,85 @@ const LiveStreamDashboard = () => {
             const newRoom = new Room(roomOptions);
 
             newRoom.on(RoomEvent.Connected, async () => {
-                console.log('✅ Connected to LiveKit room');
+                // console.log('✅ Connected to LiveKit room');
                 setIsConnected(true);
                 setConnectionState('connected');
                 setLocalParticipant(newRoom.localParticipant);
 
-                // Reset reconnect attempts counter on successful connection
-                reconnectAttemptsRef.current = 0;
+                // Connection successful
 
                 // Auto-publish after connection is stable
                 setTimeout(async () => {
                     if (!newRoom || newRoom.state !== 'connected' || !newRoom.localParticipant) {
-                        // console.log('⚠️ Room not ready for publishing:', {
-                        //     hasRoom: !!newRoom,
-                        //     roomState: newRoom?.state,
-                        //     hasParticipant: !!newRoom?.localParticipant
-                        // });
                         return;
                     }
 
+                    // Ensure media stream is available before publishing
                     if (!streamRef.current) {
-                        console.warn('⚠️ No media stream available');
+                        console.warn('⚠️ No media stream available, attempting to start stream...');
+                        try {
+                            // Ensure audio is enabled
+                            if (!isAudioEnabled) {
+                                setIsAudioEnabled(true);
+                            }
+                            await startMediaStream();
+
+                            // Verify stream was created
+                            if (!streamRef.current) {
+                                console.error('❌ Failed to start media stream');
+                                showToast('Unable to access camera/microphone', 'error');
+                                return;
+                            }
+
+                            // Ensure audio track is enabled
+                            const audioTrack = streamRef.current?.getAudioTracks()[0];
+                            if (audioTrack) {
+                                audioTrack.enabled = true;
+                                setIsAudioEnabled(true);
+                                setIsAudioPlaying(true);
+                            }
+                        } catch (error) {
+                            showToast('Unable to access camera/microphone', 'error');
+                            return;
+                        }
+                    }
+
+                    // Final check - stream must exist and have active tracks
+                    if (!streamRef.current) {
+                        console.error('❌ Media stream still not available after restart attempt');
                         return;
+                    }
+
+                    // Verify stream has active tracks
+                    const videoTracks = streamRef.current.getVideoTracks();
+                    const audioTracks = streamRef.current.getAudioTracks();
+                    if (videoTracks.length === 0 && audioTracks.length === 0) {
+                        console.warn('⚠️ Media stream exists but has no active tracks, attempting to restart...');
+                        try {
+                            if (!isAudioEnabled) {
+                                setIsAudioEnabled(true);
+                            }
+                            await startMediaStream();
+
+                            if (!streamRef.current) {
+                                console.error('❌ Failed to restart media stream');
+                                return;
+                            }
+                        } catch (error) {
+                            console.error('❌ Error restarting media stream:', error);
+                            return;
+                        }
                     }
 
                     if (isPublishingRef.current) {
-                        // console.log('⚠️ Already publishing or attempted to publish');
-                        // Check if tracks are actually published
-                        // const videoPublications = Array.from(newRoom.localParticipant.videoTrackPublications.values());
-                        // const audioPublications = Array.from(newRoom.localParticipant.audioTrackPublications.values());
-                        // console.log('📊 Current publications:', {
-                        //     video: videoPublications.length,
-                        //     audio: audioPublications.length
-                        // });
                         return;
                     }
 
-                    // console.log('📤 Starting to publish media...');
                     isPublishingRef.current = true; // Set flag at start to prevent duplicate attempts
 
                     try {
                         const videoTrack = streamRef.current.getVideoTracks()[0];
                         const audioTrack = streamRef.current.getAudioTracks()[0];
-
-                        // console.log('📊 Available tracks:', {
-                        //     video: !!videoTrack,
-                        //     videoState: videoTrack?.readyState,
-                        //     audio: !!audioTrack,
-                        //     audioState: audioTrack?.readyState
-                        // });
 
                         // Publish video first
                         if (videoTrack && videoTrack.readyState === 'live') {
@@ -947,7 +1109,6 @@ const LiveStreamDashboard = () => {
                                 existingVideo.some(pub => pub.track?.id === videoTrack.id);
 
                             if (!isAlreadyPublished) {
-                                // console.log('📹 Publishing video track...');
                                 try {
                                     // Add timeout to prevent hanging
                                     const publishPromise = newRoom.localParticipant.publishTrack(videoTrack, { name: 'camera' });
@@ -955,69 +1116,193 @@ const LiveStreamDashboard = () => {
                                         setTimeout(() => reject(new Error('Publish timeout after 10 seconds')), 10000)
                                     );
                                     await Promise.race([publishPromise, timeoutPromise]);
-                                    // console.log('✅ Video track published');
                                 } catch (publishError) {
                                     // Handle duplicate track error gracefully
                                     if (publishError.message?.includes('already been published') ||
                                         publishError.message?.includes('same ID')) {
-                                        // console.log('ℹ️ Video track already published (duplicate), continuing...');
                                     } else {
                                         console.error('❌ Error publishing video track:', publishError);
                                         throw publishError;
                                     }
                                 }
                             } else {
-                                // console.log('ℹ️ Video already published (or duplicate detected)');
                             }
                         } else {
                             console.warn('⚠️ Video track not ready:', videoTrack?.readyState);
                         }
 
                         // Wait before publishing audio
-                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        await new Promise(resolve => setTimeout(resolve, 800));
 
-                        // Publish audio
-                        if (audioTrack && audioTrack.readyState === 'live') {
-                            const existingAudio = Array.from(newRoom.localParticipant.audioTrackPublications.values());
-                            // Check both by length AND by track ID to prevent duplicates
-                            const isAlreadyPublished = existingAudio.length > 0 ||
-                                existingAudio.some(pub => pub.track?.id === audioTrack.id);
-
-                            if (!isAlreadyPublished) {
-                                if (!audioTrack.enabled) {
-                                    audioTrack.enabled = true;
-                                }
-                                // console.log('🎤 Publishing audio track...');
-                                try {
-                                    // Add timeout to prevent hanging
-                                    const publishPromise = newRoom.localParticipant.publishTrack(audioTrack, {
-                                        name: 'microphone',
-                                        source: 'microphone'
-                                    });
-                                    const timeoutPromise = new Promise((_, reject) =>
-                                        setTimeout(() => reject(new Error('Publish timeout after 10 seconds')), 10000)
-                                    );
-                                    await Promise.race([publishPromise, timeoutPromise]);
-                                    // console.log('✅ Audio track published');
-                                } catch (publishError) {
-                                    // Handle duplicate track error gracefully
-                                    if (publishError.message?.includes('already been published') ||
-                                        publishError.message?.includes('same ID')) {
-                                        // console.log('ℹ️ Audio track already published (duplicate), continuing...');
-                                    } else {
-                                        console.error('❌ Error publishing audio track:', publishError);
-                                        throw publishError;
+                        // Publish audio - Simplified and more reliable approach
+                        if (!audioTrack) {
+                            console.error('❌ No audio track found in stream! Cannot publish audio.');
+                            // Try to restart stream with audio if missing
+                            try {
+                                setIsAudioEnabled(true);
+                                await startMediaStream();
+                                const newAudioTrack = streamRef.current?.getAudioTracks()[0];
+                                if (newAudioTrack && newAudioTrack.readyState === 'live') {
+                                    newAudioTrack.enabled = true;
+                                    try {
+                                        const publishPromise = newRoom.localParticipant.publishTrack(newAudioTrack, {
+                                            name: 'microphone',
+                                            source: 'microphone'
+                                        });
+                                        const timeoutPromise = new Promise((_, reject) =>
+                                            setTimeout(() => reject(new Error('Publish timeout')), 10000)
+                                        );
+                                        const publication = await Promise.race([publishPromise, timeoutPromise]);
+                                        // Ensure enabled after publish
+                                        newAudioTrack.enabled = true;
+                                        if (publication?.track) {
+                                            publication.track.enabled = true;
+                                        }
+                                        if (typeof publication?.setEnabled === 'function') {
+                                            publication.setEnabled(true);
+                                        }
+                                    } catch (restartPublishError) {
+                                        console.error('❌ Error publishing audio after restart:', restartPublishError);
                                     }
                                 }
-                            } else {
-                                // console.log('ℹ️ Audio already published (or duplicate detected)');
+                            } catch (restartError) {
                             }
                         } else {
-                            console.warn('⚠️ Audio track not ready:', audioTrack?.readyState);
+                            // Ensure audio track is enabled and ready
+                            audioTrack.enabled = true;
+
+                            // Wait for track to be ready if needed
+                            let retries = 0;
+                            while (audioTrack.readyState !== 'live' && retries < 3) {
+                                await new Promise(resolve => setTimeout(resolve, 500));
+                                retries++;
+                            }
+
+                            if (audioTrack.readyState === 'live' && audioTrack.enabled) {
+                                // Check if already published
+                                const existingAudio = Array.from(newRoom.localParticipant.audioTrackPublications.values());
+                                const isAlreadyPublished = existingAudio.some(pub =>
+                                    pub.track?.id === audioTrack.id ||
+                                    pub.source === 'microphone'
+                                );
+
+                                if (!isAlreadyPublished) {
+                                    // Unpublish any existing audio tracks first to avoid conflicts
+                                    for (const pub of existingAudio) {
+                                        try {
+                                            if (pub.track) {
+                                                await newRoom.localParticipant.unpublishTrack(pub.track).catch(() => { });
+                                            }
+                                        } catch (e) {
+                                            // Ignore errors
+                                        }
+                                    }
+                                    if (existingAudio.length > 0) {
+                                        await new Promise(resolve => setTimeout(resolve, 300));
+                                    }
+
+                                    // Ensure track is enabled before publishing
+                                    audioTrack.enabled = true;
+
+                                    try {
+                                        // Publish audio track
+                                        const publishPromise = newRoom.localParticipant.publishTrack(audioTrack, {
+                                            name: 'microphone',
+                                            source: 'microphone'
+                                        });
+                                        const timeoutPromise = new Promise((_, reject) =>
+                                            setTimeout(() => reject(new Error('Publish timeout after 10 seconds')), 10000)
+                                        );
+                                        const publication = await Promise.race([publishPromise, timeoutPromise]);
+
+                                        // CRITICAL: Ensure track is enabled after publishing
+                                        audioTrack.enabled = true;
+
+                                        // Wait for publication to attach
+                                        await new Promise(resolve => setTimeout(resolve, 500));
+
+                                        // Find and enable the published track
+                                        const publishedAudio = Array.from(newRoom.localParticipant.audioTrackPublications.values());
+                                        const publishedTrack = publishedAudio.find(pub =>
+                                            pub.track?.id === audioTrack.id ||
+                                            pub.trackSid === publication?.trackSid ||
+                                            pub.source === 'microphone'
+                                        );
+
+                                        if (publishedTrack) {
+                                            if (publishedTrack.track) {
+                                                publishedTrack.track.enabled = true;
+                                            }
+                                            if (typeof publishedTrack.setEnabled === 'function') {
+                                                try {
+                                                    publishedTrack.setEnabled(true);
+                                                } catch (e) {
+                                                    // Ignore
+                                                }
+                                            }
+                                        }
+
+                                        // Ensure source track stays enabled
+                                        audioTrack.enabled = true;
+                                    } catch (publishError) {
+                                        // Handle duplicate track error gracefully
+                                        if (publishError.message?.includes('already been published') ||
+                                            publishError.message?.includes('same ID')) {
+                                            const existingPub = existingAudio.find(pub => pub.track?.id === audioTrack.id);
+                                            if (existingPub?.track) {
+                                                existingPub.track.enabled = true;
+                                            }
+                                            audioTrack.enabled = true;
+                                        } else {
+                                            // Don't throw - allow video to continue even if audio fails
+                                        }
+                                    }
+                                } else {
+                                    // Already published - just ensure it's enabled
+                                    const existingPub = existingAudio.find(pub =>
+                                        pub.track?.id === audioTrack.id ||
+                                        pub.source === 'microphone'
+                                    );
+                                    if (existingPub) {
+                                        if (existingPub.track) {
+                                            existingPub.track.enabled = true;
+                                        }
+                                        if (typeof existingPub.setEnabled === 'function') {
+                                            try {
+                                                existingPub.setEnabled(true);
+                                            } catch (e) {
+                                                // Ignore
+                                            }
+                                        }
+                                    }
+                                    audioTrack.enabled = true;
+                                }
+                            } else {
+                                console.warn('⚠️ Audio track not ready:', {
+                                    readyState: audioTrack.readyState,
+                                    enabled: audioTrack.enabled
+                                });
+                                // Still try to publish if track exists (LiveKit might handle it)
+                                if (audioTrack.readyState !== 'ended') {
+                                    try {
+                                        audioTrack.enabled = true;
+                                        const publishPromise = newRoom.localParticipant.publishTrack(audioTrack, {
+                                            name: 'microphone',
+                                            source: 'microphone'
+                                        });
+                                        const timeoutPromise = new Promise((_, reject) =>
+                                            setTimeout(() => reject(new Error('Publish timeout')), 10000)
+                                        );
+                                        await Promise.race([publishPromise, timeoutPromise]);
+                                        audioTrack.enabled = true;
+                                    } catch (retryError) {
+                                        console.error('❌ Retry audio publish failed:', retryError);
+                                    }
+                                }
+                            }
                         }
 
                         setIsPublishing(true);
-                        // console.log('🎉 Publishing completed successfully');
                     } catch (error) {
                         console.error('❌ Error during publishing:', error);
                         isPublishingRef.current = false; // Reset on error to allow retry
@@ -1057,7 +1342,6 @@ const LiveStreamDashboard = () => {
                 }
 
                 // DISABLE AUTO-RECONNECT - Let auto-connect logic handle it instead
-                // console.log('ℹ️ Disconnect detected. Resetting auto-connect flag to allow re-connection.');
                 autoConnectAttemptedRef.current = false; // Reset to allow auto-connect to trigger again
 
                 // Don't manually reconnect here - the auto-connect useEffect will handle it
@@ -1065,7 +1349,6 @@ const LiveStreamDashboard = () => {
             });
 
             newRoom.on(RoomEvent.ParticipantConnected, (participant) => {
-                // console.log('👤 Participant connected:', participant.identity);
                 // Only add non-host participants to remote participants
                 if (participant.identity !== 'Host') {
                     setRemoteParticipants(prev => [...prev, participant]);
@@ -1073,7 +1356,6 @@ const LiveStreamDashboard = () => {
             });
 
             newRoom.on(RoomEvent.ParticipantDisconnected, (participant) => {
-                // console.log('👤 Participant disconnected:', participant.identity);
                 // Only remove non-host participants from remote participants
                 if (participant.identity !== 'Host') {
                     setRemoteParticipants(prev => prev.filter(p => p.identity !== participant.identity));
@@ -1082,27 +1364,22 @@ const LiveStreamDashboard = () => {
 
             // Add connection error handling
             newRoom.on(RoomEvent.ConnectionStateChanged, (state) => {
-                // console.log('🔗 Connection state changed:', state);
                 setConnectionState(state);
             });
 
             newRoom.on(RoomEvent.MediaDevicesError, (error) => {
-                console.error('❌ Media devices error:', error);
                 setMediaError('Media device error: ' + error.message);
             });
 
             // Handle WebRTC errors
             newRoom.on(RoomEvent.TrackPublished, (publication, participant) => {
-                // console.log('📤 Track published:', publication.trackSid, 'by', participant.identity);
             });
 
             newRoom.on(RoomEvent.TrackUnpublished, (publication, participant) => {
-                // console.log('📤 Track unpublished:', publication.trackSid, 'by', participant.identity);
             });
 
             // Handle connection quality issues
             newRoom.on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
-                // console.log('📊 Connection quality changed:', quality, 'for', participant.identity);
             });
 
             // Handle DataChannel errors - ignore them to prevent disconnection
@@ -1137,9 +1414,9 @@ const LiveStreamDashboard = () => {
             });
 
             try {
-                // console.log('⏳ Waiting for connection...');
+
                 await Promise.race([connectPromise, timeoutPromise]);
-                // console.log('✅ Connection promise resolved');
+
             } catch (error) {
                 console.error('❌ Connection failed:', error.message);
 
@@ -1150,16 +1427,13 @@ const LiveStreamDashboard = () => {
 
                     // Disconnect if not already disconnected
                     if (newRoom.state !== 'disconnected' && newRoom.state !== 'disconnecting') {
-                        // console.log('🧹 Disconnecting failed room connection...');
                         await Promise.race([
                             newRoom.disconnect(),
                             new Promise((_, reject) => setTimeout(() => reject(new Error('Disconnect timeout')), 5000))
                         ]).catch(disconnectError => {
-                            console.warn('⚠️ Disconnect timeout or error (non-critical):', disconnectError.message);
                         });
                     }
                 } catch (disconnectError) {
-                    console.warn('⚠️ Error during cleanup (non-critical):', disconnectError.message);
                 } finally {
                     // Always clean up refs
                     if (roomRef.current === newRoom) {
@@ -1177,7 +1451,6 @@ const LiveStreamDashboard = () => {
             // Restore original console.error
             console.error = originalConsoleError;
 
-            // console.log('🎉 Successfully connected to LiveKit room');
         } catch (error) {
             // Restore original console.error in case of error
             if (typeof originalConsoleError !== 'undefined') {
@@ -1258,7 +1531,6 @@ const LiveStreamDashboard = () => {
                             });
                         }
                     }
-                    // console.log('📤 Stopped publishing tracks');
                 } catch (error) {
                     console.warn('⚠️ Error stopping tracks:', error.message);
                 }
@@ -1300,14 +1572,31 @@ const LiveStreamDashboard = () => {
     };
 
     const handleEndLivestream = async () => {
-        if (!currentLivestream) return;
+        if (!currentLivestream) {
+            showToast('No livestream found', 'error');
+            return;
+        }
+
+        // Check if livestream is already ended
+        if (currentLivestream.status === 'ended') {
+            showToast('Livestream is already ended.', 'info');
+            return;
+        }
+
+        // Check if livestream is not live
+        if (currentLivestream.status !== 'live') {
+            showToast(`Cannot end livestream. Current status: ${currentLivestream.status}`, 'warning');
+            return;
+        }
+
+        // Declare livestreamIdStr outside try block so it's accessible in catch
+        let livestreamIdStr = null;
 
         try {
             setIsLoading(true);
 
             // Stop publishing before disconnecting
             if (room && room.localParticipant && isPublishing) {
-                // console.log('🛑 Stopping publishing before ending livestream...');
                 const videoTracks = Array.from(room.localParticipant.videoTrackPublications.values());
                 const audioTracks = Array.from(room.localParticipant.audioTrackPublications.values());
 
@@ -1320,20 +1609,64 @@ const LiveStreamDashboard = () => {
 
                 setIsPublishing(false);
                 isPublishingRef.current = false;
-                // console.log('✅ Stopped publishing');
             }
 
             await disconnectFromLiveKit();
             stopMediaStream();
 
-            // console.log('📤 Ending livestream with ID:', currentLivestream.livestreamId);
-            // console.log('📤 Current livestream object:', currentLivestream);
+            // Get livestream ID - try multiple sources in order of preference
+            let idToSend = null;
 
-            // Try both _id and livestreamId
-            const idToSend = currentLivestream._id || currentLivestream.livestreamId;
-            // console.log('📤 Using ID:', idToSend);
+            // First priority: _id from currentLivestream (most reliable)
+            if (currentLivestream._id) {
+                idToSend = currentLivestream._id;
+            }
+            // Second priority: livestreamId from URL params
+            else if (livestreamId) {
+                idToSend = livestreamId;
+            }
+            // Third priority: livestreamId from currentLivestream object
+            else if (currentLivestream.livestreamId) {
+                idToSend = currentLivestream.livestreamId;
+            }
 
-            const response = await Api.livestream.end(idToSend);
+            if (!idToSend) {
+                console.error('❌ No livestream ID found:', {
+                    hasCurrentLivestream: !!currentLivestream,
+                    currentLivestreamId: currentLivestream?._id,
+                    currentLivestreamLivestreamId: currentLivestream?.livestreamId,
+                    paramsLivestreamId: livestreamId
+                });
+                showToast('Livestream ID is missing', 'error');
+                setIsLoading(false);
+                return;
+            }
+
+            // Convert to string - handle MongoDB ObjectId objects if needed
+            if (typeof idToSend === 'string') {
+                livestreamIdStr = idToSend.trim();
+            } else if (idToSend && typeof idToSend.toString === 'function') {
+                // Handle MongoDB ObjectId objects or other objects with toString method
+                livestreamIdStr = idToSend.toString().trim();
+            } else {
+                livestreamIdStr = String(idToSend).trim();
+            }
+
+            // Check if it's a valid ObjectId format (24 hex characters)
+            const objectIdRegex = /^[0-9a-fA-F]{24}$/;
+            if (!objectIdRegex.test(livestreamIdStr)) {
+                console.error('❌ Invalid livestream ID format:', {
+                    received: livestreamIdStr,
+                    length: livestreamIdStr.length,
+                    type: typeof idToSend,
+                    original: idToSend
+                });
+                showToast('Invalid livestream ID format. Please refresh and try again.', 'error');
+                setIsLoading(false);
+                return;
+            }
+
+            const response = await Api.livestream.end(livestreamIdStr);
 
             if (response.success) {
                 setIsLive(false);
@@ -1345,11 +1678,59 @@ const LiveStreamDashboard = () => {
 
                 navigate('/livestream');
             } else {
-                showToast(response.message || 'Unable to stop livestream', 'error');
+                const errorMessage = response.message || 'Unable to stop livestream';
+                console.error('❌ Failed to end livestream:', response);
+                showToast(errorMessage, 'error');
             }
         } catch (error) {
-            console.error('Error ending livestream:', error);
-            showToast('Error stopping livestream', 'error');
+            console.error('❌ Error ending livestream:', error);
+
+            // Extract backend response data if available
+            const backendResponse = error?.response?.data;
+            const backendMessage = backendResponse?.message;
+            const backendStatus = error?.response?.status;
+
+            console.error('🔍 Error details:', {
+                message: error?.message,
+                backendResponse: backendResponse,
+                backendMessage: backendMessage,
+                status: backendStatus,
+                currentLivestreamId: currentLivestream?._id || currentLivestream?.livestreamId,
+                currentLivestreamStatus: currentLivestream?.status,
+                paramsLivestreamId: livestreamId,
+                requestPayload: livestreamIdStr ? { livestreamId: livestreamIdStr } : null,
+                fullError: error
+            });
+
+            // Provide more specific error messages based on backend response
+            let errorMessage = 'Error stopping livestream';
+
+            // Priority 1: Use message from backend (most accurate)
+            if (backendMessage) {
+                errorMessage = backendMessage;
+            }
+            // Priority 2: Provide helpful message based on status code
+            else if (backendStatus === 400) {
+                // Check if we can determine the specific reason
+                if (currentLivestream?.status !== 'live') {
+                    errorMessage = `Livestream is not live (current status: ${currentLivestream?.status || 'unknown'}). It may have already been ended.`;
+                } else {
+                    errorMessage = 'Invalid request. The livestream may not exist or cannot be ended.';
+                }
+            } else if (backendStatus === 403) {
+                errorMessage = 'You do not have permission to end this livestream. Only the host or admin can end it.';
+            } else if (backendStatus === 404) {
+                errorMessage = 'Livestream not found.';
+            } else if (backendStatus === 500) {
+                errorMessage = 'Server error. Please try again later.';
+            }
+            // Priority 3: Generic error message
+            else if (error?.message && !error.message.includes('Network error')) {
+                errorMessage = error.message;
+            }
+
+            // console.error('📢 Showing error message to user:', errorMessage);
+            showToast(errorMessage, 'error');
         } finally {
             setIsLoading(false);
         }
@@ -1365,45 +1746,121 @@ const LiveStreamDashboard = () => {
         }
     };
 
-    const checkLiveKitStatus = () => {
+    const checkLiveKitStatus = async () => {
         // Count only viewers (exclude host)
         const totalParticipants = room?.participants?.size || 0;
         const viewers = room?.participants ?
             Array.from(room.participants.values()).filter(p => p.identity !== 'Host').length : 0;
 
-        const status = {
-            room: !!room,
-            isConnected,
-            connectionState,
-            roomName: room?.name,
-            totalParticipants: totalParticipants,
-            viewers: viewers, // Only viewers, not including host
-            localParticipant: !!room?.localParticipant,
-            videoTracks: room?.localParticipant?.videoTrackPublications?.size || 0,
-            audioTracks: room?.localParticipant?.audioTrackPublications?.size || 0
-        };
-        console.log('📊 LiveKit Status:', status); // Keep this one as it's used for debugging
-    };
+        // Check audio publishing status
+        const audioPublications = room?.localParticipant ?
+            Array.from(room.localParticipant.audioTrackPublications.values()) : [];
+        const audioStatus = audioPublications.map(pub => ({
+            trackSid: pub.trackSid,
+            isMuted: pub.isMuted,
+            enabled: pub.track?.enabled ?? false,
+            readyState: pub.track?.readyState,
+            kind: pub.track?.kind,
+            name: pub.trackName || pub.source
+        }));
 
-    const ensureVideoVisible = () => {
-        if (localVideoRef.current && streamRef.current) {
-            // Only set srcObject if different
-            if (localVideoRef.current.srcObject !== streamRef.current) {
-                localVideoRef.current.srcObject = streamRef.current;
-            }
 
-            localVideoRef.current.play()
-                .then(() => {
-                    checkMediaStatus();
-                })
-                .catch((error) => {
-                    // Ignore AbortError
-                    if (error.name !== 'AbortError') {
-                        console.error('❌ Video play() failed:', error);
+        // Log detailed audio status
+        if (audioStatus.length > 0) {
+            audioStatus.forEach((audio, index) => {
+                // Check actual track from stream, not just publication
+                const actualAudioTrack = streamRef.current?.getAudioTracks()[0];
+                const actualReadyState = actualAudioTrack?.readyState;
+                const actualEnabled = actualAudioTrack?.enabled;
+                const actualMuted = actualAudioTrack?.muted;
+
+                // Use actual track state if publication track is undefined
+                const effectiveEnabled = audio.enabled && (actualEnabled !== false);
+                const effectiveMuted = audio.isMuted || actualMuted || false;
+                const effectiveReadyState = actualReadyState || audio.readyState;
+
+                const isTransmitting = effectiveEnabled && !effectiveMuted && effectiveReadyState === 'live';
+
+                // Auto-fix if track is published but has issues (wrapped in async IIFE)
+                if (room?.localParticipant && actualAudioTrack && actualReadyState === 'live') {
+                    const publication = Array.from(room.localParticipant.audioTrackPublications.values())
+                        .find(pub => pub.trackSid === audio.trackSid || pub.track?.id === actualAudioTrack.id);
+
+                    // If publication track is undefined, not valid, disabled, or has no track instance, republish
+                    const needsRepublish = publication && (
+                        !publication.track ||
+                        publication.track.readyState === undefined ||
+                        !publication.track.enabled ||
+                        publication.enabled === false
+                    );
+
+                    if (needsRepublish) {
+                        (async () => {
+                            try {
+                                // Unpublish ALL audio tracks first
+                                const allAudio = Array.from(room.localParticipant.audioTrackPublications.values());
+                                for (const pub of allAudio) {
+                                    if (pub.track) {
+                                        await room.localParticipant.unpublishTrack(pub.track).catch(e => {
+                                            // console.warn('Warning unpublishing:', e);
+                                        });
+                                    }
+                                }
+                                // Wait longer for cleanup
+                                await new Promise(resolve => setTimeout(resolve, 1000));
+                                // Republish with correct track - ensure enabled before
+                                actualAudioTrack.enabled = true;
+                                const newPublication = await room.localParticipant.publishTrack(actualAudioTrack, {
+                                    name: 'microphone',
+                                    source: 'microphone'
+                                });
+                                // Wait for track instance to attach
+                                await new Promise(resolve => setTimeout(resolve, 1000));
+                                // Enable after republish
+                                actualAudioTrack.enabled = true;
+                                if (newPublication?.track) {
+                                    newPublication.track.enabled = true;
+                                } else {
+                                    console.error('❌ Republished but still no track instance!');
+                                }
+                                if (typeof newPublication?.setEnabled === 'function') {
+                                    newPublication.setEnabled(true);
+                                }
+
+                            } catch (republishError) {
+                                console.error('❌ Error republishing audio:', republishError);
+                            }
+                        })();
+                    } else if (!actualEnabled || !audio.enabled) {
+                        actualAudioTrack.enabled = true;
+                        if (publication?.track) {
+                            publication.track.enabled = true;
+                        }
                     }
-                });
+                }
+            });
+        } else {
+            // console.warn('⚠️ No audio tracks published!');
+
+            // Try to republish if stream has audio track
+            if (room?.localParticipant && streamRef.current) {
+                const audioTrack = streamRef.current.getAudioTracks()[0];
+                if (audioTrack && audioTrack.readyState === 'live' && isAudioEnabled) {
+
+                    audioTrack.enabled = true;
+                    room.localParticipant.publishTrack(audioTrack, {
+                        name: 'microphone',
+                        source: 'microphone'
+                    }).then(() => {
+
+                    }).catch((error) => {
+
+                    });
+                }
+            }
         }
     };
+
 
     if (isLoading) {
         return (
@@ -1418,44 +1875,68 @@ const LiveStreamDashboard = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50">
-            {/* Top Header Bar - Enhanced */}
-            <div className="bg-white border-b border-gray-200 shadow-md sticky top-0 z-30 backdrop-blur-sm bg-white/95">
-                <div className="px-8 py-5">
+        <div className="min-h-screen bg-gray-50">
+            {/* Top Header Bar - Compact Dashboard Style */}
+            <div className="bg-white border-b-2 border-gray-300 shadow-lg sticky top-0 z-50">
+                <div className="max-w-[1920px] mx-auto px-6 py-3">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-5">
-                            <div className="border-l border-gray-300 pl-5">
-                                <div className="flex items-center gap-3">
-
-                                    <div>
-                                        <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                                            {currentLivestream?.title || 'LiveStream Dashboard'}
-                                        </h1>
-                                        {currentLivestream?.description && (
-                                            <p className="text-sm text-gray-600 mt-0.5">{currentLivestream.description}</p>
-                                        )}
-                                    </div>
-                                </div>
+                        <div className="flex items-center gap-4">
+                            <div>
+                                <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                    {currentLivestream?.title || 'Livestream Dashboard'}
+                                </h1>
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-4">
-                            {/* Status Badge - Enhanced */}
-                            <div className={`flex items-center gap-3 px-5 py-2.5 rounded-xl text-sm font-semibold shadow-lg transition-all ${isLive
-                                ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-red-500/30'
-                                : 'bg-gradient-to-r from-gray-400 to-gray-500 text-white shadow-gray-500/20'
-                                }`}>
-                                <div className={`w-2.5 h-2.5 rounded-full ${isLive ? 'bg-white animate-pulse shadow-lg shadow-white/50' : 'bg-white/70'}`}></div>
-                                <span className="uppercase tracking-wide">{isLive ? 'LIVE' : 'Offline'}</span>
+                        <div className="flex items-center gap-3">
+                            {/* Quick Stats - Compact */}
+                            {currentLivestream && (
+                                <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                                    <div className="text-center">
+                                        <div className="text-xs text-gray-500 font-medium">Viewers</div>
+                                        <div className="text-base font-bold text-gray-900">{currentLivestream.currentViewers || 0}</div>
+                                    </div>
+                                    <div className="h-6 w-px bg-gray-300"></div>
+                                    <div className="text-center">
+                                        <div className="text-xs text-gray-500 font-medium">Peak</div>
+                                        <div className="text-base font-bold text-green-600">{currentLivestream.peakViewers || 0}</div>
+                                    </div>
+                                    <div className="h-6 w-px bg-gray-300"></div>
+                                    <div className="text-center">
+                                        <div className="text-xs text-gray-500 font-medium">In Room</div>
+                                        <div className="text-base font-bold text-purple-600">{remoteParticipants.length}</div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Connection Status - Compact */}
+                            <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${connectionState === 'connected' ? 'bg-green-500 animate-pulse' :
+                                    connectionState === 'connecting' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
+                                    }`}></div>
+                                <span className="text-xs font-semibold text-gray-700">{connectionState === 'connected' ? 'Connected' :
+                                    connectionState === 'connecting' ? 'Connecting' : 'Disconnected'}</span>
                             </div>
 
-                            {/* End Stream Button - Enhanced */}
+                            {/* Status Badge */}
+                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold ${isLive
+                                ? 'bg-red-100 text-red-800 border border-red-300'
+                                : 'bg-gray-100 text-gray-700 border border-gray-300'
+                                }`}>
+                                <div className={`w-2 h-2 rounded-full ${isLive ? 'bg-red-600 animate-pulse' : 'bg-gray-500'}`}></div>
+                                <span>{isLive ? 'LIVE' : 'Offline'}</span>
+                            </div>
+
+                            {/* End Stream Button */}
                             <button
                                 onClick={handleEndLivestream}
                                 disabled={isLoading || !isLive}
-                                className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl hover:from-red-700 hover:to-red-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl disabled:shadow-none font-semibold transform hover:scale-105 active:scale-95"
+                                className="flex items-center gap-2 px-4 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all font-semibold text-sm shadow-md hover:shadow-lg"
                             >
-                                <Stop className="w-5 h-5" />
+                                <Stop className="w-4 h-4" />
                                 {isLoading ? 'Stopping...' : 'End Stream'}
                             </button>
                         </div>
@@ -1463,139 +1944,236 @@ const LiveStreamDashboard = () => {
                 </div>
             </div>
 
-            {/* Main Content - Grid Layout */}
-            <div className={`grid grid-cols-12 gap-8 p-8 transition-all duration-300 ${showComments ? 'pr-[440px]' : ''}`}>
-                {/* Left Sidebar - Stats (3 columns) */}
-                <div className="col-span-12 lg:col-span-3 space-y-6">
-                    {/* Stream Info Card - Enhanced */}
-                    {currentLivestream && (
-                        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow duration-300">
-                            <div className="flex items-center gap-3 mb-5">
-                                <h3 className="text-base font-bold text-gray-900 uppercase tracking-wide">Stream Info</h3>
-                            </div>
-                            <div className="space-y-4">
-                                <div className="p-3 bg-gray-50 rounded-xl">
-                                    <div className="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">Stream ID</div>
-                                    <div className="text-sm font-mono font-semibold text-gray-900 break-all">{currentLivestream._id?.slice(-8) || 'N/A'}</div>
-                                </div>
-                                <div className="p-3 bg-gray-50 rounded-xl">
-                                    <div className="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">Room Name</div>
-                                    <div className="text-sm font-mono font-semibold text-gray-900 break-all">{currentLivestream.roomName || 'N/A'}</div>
-                                </div>
-                                <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
-                                    <div className="text-xs font-semibold text-blue-700 mb-2 uppercase tracking-wider">Current Viewers</div>
-                                    <div className="flex items-baseline gap-2">
-                                        <span className="text-4xl font-black bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">{currentLivestream.currentViewers || 0}</span>
-                                        <span className="text-sm text-blue-600 font-semibold">watching</span>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="p-3 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-200">
-                                        <div className="text-xs font-semibold text-green-700 mb-1 uppercase tracking-wider">Peak</div>
-                                        <div className="text-2xl font-bold text-green-700">{currentLivestream.peakViewers || 0}</div>
-                                    </div>
-                                    <div className="p-3 bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl border border-orange-200">
-                                        <div className="text-xs font-semibold text-orange-700 mb-1 uppercase tracking-wider">Min</div>
-                                        <div className="text-2xl font-bold text-orange-700">{currentLivestream.minViewers || 0}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+            {/* Main Dashboard Content - Professional Layout */}
+            <div className="max-w-[1920px] mx-auto p-4">
+                <div className="grid grid-cols-12 gap-4">
+                    {/* Left Sidebar - Connection Info & Quick Stats */}
+                    <div className="col-span-12 lg:col-span-2 space-y-4">
+                        {/* Livestream Info Card */}
+                        {currentLivestream && (
+                            <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4">
+                                <h3 className="text-xs font-bold text-gray-900 mb-3 uppercase tracking-wide flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                    Livestream Info
+                                </h3>
+                                <div className="space-y-2.5">
 
-                    {/* Connection Status Card - Enhanced */}
-                    <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow duration-300">
-                        <div className="flex items-center gap-3 mb-5">
-                            <h3 className="text-base font-bold text-gray-900 uppercase tracking-wide">Connection</h3>
-                        </div>
-                        <div className="space-y-4">
-                            <div>
-                                <div className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">Status</div>
-                                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold shadow-md ${connectionState === 'connected'
-                                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white'
-                                    : connectionState === 'connecting'
-                                        ? 'bg-gradient-to-r from-yellow-500 to-orange-600 text-white'
-                                        : 'bg-gradient-to-r from-red-500 to-rose-600 text-white'
-                                    }`}>
-                                    <div className={`w-2 h-2 rounded-full ${connectionState === 'connected' ? 'bg-white animate-pulse' :
-                                        connectionState === 'connecting' ? 'bg-white animate-pulse' : 'bg-white/70'
-                                        }`}></div>
-                                    {connectionState === 'connected' ? 'Connected' :
-                                        connectionState === 'connecting' ? 'Connecting' : 'Disconnected'}
+                                    {currentLivestream.description && (
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-xs text-gray-600 font-semibold">Description</span>
+                                            <div className="text-xs text-gray-700 line-clamp-3">
+                                                {currentLivestream.description}
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="pt-2 border-t border-gray-200">
+                                        <div className="text-xs text-gray-600 font-semibold mb-1">Duration</div>
+                                        <div className={`text-sm font-bold font-mono ${isLive ? 'text-green-600' : 'text-gray-700'}`}>
+                                            {liveDuration}
+                                        </div>
+                                        {isLive && (
+                                            <div className="flex items-center gap-1 mt-0.5">
+                                                <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
+                                                <span className="text-[10px] text-red-600 font-semibold">LIVE</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {currentLivestream.startTime && (
+                                        <div className="pt-2 border-t border-gray-200">
+                                            <div className="text-xs text-gray-600 font-semibold mb-1">Started</div>
+                                            <div className="text-xs text-gray-900">
+                                                {new Date(currentLivestream.startTime).toLocaleString('en-US', {
+                                                    month: 'short',
+                                                    day: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {currentLivestream.endTime && (
+                                        <div className="pt-2 border-t border-gray-200">
+                                            <div className="text-xs text-gray-600 font-semibold mb-1">Ended</div>
+                                            <div className="text-xs text-gray-900">
+                                                {new Date(currentLivestream.endTime).toLocaleString('en-US', {
+                                                    month: 'short',
+                                                    day: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {currentLivestream.hostId && (
+                                        <div className="pt-2 border-t border-gray-200">
+                                            <div className="text-xs text-gray-600 font-semibold mb-1">Host</div>
+                                            <div className="text-xs text-gray-900 truncate">
+                                                {currentLivestream.hostId?.name || currentLivestream.hostId?.username || 'Unknown'}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                            <div>
-                                <div className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">Publishing</div>
-                                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold shadow-md ${isPublishing ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white' : 'bg-gradient-to-r from-gray-400 to-gray-500 text-white'
-                                    }`}>
-                                    {isPublishing ? 'Publishing' : 'Not Publishing'}
+                        )}
+
+                        {/* Connection Status Card */}
+                        <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4">
+                            <h3 className="text-xs font-bold text-gray-900 mb-3 uppercase tracking-wide flex items-center gap-2">
+                                <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+                                </svg>
+                                Connection
+                            </h3>
+                            <div className="space-y-2.5">
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-xs text-gray-600 font-semibold">Status</span>
+                                    <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs font-bold ${connectionState === 'connected'
+                                        ? 'bg-green-100 text-green-800'
+                                        : connectionState === 'connecting'
+                                            ? 'bg-yellow-100 text-yellow-800'
+                                            : 'bg-red-100 text-red-800'
+                                        }`}>
+                                        <div className={`w-2 h-2 rounded-full ${connectionState === 'connected' ? 'bg-green-600' :
+                                            connectionState === 'connecting' ? 'bg-yellow-600' : 'bg-red-600'
+                                            }`}></div>
+                                        {connectionState === 'connected' ? 'Connected' :
+                                            connectionState === 'connecting' ? 'Connecting' : 'Disconnected'}
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="p-3 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-200">
-                                <div className="text-xs font-semibold text-purple-700 mb-1 uppercase tracking-wider">Viewers in Room</div>
-                                <div className="text-2xl font-bold text-purple-700">{remoteParticipants.length}</div>
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-xs text-gray-600 font-semibold">Publishing</span>
+                                    <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs font-bold ${isPublishing
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-gray-100 text-gray-700'
+                                        }`}>
+                                        <div className={`w-2 h-2 rounded-full ${isPublishing ? 'bg-green-600' : 'bg-gray-400'}`}></div>
+                                        {isPublishing ? 'Active' : 'Inactive'}
+                                    </div>
+                                </div>
+                                {currentLivestream?.roomName && (
+                                    <div className="pt-2 border-t border-gray-200">
+                                        <div className="text-xs text-gray-600 font-semibold mb-1">Room</div>
+                                        <div className="font-mono text-xs text-gray-900 bg-gray-50 px-2 py-1 rounded border border-gray-200 truncate">
+                                            {currentLivestream.roomName}
+                                        </div>
+                                    </div>
+                                )}
+                                {currentLivestream?._id && (
+                                    <div className="pt-2 border-t border-gray-200">
+                                        <div className="text-xs text-gray-600 font-semibold mb-1">Stream ID</div>
+                                        <div className="font-mono text-xs text-gray-900 bg-gray-50 px-2 py-1 rounded border border-gray-200">
+                                            {currentLivestream._id.slice(-8)}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
 
-                    {/* Reactions Stats - Enhanced */}
-                    {currentLivestream && (
-                        <LiveStreamReactions liveId={currentLivestream._id} />
+                    {/* Center - Video Preview (Main Focus) */}
+                    <div className={`col-span-12 ${showComments ? 'lg:col-span-5' : 'lg:col-span-10'}`}>
+                        <VideoPreview
+                            localVideoRef={localVideoRef}
+                            isVideoPlaying={isVideoPlaying}
+                            isAudioPlaying={isAudioPlaying}
+                            videoDimensions={videoDimensions}
+                            isFullscreen={isFullscreen}
+                            onToggleFullscreen={toggleFullscreen}
+                            onToggleVideo={toggleVideo}
+                            onToggleAudio={toggleAudio}
+                            onCheckLiveKit={checkLiveKitStatus}
+                            isConnected={isConnected}
+                            isPublishing={isPublishing}
+                            connectionState={connectionState}
+                            remoteParticipants={remoteParticipants}
+                            localParticipant={localParticipant}
+                            currentLivestream={currentLivestream}
+                            mediaError={mediaError}
+                            livekitError={livekitError}
+                        />
+                    </div>
+
+                    {/* Right Sidebar - Comments & Reactions */}
+                    {currentLivestream && showComments && (
+                        <>
+                            <div className="col-span-12 lg:col-span-3">
+                                <LiveStreamComments
+                                    liveId={currentLivestream._id}
+                                    hostId={currentLivestream.hostId?._id || currentLivestream.hostId || user?._id}
+                                    isVisible={showComments}
+                                    onToggle={() => setShowComments(!showComments)}
+                                />
+                            </div>
+                            <div className="col-span-12 lg:col-span-2">
+                                <div className="bg-white rounded-lg shadow-md border border-gray-200 h-[calc(100vh-160px)] max-h-[800px] flex flex-col">
+                                    <div className="p-3 border-b border-gray-200 bg-gray-50 rounded-t-lg">
+                                        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide flex items-center gap-2">
+                                            <svg className="w-4 h-4 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                            </svg>
+                                            Engagement
+                                        </h3>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto p-3">
+                                        <LiveStreamReactions liveId={currentLivestream._id} />
+                                    </div>
+                                </div>
+                            </div>
+                        </>
                     )}
                 </div>
 
-                {/* Main Content - Video (9 columns) */}
-                <div className="col-span-12 lg:col-span-9">
-                    <VideoPreview
-                        localVideoRef={localVideoRef}
-                        isVideoPlaying={isVideoPlaying}
-                        isAudioPlaying={isAudioPlaying}
-                        videoDimensions={videoDimensions}
-                        isFullscreen={isFullscreen}
-                        onToggleFullscreen={toggleFullscreen}
-                        onToggleVideo={toggleVideo}
-                        onToggleAudio={toggleAudio}
-                        onCheckLiveKit={checkLiveKitStatus}
-                        isConnected={isConnected}
-                        isPublishing={isPublishing}
-                        connectionState={connectionState}
-                        remoteParticipants={remoteParticipants}
-                        localParticipant={localParticipant}
-                        currentLivestream={currentLivestream}
-                        mediaError={mediaError}
-                        livekitError={livekitError}
-                    />
+                {/* Bottom Section - Products */}
+                <div className="grid grid-cols-12 gap-4 mt-4">
+                    {/* Products Management */}
+                    {currentLivestream && (
+                        <div className={`${showComments ? 'col-span-12 lg:col-span-7' : 'col-span-12 lg:col-span-8'} bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden`}>
+                            <div className="p-3 border-b border-gray-200 bg-gray-50">
+                                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wide flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                    </svg>
+                                    Products Management
+                                </h3>
+                            </div>
+                            <div className="max-h-[450px] overflow-y-auto">
+                                <div className="p-3">
+                                    <LiveStreamProducts liveId={currentLivestream._id} />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Reactions/Engagement - Only show when comments are hidden */}
+                    {currentLivestream && !showComments && (
+                        <div className="col-span-12 lg:col-span-4 bg-white rounded-lg shadow-md border border-gray-200">
+                            <div className="p-3 border-b border-gray-200 bg-gray-50">
+                                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wide flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                    </svg>
+                                    Engagement
+                                </h3>
+                            </div>
+                            <div className="p-3">
+                                <LiveStreamReactions liveId={currentLivestream._id} />
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Comments Panel - Fixed Right Sidebar */}
-            {currentLivestream && (
-                <>
-                    {/* Toggle Comments Button - Enhanced */}
-                    <button
-                        onClick={() => setShowComments(!showComments)}
-                        className={`fixed bottom-8 right-8 z-50 flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 ${showComments
-                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/50'
-                            : 'bg-white text-gray-900 hover:bg-gray-50 border-2 border-gray-300 shadow-gray-500/30 hover:border-blue-500'
-                            }`}
-                    >
-                        <Chat className="w-6 h-6" />
-                        <span className="font-bold text-base">Comments</span>
-                        {currentLivestream && (
-                            <span className={`px-3 py-1 ${showComments ? 'bg-white/20' : 'bg-blue-500'} text-white text-sm font-bold rounded-full shadow-md`}>
-                                {currentLivestream.currentViewers || 0}
-                            </span>
-                        )}
-                    </button>
-
-                    {/* Comments Panel - Slide from right */}
-                    <LiveStreamComments
-                        liveId={currentLivestream._id}
-                        hostId={currentLivestream.hostId?._id || currentLivestream.hostId || user?._id}
-                        isVisible={showComments}
-                        onToggle={() => setShowComments(!showComments)}
-                    />
-                </>
+            {/* Toggle Comments Button - Only show when comments are hidden */}
+            {currentLivestream && !showComments && (
+                <button
+                    onClick={() => setShowComments(true)}
+                    className="fixed bottom-5 right-5 z-50 flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg transition-all duration-300"
+                >
+                    <Chat className="w-4 h-4" />
+                    <span className="font-semibold text-sm">Show Comments</span>
+                </button>
             )}
         </div>
     );

@@ -65,7 +65,6 @@ const LiveStream = () => {
         return () => {
             if (room) {
                 room.disconnect().catch((error) => {
-                    console.error('Error disconnecting on unmount:', error);
                 });
             }
             if (streamRef.current) {
@@ -93,8 +92,6 @@ const LiveStream = () => {
             const timer = setTimeout(() => {
                 if (!streamRef.current) {
                     startMediaStream().catch(error => {
-                        console.error('Auto-start media stream failed:', error);
-                        // Error is already handled in startMediaStream with Toast
                     });
                 }
             }, 500);
@@ -119,9 +116,7 @@ const LiveStream = () => {
                 setSelectedMicrophone(microphones[0].deviceId);
             }
 
-            console.log('✅ Media devices loaded:', { cameras: cameras.length, microphones: microphones.length });
         } catch (error) {
-            console.error('❌ Error loading media devices:', error);
             setMediaError('Unable to access media devices');
         }
     }, []);
@@ -158,14 +153,11 @@ const LiveStream = () => {
                 } : false
             };
 
-            console.log('🎥 Requesting media with constraints:', constraints);
-
             // Request media with specific error handling
             let stream;
             try {
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
             } catch (error) {
-                console.error('❌ Error requesting media:', error);
 
                 // Show specific error messages
                 if (error.name === 'NotReadableError') {
@@ -190,24 +182,17 @@ const LiveStream = () => {
             }
 
             streamRef.current = stream;
-            console.log('✅ Media stream obtained:', {
-                videoTracks: stream.getVideoTracks().length,
-                audioTracks: stream.getAudioTracks().length
-            });
 
             // Attach to preview video in modal if available
             if (previewVideoRef.current) {
-                console.log('✅ Attaching stream to preview video element');
                 previewVideoRef.current.srcObject = stream;
 
                 try {
                     await previewVideoRef.current.play();
-                    console.log('✅ Preview video playing');
                     setIsVideoPlaying(true);
                     setIsAudioPlaying(true);
 
                     previewVideoRef.current.onloadedmetadata = () => {
-                        console.log('✅ Preview video metadata loaded');
                         checkMediaStatus();
                     };
 
@@ -216,16 +201,12 @@ const LiveStream = () => {
                         checkMediaStatus();
                     }, 500);
                 } catch (playError) {
-                    console.error('❌ Error playing preview video:', playError);
                 }
             } else {
-                console.warn('⚠️ previewVideoRef.current is null! Video element may not be rendered yet.');
             }
 
-            console.log('✅ Media stream started');
             return stream;
         } catch (error) {
-            console.error('❌ Error starting media stream:', error);
             setMediaError('Unable to access camera/microphone: ' + error.message);
             showToast('Unable to access camera/microphone. Please check permissions.', 'error');
             throw error;
@@ -322,7 +303,7 @@ const LiveStream = () => {
     // Connect to LiveKit
     const connectToLiveKit = async (roomName, hostToken) => {
         try {
-            console.log('🔗 Connecting to LiveKit room:', roomName);
+            console.log('Connecting to LiveKit room:', roomName);
             setLivekitError(null);
             setConnectionState('connecting');
 
@@ -360,7 +341,7 @@ const LiveStream = () => {
             const newRoom = new Room(roomOptions);
 
             newRoom.on(RoomEvent.Connected, async () => {
-                console.log('✅ Connected to LiveKit room');
+                console.log('Connected to LiveKit room');
                 setIsConnected(true);
                 setConnectionState('connected');
                 setLocalParticipant(newRoom.localParticipant);
@@ -368,35 +349,29 @@ const LiveStream = () => {
                 // Wait a bit before publishing to ensure connection is stable
                 setTimeout(async () => {
                     if (streamRef.current && newRoom.state === 'connected') {
-                        console.log('📤 Auto-publishing media after connection...');
                         try {
                             const videoTrack = streamRef.current?.getVideoTracks()[0];
                             const audioTrack = streamRef.current?.getAudioTracks()[0];
 
-                            console.log('📹 Tracks found:', { video: !!videoTrack, audio: !!audioTrack });
-
                             if (videoTrack && videoTrack.readyState === 'live') {
                                 await newRoom.localParticipant.publishTrack(videoTrack, { name: 'camera' });
-                                console.log('📹 Video track published');
                             }
 
                             if (audioTrack && audioTrack.readyState === 'live') {
                                 await newRoom.localParticipant.publishTrack(audioTrack, { name: 'microphone' });
-                                console.log('🎤 Audio track published');
                             }
 
                             setIsPublishing(true);
-                            console.log('🎉 Media published successfully');
+
                         } catch (error) {
-                            console.error('❌ Error auto-publishing:', error);
-                            // Don't disconnect on publish error, just log it
+
                         }
                     }
                 }, 1000); // Wait 1 second for connection to stabilize
             });
 
             newRoom.on(RoomEvent.Disconnected, (reason) => {
-                console.log('❌ Disconnected from LiveKit room:', reason);
+                console.log('Disconnected from LiveKit room:', reason);
                 setIsConnected(false);
                 setConnectionState('disconnected');
                 setLocalParticipant(null);
@@ -406,12 +381,10 @@ const LiveStream = () => {
 
             // Add connection error handling
             newRoom.on(RoomEvent.ConnectionStateChanged, (state) => {
-                console.log('🔗 Connection state changed:', state);
                 setConnectionState(state);
             });
 
             newRoom.on(RoomEvent.MediaDevicesError, (error) => {
-                console.error('❌ Media devices error:', error);
                 setMediaError('Media device error: ' + error.message);
             });
 
@@ -437,7 +410,6 @@ const LiveStream = () => {
             });
 
             newRoom.on(RoomEvent.ParticipantDisconnected, (participant) => {
-                console.log('👤 Participant disconnected:', participant.identity);
                 setRemoteParticipants(prev => prev.filter(p => p.identity !== participant.identity));
             });
 
@@ -450,16 +422,12 @@ const LiveStream = () => {
             await Promise.race([connectPromise, timeoutPromise]);
             setRoom(newRoom);
 
-            // Restore original console.error
-            console.error = originalConsoleError;
-
             console.log('🎉 Successfully connected to LiveKit room');
 
             return newRoom;
         } catch (error) {
             // Restore original console.error in case of error
             if (typeof originalConsoleError !== 'undefined') {
-                console.error = originalConsoleError;
             }
 
             console.error('❌ Error connecting to LiveKit:', error);

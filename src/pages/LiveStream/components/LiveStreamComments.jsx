@@ -35,7 +35,7 @@ const CommentInput = ({ onSendComment, isSending }) => {
                     onKeyPress={handleKeyPress}
                     placeholder="Write a comment..."
                     maxLength={maxLength}
-                    className="flex-1 bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="flex-1 bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                     disabled={isSending}
                 />
                 <button
@@ -44,9 +44,9 @@ const CommentInput = ({ onSendComment, isSending }) => {
                     className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white p-2 rounded-lg transition-colors"
                 >
                     {isSending ? (
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     ) : (
-                        <Send className="w-5 h-5" />
+                        <Send className="w-4 h-4" />
                     )}
                 </button>
             </form>
@@ -104,56 +104,56 @@ const CommentItem = ({ comment, currentUserId, hostId, onHideComment, onPinComme
     };
 
     return (
-        <div className={`group relative p-3 rounded-lg border transition-all ${comment.isPinned ? 'bg-yellow-50 border-yellow-300' : 'bg-white border-gray-200 hover:border-gray-300'}`}>
+        <div className={`group relative p-2 rounded-lg border transition-all ${comment.isPinned ? 'bg-yellow-50 border-yellow-300' : 'bg-white border-gray-200 hover:border-gray-300'}`}>
             <div className="flex items-start gap-2">
                 <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                         <span className="text-gray-900 font-bold text-sm truncate">{senderName}</span>
                         {isHost && (
-                            <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded">
+                            <span className="px-1.5 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded">
                                 Host
                             </span>
                         )}
-                        <span className="text-gray-500 text-xs">{formatTimeAgo(comment.createdAt)}</span>
+                        <span className="text-gray-500 text-[10px]">{formatTimeAgo(comment.createdAt)}</span>
                     </div>
-                    <p className="text-gray-800 text-sm break-words">{comment.commentText || comment.content}</p>
+                    <p className="text-gray-800 text-sm break-words leading-relaxed">{comment.commentText || comment.content}</p>
                 </div>
                 {(canDelete || canPin || canUnpin) && (
                     <div className="relative">
                         <button
                             onClick={() => setShowMenu(!showMenu)}
-                            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-700 p-1 rounded transition-opacity"
+                            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-700 p-0.5 rounded transition-opacity"
                         >
-                            <MoreVert className="w-4 h-4" />
+                            <MoreVert className="w-3.5 h-3.5" />
                         </button>
                         {showMenu && (
                             <>
                                 <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-                                <div className="absolute right-0 top-6 bg-white rounded-lg shadow-lg border border-gray-200 z-20 min-w-[130px]">
+                                <div className="absolute right-0 top-5 bg-white rounded-lg shadow-lg border border-gray-200 z-20 min-w-[110px]">
                                     {canPin && (
                                         <button
                                             onClick={handlePinComment}
-                                            className="w-full px-4 py-2 text-left text-sm text-yellow-600 hover:bg-yellow-50 flex items-center gap-2"
+                                            className="w-full px-3 py-1.5 text-left text-xs text-yellow-600 hover:bg-yellow-50 flex items-center gap-1.5"
                                         >
-                                            <PushPin className="w-4 h-4" />
+                                            <PushPin className="w-3.5 h-3.5" />
                                             Pin
                                         </button>
                                     )}
                                     {canUnpin && (
                                         <button
                                             onClick={handleUnpinComment}
-                                            className="w-full px-4 py-2 text-left text-sm text-yellow-600 hover:bg-yellow-50 flex items-center gap-2"
+                                            className="w-full px-3 py-1.5 text-left text-xs text-yellow-600 hover:bg-yellow-50 flex items-center gap-1.5"
                                         >
-                                            <PushPin className="w-4 h-4" />
+                                            <PushPin className="w-3.5 h-3.5" />
                                             Unpin
                                         </button>
                                     )}
                                     {canDelete && onHideComment && (
                                         <button
                                             onClick={handleHideComment}
-                                            className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                            className="w-full px-3 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 flex items-center gap-1.5"
                                         >
-                                            <Close className="w-4 h-4" />
+                                            <Close className="w-3.5 h-3.5" />
                                             Delete
                                         </button>
                                     )}
@@ -174,7 +174,10 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
     const [isSending, setIsSending] = useState(false);
     const [error, setError] = useState('');
     const commentsEndRef = useRef(null);
+    const commentsContainerRef = useRef(null);
     const socketRef = useRef(null);
+    const isInitialLoadRef = useRef(true);
+    const previousCommentsLengthRef = useRef(0);
 
     const isHost = user?.role === 'admin' || user?.role === 'manager';
     const isAdmin = user?.role === 'admin' || user?.role === 'manager';
@@ -186,8 +189,6 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
                 ? await Api.livestream.getAdminComments(liveId)
                 : await Api.livestream.getComments(liveId);
 
-            console.log('📥 Fetch comments response:', response);
-
             // Handle both response formats
             const commentsData = response?.data?.data || response?.data || [];
             const sorted = commentsData.sort((a, b) => {
@@ -195,6 +196,9 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
                 return new Date(a.createdAt) - new Date(b.createdAt);
             });
             setComments(sorted);
+            // Mark initial load as complete after first fetch
+            isInitialLoadRef.current = false;
+            previousCommentsLengthRef.current = sorted.length;
         } catch (error) {
             console.error('❌ Error fetching comments:', error);
         }
@@ -209,7 +213,6 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
             const response = await Api.livestream.addComment({ liveId, commentText: content });
 
             if (response?.success || response?.data?.success) {
-                console.log('✅ Comment sent, waiting for WebSocket update...');
             } else {
                 setError(response?.message || response?.data?.message || 'Unable to send comment');
             }
@@ -227,7 +230,6 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
             const response = await Api.livestream.hideComment(commentId);
 
             if (response?.success) {
-                console.log('✅ Comment deleted, waiting for WebSocket update...');
             } else {
                 setError(response?.message || 'Unable to delete comment');
             }
@@ -241,10 +243,8 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
         if (!user || !liveId) return;
         try {
             const response = await Api.livestream.pinComment(commentId, liveId);
-            console.log('📌 Pin response:', response);
 
             if (response?.success || response?.data?.success) {
-                console.log('✅ Comment pinned, waiting for WebSocket update...');
             } else {
                 setError(response?.message || response?.data?.message || 'Unable to pin comment');
             }
@@ -258,15 +258,15 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
         if (!user || !liveId) return;
         try {
             const response = await Api.livestream.unpinComment(commentId, liveId);
-            console.log('📍 Unpin response:', response);
+
 
             if (response?.success || response?.data?.success) {
-                console.log('✅ Comment unpinned, waiting for WebSocket update...');
+
             } else {
                 setError(response?.message || response?.data?.message || 'Unable to unpin comment');
             }
         } catch (error) {
-            console.error('❌ Error unpinning comment:', error);
+
             setError(error?.response?.data?.message || 'Error unpinning comment');
         }
     };
@@ -281,6 +281,16 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
                 });
                 return updated;
             });
+            // Scroll to bottom when new comment is added (not on initial load)
+            setTimeout(() => {
+                if (!isInitialLoadRef.current && commentsContainerRef.current) {
+                    const container = commentsContainerRef.current;
+                    container.scrollTo({
+                        top: container.scrollHeight,
+                        behavior: 'smooth'
+                    });
+                }
+            }, 100);
         }
     }, [liveId]);
 
@@ -329,16 +339,13 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
         });
 
         socket.on('connect', () => {
-            console.log('🔌 Socket connected for comments');
             socket.emit('joinLivestreamRoom', liveId);
         });
 
         socket.on('disconnect', () => {
-            console.log('🔌 Socket disconnected from comments');
         });
 
         socket.on('connect_error', (error) => {
-            console.error('❌ Socket connection error:', error);
         });
 
         socket.on('comment:added', handleCommentAdded);
@@ -363,40 +370,65 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
 
     useEffect(() => {
         if (isVisible && liveId) {
+            // Reset initial load flag when switching livestreams
+            isInitialLoadRef.current = true;
+            previousCommentsLengthRef.current = 0;
             fetchComments();
         }
     }, [isVisible, liveId, fetchComments]);
 
+    // Only auto-scroll when comments length increases (new comment added), not on initial load
     useEffect(() => {
-        commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [comments]);
+        const currentLength = comments.length;
+        const previousLength = previousCommentsLengthRef.current;
+
+        // Only scroll if:
+        // 1. Not initial load (comments already fetched)
+        // 2. Comments length increased (new comment added)
+        // 3. Comments container is visible
+        if (!isInitialLoadRef.current && currentLength > previousLength && isVisible && commentsContainerRef.current && commentsEndRef.current) {
+            setTimeout(() => {
+                // Scroll within the comments container, not the whole page
+                const container = commentsContainerRef.current;
+                if (container) {
+                    container.scrollTo({
+                        top: container.scrollHeight,
+                        behavior: 'smooth'
+                    });
+                }
+            }, 100);
+        }
+
+        previousCommentsLengthRef.current = currentLength;
+    }, [comments, isVisible]);
 
     if (!isVisible) return null;
 
     return (
-        <div className="fixed right-0 top-0 h-full w-[420px] bg-white border-l border-gray-200 flex flex-col z-40 shadow-2xl">
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-5 flex items-center justify-between border-b border-blue-700">
+        <div className="bg-white rounded-lg shadow-md border border-gray-200 flex flex-col h-[calc(100vh-160px)] max-h-[800px] w-full max-w-full">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-3 flex items-center justify-between border-b-2 border-blue-700 rounded-t-lg">
                 <div className="flex items-center gap-2">
-                    <Chat className="w-5 h-5 text-white" />
-                    <h3 className="text-white font-bold text-lg">Comments & Chat</h3>
+                    <Chat className="w-4 h-4 text-white" />
+                    <h3 className="text-white font-bold text-sm">Comments & Chat</h3>
                 </div>
                 <button
                     onClick={onToggle}
-                    className="text-white hover:bg-white/20 p-1 rounded-full transition-colors"
+                    className="text-white hover:bg-white/20 p-1 rounded transition-colors"
+                    title="Hide comments"
                 >
-                    <Close className="w-5 h-5" />
+                    <Close className="w-4 h-4" />
                 </button>
             </div>
 
             {comments.some(c => c.isPinned) && (
-                <div className="bg-gradient-to-br from-yellow-50 via-amber-50 to-yellow-50 border-b border-yellow-300 p-4 max-h-48 overflow-y-auto shadow-inner">
-                    <div className="flex items-center gap-2 mb-3 px-2">
+                <div className="bg-gradient-to-br from-yellow-50 via-amber-50 to-yellow-50 border-b border-yellow-300 p-3 max-h-40 overflow-y-auto">
+                    <div className="flex items-center gap-2 mb-2 px-1">
                         <PushPin className="w-4 h-4 text-yellow-600" />
                         <span className="text-yellow-700 text-xs font-bold uppercase tracking-wide">
                             Pinned Message
                         </span>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                         {comments
                             .filter(c => c.isPinned)
                             .slice(0, 1)
@@ -416,7 +448,7 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
                 </div>
             )}
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50">
+            <div ref={commentsContainerRef} className="flex-1 overflow-y-auto p-3 space-y-2 bg-gray-50 rounded-b-lg">
                 {comments
                     .filter(c => !c.isPinned)
                     .map((comment) => (
@@ -435,16 +467,16 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
             </div>
 
             {error && (
-                <div className="bg-red-50 border-t border-red-200 p-3">
-                    <p className="text-red-600 text-sm">{error}</p>
+                <div className="bg-red-50 border-t border-red-200 p-2">
+                    <p className="text-red-600 text-xs">{error}</p>
                 </div>
             )}
 
             {user ? (
                 <CommentInput onSendComment={handleSendComment} isSending={isSending} />
             ) : (
-                <div className="bg-gray-100 border-t border-gray-200 p-4 text-center">
-                    <p className="text-gray-600 text-sm">Login to comment</p>
+                <div className="bg-gray-100 border-t border-gray-200 p-3 text-center">
+                    <p className="text-gray-600 text-xs">Login to comment</p>
                 </div>
             )}
         </div>
