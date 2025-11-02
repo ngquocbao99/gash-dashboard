@@ -69,6 +69,22 @@ const LiveStreamDashboard = () => {
         updateViewerCount: false,
     });
 
+    // Helper: Format date/time to dd/mm/yyyy HH:mm
+    const formatDateTime = (dateString) => {
+        if (!dateString) return '';
+        try {
+            const date = new Date(dateString);
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${day}/${month}/${year} ${hours}:${minutes}`;
+        } catch (error) {
+            return '';
+        }
+    };
+
     // Load livestream details function
     const loadLivestreamDetails = useCallback(async () => {
         try {
@@ -1984,12 +2000,7 @@ const LiveStreamDashboard = () => {
                                         <div className="pt-2 border-t border-gray-200">
                                             <div className="text-xs text-gray-600 font-semibold mb-1">Started</div>
                                             <div className="text-xs text-gray-900">
-                                                {new Date(currentLivestream.startTime).toLocaleString('en-US', {
-                                                    month: 'short',
-                                                    day: 'numeric',
-                                                    hour: '2-digit',
-                                                    minute: '2-digit'
-                                                })}
+                                                {formatDateTime(currentLivestream.startTime)}
                                             </div>
                                         </div>
                                     )}
@@ -1997,12 +2008,7 @@ const LiveStreamDashboard = () => {
                                         <div className="pt-2 border-t border-gray-200">
                                             <div className="text-xs text-gray-600 font-semibold mb-1">Ended</div>
                                             <div className="text-xs text-gray-900">
-                                                {new Date(currentLivestream.endTime).toLocaleString('en-US', {
-                                                    month: 'short',
-                                                    day: 'numeric',
-                                                    hour: '2-digit',
-                                                    minute: '2-digit'
-                                                })}
+                                                {formatDateTime(currentLivestream.endTime)}
                                             </div>
                                         </div>
                                     )}

@@ -3,8 +3,67 @@ import { Chat, Close, PushPin, Send, MoreVert } from '@mui/icons-material';
 import { AuthContext } from '../../../context/AuthContext';
 import io from 'socket.io-client';
 import Api from '../../../common/SummaryAPI';
+import { useToast } from '../../../hooks/useToast';
 
 const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+// DeleteConfirmModal Component
+const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, commentText }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 flex items-center justify-center z-[9999]">
+            {/* Backdrop */}
+            <div
+                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                onClick={onClose}
+            ></div>
+
+            {/* Modal */}
+            <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 border border-gray-100">
+                <div className="p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                            <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <h2 className="text-xl font-bold text-gray-800">
+                            Delete Comment
+                        </h2>
+                    </div>
+
+                    <p className="text-gray-600 mb-2">
+                        Are you sure you want to delete this comment?
+                    </p>
+
+                    {commentText && (
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
+                            <p className="text-sm text-gray-700 line-clamp-3">
+                                "{commentText}"
+                            </p>
+                        </div>
+                    )}
+
+                    <div className="flex gap-3 justify-end">
+                        <button
+                            onClick={onClose}
+                            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={onConfirm}
+                            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                        >
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // CommentInput Component
 const CommentInput = ({ onSendComment, isSending }) => {
@@ -55,15 +114,17 @@ const CommentInput = ({ onSendComment, isSending }) => {
 };
 
 // CommentItem Component
-const CommentItem = ({ comment, currentUserId, hostId, onHideComment, onPinComment, onUnpinComment, canModerate }) => {
+const CommentItem = ({ comment, currentUserId, hostId, onHideComment, onPinComment, onUnpinComment, canModerate, isAdmin }) => {
     const [showMenu, setShowMenu] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
     const senderData = comment.sender || comment.senderId;
     const senderName = senderData?.name || senderData?.username || 'Unknown User';
     const isHost = senderData?._id === hostId;
     const isCommentSender = currentUserId === senderData?._id;
-    const canDelete = (isCommentSender || canModerate) && !comment.isPinned;
-    const canPin = canModerate && !comment.isPinned;
-    const canUnpin = canModerate && comment.isPinned;
+    const isDeleted = comment.isDeleted === true;
+    const canDelete = (isCommentSender || canModerate) && !comment.isPinned && !isDeleted;
+    const canPin = canModerate && !comment.isPinned && !isDeleted;
+    const canUnpin = canModerate && comment.isPinned && !isDeleted;
 
     const formatTimeAgo = (timestamp) => {
         const now = new Date();
@@ -78,17 +139,20 @@ const CommentItem = ({ comment, currentUserId, hostId, onHideComment, onPinComme
         return `${diffDays}d`;
     };
 
-    const handleHideComment = async () => {
+    const handleDeleteClick = () => {
         if (comment.isPinned) {
             console.warn('⚠️ Cannot delete a pinned comment. Unpin it first.');
             alert('Cannot delete a pinned comment. Please unpin it first.');
             return;
         }
+        setShowMenu(false);
+        setShowDeleteModal(true);
+    };
+
+    const handleConfirmDelete = async () => {
         if (!onHideComment) return;
-        if (window.confirm('Are you sure you want to delete this comment?')) {
-            await onHideComment(comment._id);
-            setShowMenu(false);
-        }
+        await onHideComment(comment._id);
+        setShowDeleteModal(false);
     };
 
     const handlePinComment = () => {
@@ -104,21 +168,36 @@ const CommentItem = ({ comment, currentUserId, hostId, onHideComment, onPinComme
     };
 
     return (
-        <div className={`group relative p-2 rounded-lg border transition-all ${comment.isPinned ? 'bg-yellow-50 border-yellow-300' : 'bg-white border-gray-200 hover:border-gray-300'}`}>
+        <div className={`group relative p-2 rounded-lg border transition-all ${comment.isPinned
+            ? 'bg-yellow-50 border-yellow-300'
+            : isDeleted
+                ? 'bg-gray-100 border-gray-300 opacity-60'
+                : 'bg-white border-gray-200 hover:border-gray-300'
+            }`}>
             <div className="flex items-start gap-2">
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                        <span className="text-gray-900 font-bold text-sm truncate">{senderName}</span>
+                        <span className={`font-bold text-sm truncate ${isDeleted ? 'text-gray-500' : 'text-gray-900'}`}>{senderName}</span>
                         {isHost && (
                             <span className="px-1.5 py-0.5 bg-blue-600 text-white text-[10px] font-bold rounded">
                                 Host
                             </span>
                         )}
+                        {isDeleted && (
+                            <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded">
+                                Deleted
+                            </span>
+                        )}
                         <span className="text-gray-500 text-[10px]">{formatTimeAgo(comment.createdAt)}</span>
                     </div>
-                    <p className="text-gray-800 text-sm break-words leading-relaxed">{comment.commentText || comment.content}</p>
+                    <p className={`text-sm break-words leading-relaxed ${isDeleted
+                        ? 'text-gray-400 italic'
+                        : 'text-gray-800'
+                        }`}>
+                        {isDeleted && !isAdmin ? '[This comment has been deleted]' : (comment.commentText || comment.content)}
+                    </p>
                 </div>
-                {(canDelete || canPin || canUnpin) && (
+                {(canDelete || canPin || canUnpin) && !isDeleted && (
                     <div className="relative">
                         <button
                             onClick={() => setShowMenu(!showMenu)}
@@ -150,7 +229,7 @@ const CommentItem = ({ comment, currentUserId, hostId, onHideComment, onPinComme
                                     )}
                                     {canDelete && onHideComment && (
                                         <button
-                                            onClick={handleHideComment}
+                                            onClick={handleDeleteClick}
                                             className="w-full px-3 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 flex items-center gap-1.5"
                                         >
                                             <Close className="w-3.5 h-3.5" />
@@ -163,6 +242,14 @@ const CommentItem = ({ comment, currentUserId, hostId, onHideComment, onPinComme
                     </div>
                 )}
             </div>
+
+            {/* Delete Confirmation Modal */}
+            <DeleteConfirmModal
+                isOpen={showDeleteModal}
+                onClose={() => setShowDeleteModal(false)}
+                onConfirm={handleConfirmDelete}
+                commentText={comment.commentText || comment.content}
+            />
         </div>
     );
 };
@@ -170,6 +257,7 @@ const CommentItem = ({ comment, currentUserId, hostId, onHideComment, onPinComme
 // Main LiveStreamComments Component
 const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
     const { user } = useContext(AuthContext);
+    const { showToast } = useToast();
     const [comments, setComments] = useState([]);
     const [isSending, setIsSending] = useState(false);
     const [error, setError] = useState('');
@@ -230,12 +318,17 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
             const response = await Api.livestream.hideComment(commentId);
 
             if (response?.success) {
+                showToast('Comment deleted successfully', 'success');
             } else {
-                setError(response?.message || 'Unable to delete comment');
+                const errorMsg = response?.message || 'Unable to delete comment';
+                setError(errorMsg);
+                showToast(errorMsg, 'error');
             }
         } catch (error) {
+            const errorMsg = error?.response?.data?.message || error?.message || 'Error deleting comment';
             console.error('Error deleting comment:', error);
-            setError('Error deleting comment');
+            setError(errorMsg);
+            showToast(errorMsg, 'error');
         }
     };
 
@@ -245,12 +338,17 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
             const response = await Api.livestream.pinComment(commentId, liveId);
 
             if (response?.success || response?.data?.success) {
+                showToast('Comment pinned successfully', 'success');
             } else {
-                setError(response?.message || response?.data?.message || 'Unable to pin comment');
+                const errorMsg = response?.message || response?.data?.message || 'Unable to pin comment';
+                setError(errorMsg);
+                showToast(errorMsg, 'error');
             }
         } catch (error) {
+            const errorMsg = error?.response?.data?.message || error?.message || 'Error pinning comment';
             console.error('❌ Error pinning comment:', error);
-            setError(error?.response?.data?.message || 'Error pinning comment');
+            setError(errorMsg);
+            showToast(errorMsg, 'error');
         }
     };
 
@@ -259,15 +357,17 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
         try {
             const response = await Api.livestream.unpinComment(commentId, liveId);
 
-
             if (response?.success || response?.data?.success) {
-
+                showToast('Comment unpinned successfully', 'success');
             } else {
-                setError(response?.message || response?.data?.message || 'Unable to unpin comment');
+                const errorMsg = response?.message || response?.data?.message || 'Unable to unpin comment';
+                setError(errorMsg);
+                showToast(errorMsg, 'error');
             }
         } catch (error) {
-
-            setError(error?.response?.data?.message || 'Error unpinning comment');
+            const errorMsg = error?.response?.data?.message || error?.message || 'Error unpinning comment';
+            setError(errorMsg);
+            showToast(errorMsg, 'error');
         }
     };
 
@@ -296,7 +396,9 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
 
     const handleCommentDeleted = useCallback((data) => {
         if (data?.liveId === liveId) {
-            setComments(prev => prev.filter(c => c._id !== data.commentId));
+            setComments(prev => prev.map(c =>
+                c._id === data.commentId ? { ...c, isDeleted: true } : c
+            ));
         }
     }, [liveId]);
 
@@ -442,6 +544,7 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
                                     onPinComment={handlePinComment}
                                     onUnpinComment={handleUnpinComment}
                                     canModerate={isHost || isAdmin}
+                                    isAdmin={isAdmin}
                                 />
                             ))}
                     </div>
@@ -461,6 +564,7 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
                             onPinComment={handlePinComment}
                             onUnpinComment={handleUnpinComment}
                             canModerate={isHost || isAdmin}
+                            isAdmin={isAdmin}
                         />
                     ))}
                 <div ref={commentsEndRef} />

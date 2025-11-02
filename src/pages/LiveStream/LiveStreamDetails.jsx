@@ -456,74 +456,75 @@ const LiveStreamDetails = () => {
                         <h3 className="text-lg font-semibold text-gray-900 mb-4">
                             Live Products ({products.length})
                         </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="space-y-3">
                             {products.map((liveProduct) => {
                                 const isActive = liveProduct.isActive && !liveProduct.removedAt;
                                 return (
-                                    <div key={liveProduct._id} className={`border rounded-lg p-4 hover:shadow-md transition-shadow ${!isActive ? 'opacity-60 bg-gray-50' : ''}`}>
-                                        <div className="flex items-start justify-between mb-2">
-                                            <div className="flex items-center gap-2">
+                                    <div key={liveProduct._id} className={`border rounded-lg p-3 hover:shadow-md transition-shadow flex items-center gap-4 ${!isActive ? 'opacity-60 bg-gray-50' : 'bg-white'}`}>
+                                        {/* Product Image */}
+                                        {liveProduct.productId?.productImageIds && liveProduct.productId.productImageIds.length > 0 ? (
+                                            <div className="flex-shrink-0">
+                                                <img
+                                                    src={liveProduct.productId.productImageIds[0]?.imageUrl || ''}
+                                                    alt={liveProduct.productId.productName}
+                                                    className="w-20 h-20 object-cover rounded-lg"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="flex-shrink-0 w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center">
+                                                <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                </svg>
+                                            </div>
+                                        )}
+
+                                        {/* Product Info */}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <h4 className="font-semibold text-gray-900 truncate">
+                                                    {liveProduct.productId?.productName || 'Unknown Product'}
+                                                </h4>
                                                 {liveProduct.isPinned && (
-                                                    <span className="text-xs font-medium px-2 py-1 rounded bg-yellow-100 text-yellow-800">
+                                                    <span className="text-xs font-medium px-2 py-0.5 rounded bg-yellow-100 text-yellow-800 shrink-0">
                                                         📌 Pinned
                                                     </span>
                                                 )}
                                                 {isActive ? (
-                                                    <span className="text-xs font-medium px-2 py-1 rounded bg-green-100 text-green-800">
+                                                    <span className="text-xs font-medium px-2 py-0.5 rounded bg-green-100 text-green-800 shrink-0">
                                                         Active
                                                     </span>
                                                 ) : (
-                                                    <span className="text-xs font-medium px-2 py-1 rounded bg-red-100 text-red-800">
+                                                    <span className="text-xs font-medium px-2 py-0.5 rounded bg-red-100 text-red-800 shrink-0">
                                                         Removed
                                                     </span>
                                                 )}
                                             </div>
-                                        </div>
-                                        {liveProduct.productId && (
-                                            <div>
-                                                <h4 className="font-semibold text-gray-900 mb-1">
-                                                    {liveProduct.productId.productName || 'Unknown Product'}
-                                                </h4>
-                                                {liveProduct.productId.categoryId && (
-                                                    <p className="text-xs text-gray-500 mb-2">
-                                                        {liveProduct.productId.categoryId.cat_name}
-                                                    </p>
-                                                )}
-                                                {liveProduct.productId.productImageIds && liveProduct.productId.productImageIds.length > 0 && (
-                                                    <div className="mt-2">
-                                                        <img
-                                                            src={liveProduct.productId.productImageIds[0]?.imageUrl || ''}
-                                                            alt={liveProduct.productId.productName}
-                                                            className="w-full h-32 object-cover rounded"
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                        <div className="mt-2 space-y-1">
-                                            <p className="text-xs text-gray-500">
-                                                Added: {formatDate(liveProduct.addedAt)}
-                                            </p>
-                                            {(liveProduct.addedBy || liveProduct.addBy) && (
-                                                <p className="text-xs text-gray-500">
-                                                    Added by: {typeof (liveProduct.addedBy || liveProduct.addBy) === 'object'
-                                                        ? ((liveProduct.addedBy || liveProduct.addBy)?.name || (liveProduct.addedBy || liveProduct.addBy)?.username || 'Unknown')
-                                                        : 'Unknown'}
+                                            {liveProduct.productId?.categoryId && (
+                                                <p className="text-xs text-gray-500 mb-1">
+                                                    {liveProduct.productId.categoryId.cat_name}
                                                 </p>
                                             )}
+                                            <div className="flex items-center gap-4 text-xs text-gray-500">
+                                                <span>Added: {formatDate(liveProduct.addedAt)}</span>
+                                                {(liveProduct.addedBy || liveProduct.addBy) && (
+                                                    <span>
+                                                        By: {typeof (liveProduct.addedBy || liveProduct.addBy) === 'object'
+                                                            ? ((liveProduct.addedBy || liveProduct.addBy)?.name || (liveProduct.addedBy || liveProduct.addBy)?.username || 'Unknown')
+                                                            : 'Unknown'}
+                                                    </span>
+                                                )}
+                                            </div>
                                             {liveProduct.removedAt && (
-                                                <>
-                                                    <p className="text-xs text-red-600">
-                                                        Removed: {formatDate(liveProduct.removedAt)}
-                                                    </p>
+                                                <div className="flex items-center gap-4 text-xs text-red-600 mt-1">
+                                                    <span>Removed: {formatDate(liveProduct.removedAt)}</span>
                                                     {(liveProduct.removedBy || liveProduct.removeBy) && (
-                                                        <p className="text-xs text-red-600">
-                                                            Removed by: {typeof (liveProduct.removedBy || liveProduct.removeBy) === 'object'
+                                                        <span>
+                                                            By: {typeof (liveProduct.removedBy || liveProduct.removeBy) === 'object'
                                                                 ? ((liveProduct.removedBy || liveProduct.removeBy)?.name || (liveProduct.removedBy || liveProduct.removeBy)?.username || 'Unknown')
                                                                 : 'Unknown'}
-                                                        </p>
+                                                        </span>
                                                     )}
-                                                </>
+                                                </div>
                                             )}
                                         </div>
                                     </div>

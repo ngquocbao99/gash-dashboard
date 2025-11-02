@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import Api from '../../../common/SummaryAPI';
+import { useToast } from '../../../hooks/useToast';
 
 const LiveStreamProducts = ({ liveId }) => {
+    const { showToast } = useToast();
     const [liveProducts, setLiveProducts] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -54,6 +56,22 @@ const LiveStreamProducts = ({ liveId }) => {
         return mainImage?.imageUrl || images[0]?.imageUrl || null;
     };
 
+    // Helper: Format date/time
+    const formatDateTime = (dateString) => {
+        if (!dateString) return '';
+        try {
+            const date = new Date(dateString);
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${day}/${month}/${year} ${hours}:${minutes}`;
+        } catch (error) {
+            return '';
+        }
+    };
+
     // Load live products from API
     const loadLiveProducts = useCallback(async () => {
         if (!hasLiveId) return;
@@ -63,7 +81,8 @@ const LiveStreamProducts = ({ liveId }) => {
             const resp = await Api.livestream.getLiveProducts(liveId);
 
             // Backend returns: { success: true, data: [...], count: N }
-            const products = resp?.data?.data || resp?.data || [];
+            // SummaryAPI already does .then(response => response.data), so resp is the result object
+            const products = resp?.data || [];
             setLiveProducts(extractArray(products));
         } catch (e) {
             setError('Unable to load live products');
@@ -82,7 +101,7 @@ const LiveStreamProducts = ({ liveId }) => {
         try {
             setIsLoading(true);
             setError('');
-            const resp = await Api.newProducts.getAll({});
+            const resp = await Api.newProducts.getAll({ status: 'active' });
             setAllProducts(extractArray(resp));
         } catch (e) {
             setError('Unable to load products');
@@ -105,8 +124,16 @@ const LiveStreamProducts = ({ liveId }) => {
                 await loadAllProducts();
                 return;
             }
-            const resp = await Api.newProducts.search({ q: query.trim() });
-            setAllProducts(extractArray(resp));
+            // Backend expects 'name' parameter, not 'q', and 'status' to filter only active products
+            const resp = await Api.newProducts.search({ name: query.trim(), status: 'active' });
+            console.log('Search response:', resp); // Debug log
+            const products = extractArray(resp);
+            console.log('Extracted products:', products); // Debug log
+            setAllProducts(products);
+            // Auto-open dropdown when search results are loaded
+            if (products && products.length > 0) {
+                setIsDropdownOpen(true);
+            }
         } catch (e) {
             setError('Unable to search products');
             console.error('searchProducts error:', e);
@@ -157,14 +184,18 @@ const LiveStreamProducts = ({ liveId }) => {
             const isObjectId = (v) => /^[a-fA-F0-9]{24}$/.test(v);
             if (!isObjectId(liveIdStr) || !isObjectId(productIdStr)) {
                 setError('Invalid liveId or productId');
+                showToast('Invalid product ID', 'error');
                 return;
             }
+            const productName = allProducts.find(p => (p?._id || p?.id) === selectedProductId)?.productName || 'Unknown';
             await Api.livestream.addProduct({ liveId: liveIdStr, productId: productIdStr });
+            showToast(`Product added successfully`, 'success');
             setSelectedProductId('');
             await loadLiveProducts();
         } catch (e) {
             const apiMsg = e?.response?.data?.message || e?.message || 'Unable to add product to live';
             setError(apiMsg);
+            showToast(apiMsg, 'error');
             console.error('addProduct error:', e);
         } finally {
             setIsSubmitting(false);
@@ -181,12 +212,17 @@ const LiveStreamProducts = ({ liveId }) => {
             const productId = liveProduct.productId?._id || liveProduct.productId || liveProduct.product?.productId;
             if (!productId) {
                 setError('Product ID not found');
+                showToast('Product ID not found', 'error');
                 return;
             }
+            const productName = getProductName(liveProduct.productId || liveProduct.product || {});
             await Api.livestream.removeProduct({ liveId, productId });
+            showToast(`Product removed successfully`, 'success');
             await loadLiveProducts();
         } catch (e) {
-            setError('Unable to remove product from live');
+            const apiMsg = e?.response?.data?.message || e?.message || 'Unable to remove product from live';
+            setError(apiMsg);
+            showToast(apiMsg, 'error');
             console.error('removeProduct error:', e);
         } finally {
             setIsSubmitting(false);
@@ -200,9 +236,13 @@ const LiveStreamProducts = ({ liveId }) => {
             setIsSubmitting(true);
             setError('');
             await Api.livestream.pinProduct(liveProduct._id, { liveId });
+            const productName = getProductName(liveProduct.productId || liveProduct.product || {});
+            showToast(`Product pinned successfully`, 'success');
             await loadLiveProducts();
         } catch (e) {
-            setError('Unable to pin product');
+            const apiMsg = e?.response?.data?.message || e?.message || 'Unable to pin product';
+            setError(apiMsg);
+            showToast(apiMsg, 'error');
             console.error('pinProduct error:', e);
         } finally {
             setIsSubmitting(false);
@@ -216,9 +256,13 @@ const LiveStreamProducts = ({ liveId }) => {
             setIsSubmitting(true);
             setError('');
             await Api.livestream.unpinProduct(liveProduct._id, { liveId });
+            const productName = getProductName(liveProduct.productId || liveProduct.product || {});
+            showToast(`Product unpinned successfully`, 'success');
             await loadLiveProducts();
         } catch (e) {
-            setError('Unable to unpin product');
+            const apiMsg = e?.response?.data?.message || e?.message || 'Unable to unpin product';
+            setError(apiMsg);
+            showToast(apiMsg, 'error');
             console.error('unpinProduct error:', e);
         } finally {
             setIsSubmitting(false);
@@ -284,7 +328,8 @@ const LiveStreamProducts = ({ liveId }) => {
                         )}
                         {searchQuery && (
                             <p className="mt-1 text-xs text-gray-500">{allProducts.length} result{allProducts.length !== 1 ? 's' : ''}</p>
-                        )}
+                        )
+                        }
                     </div>
 
                     {/* Product selector and add button - Row layout */}
@@ -428,7 +473,7 @@ const LiveStreamProducts = ({ liveId }) => {
 
                                 {/* Product Info */}
                                 <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 mb-1">
                                         <span className="text-sm font-medium text-gray-900 truncate">{productName}</span>
                                         {lp.isPinned && (
                                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-200 text-yellow-800 border border-yellow-400">
@@ -439,6 +484,18 @@ const LiveStreamProducts = ({ liveId }) => {
                                             </span>
                                         )}
                                     </div>
+                                    {/* AddBy and time info */}
+                                    {lp.addedAt && (
+                                        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                            {lp.addBy && (
+                                                <>
+                                                    <span>by {lp.addBy.name || lp.addBy.username || 'Unknown'}</span>
+                                                    <span>•</span>
+                                                </>
+                                            )}
+                                            <span>{formatDateTime(lp.addedAt)}</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Actions - Compact */}
