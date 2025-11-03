@@ -5,6 +5,7 @@ import {
   Route,
   Navigate,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
 import { AuthProvider, AuthContext } from "./context/AuthContext.jsx";
 import { ToastProvider } from "./components/Toast.jsx";
@@ -39,6 +40,9 @@ import RevenueStatistics from "./pages/RevenueStatistcs/RevenueStatistics.jsx";
 import OrderStatistics from "./pages/OrderStatistics/OrderStatistics.jsx";
 import CustomerStatistics from "./pages/CustomerStatistics/CustomerStatistics.jsx";
 import ProductStatistics from "./pages/ProductStatistics/ProductStatistics.jsx";
+import LiveStream from "./pages/LiveStream/LiveStream.jsx";
+import LiveStreamDashboard from "./pages/LiveStream/LiveStreamDashboard.jsx";
+import LiveStreamDetails from "./pages/LiveStream/LiveStreamDetails.jsx";
 
 
 // ===============================
@@ -212,6 +216,31 @@ const App = () => {
                 element={
                   <ProtectedRoute>
                     <AdminChat />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/livestream"
+                element={
+                  <ProtectedRoute>
+                    <LiveStream />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/manage-livestream/:livestreamId"
+                element={
+                  <ProtectedRoute>
+                    <LiveStreamDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/livestream/details/:livestreamId"
+                element={
+                  <ProtectedRoute>
+                    <LiveStreamDetails />
                   </ProtectedRoute>
                 }
               />
