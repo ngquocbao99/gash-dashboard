@@ -76,20 +76,20 @@ const Api = {
     },
 
     // ==== Products ====
-    products: {
-        // Get single product (old API - deprecated)
-        getProduct: (productId) => axiosClient.get(`/products/${productId}`),
-        // Get product variants (old API - deprecated)
-        getVariants: (productId) => axiosClient.get(`/variants?pro_id=${productId}`),
-        // Get product feedbacks
-        getFeedbacks: (productId) => axiosClient.get(`/order-details/product/${productId}`),
-        search: (query) => {
-            const sanitizedQuery = query.trim().replace(/[<>]/g, "");
-            return axiosClient.get("/products/search", {
-                params: { q: sanitizedQuery },
-            });
-        },
-    },
+    // products: {
+    //     // Get single product (old API - deprecated)
+    //     getProduct: (productId) => axiosClient.get(`/products/${productId}`),
+    //     // Get product variants (old API - deprecated)
+    //     getVariants: (productId) => axiosClient.get(`/variants?pro_id=${productId}`),
+    //     // Get product feedbacks
+    //     getFeedbacks: (productId) => axiosClient.get(`/order-details/product/${productId}`),
+    //     search: (query) => {
+    //         const sanitizedQuery = query.trim().replace(/[<>]/g, "");
+    //         return axiosClient.get("/products/search", {
+    //             params: { q: sanitizedQuery },
+    //         });
+    //     },
+    // },
 
     // ==== New Products ====
     newProducts: {
@@ -232,7 +232,7 @@ const Api = {
         // ==== Order Statistics ====
         // Get order statistics
         getOrderStatistics: (params = {}) => axiosClient.get("/new-statistics/order-statistics", { params }).then(response => response.data),
-     
+
         // ==== Revenue Statistics ====
         // Get revenue by day
         getRevenueByDay: (params = {}) => axiosClient.get('/statistics/revenue/revenue-by-day', { params }).then(response => response.data),
@@ -262,6 +262,55 @@ const Api = {
         getMessages: (params = {}) => axiosClient.get("/chat/messages", { params }),
         sendMessage: (data) => axiosClient.post("/chat/messages", data),
         getConversations: (params = {}) => axiosClient.get("/chat/conversations", { params }),
+    },
+
+    // ==== Livestream ====
+    livestream: {
+        // ==== Livestream Management ====
+        // Start livestream (admin/manager only)
+        start: (data) => axiosClient.post("/livestream/start", data).then(response => response.data),
+        // End livestream (admin/manager only)
+        end: (livestreamId) => axiosClient.put("/livestream/end", { livestreamId }).then(response => response.data),
+        // Get host livestreams (admin/manager only)
+        getHost: () => axiosClient.get("/livestream/my-livestream").then(response => response.data),
+        // Get host token (admin/manager only)
+        getToken: (data) => axiosClient.post("/livestream/host-token", data).then(response => response.data),
+        // Get all livestreams (admin/manager only)
+        getAll: (params) => axiosClient.get("/livestream/all-livestream", { params }).then(response => response.data),
+        // Get specific livestream details (admin/manager only)
+        getById: (livestreamId) => axiosClient.get(`/livestream/livestream-by-id/${livestreamId}`).then(response => response.data),
+
+        // ==== Livestream Comments ====
+        // Add comment to livestream
+        addComment: (data) => axiosClient.post("/livestream-comments/add-comment", data).then(response => response.data),
+        // Get comments for a livestream (User - only non-deleted comments)
+        getComments: (liveId, params = {}) => axiosClient.get(`/livestream-comments/comments/${liveId}`, { params }).then(response => response.data),
+        // Get comments for a livestream (Admin - all comments, including deleted)
+        getAdminComments: (liveId, params = {}) => axiosClient.get(`/livestream-comments/admin/comments/${liveId}`, { params }).then(response => response.data),
+        // Hide/Delete comment (Sender hoặc Admin/Manager)
+        hideComment: (commentId) => axiosClient.delete(`/livestream-comments/${commentId}/hide-comment`).then(response => response.data),
+        // Pin comment (Admin only)
+        pinComment: (commentId, liveId) => axiosClient.post(`/livestream-comments/${commentId}/pin-comment`, { liveId }).then(response => response.data),
+        // Remove pin from comment (Admin only)
+        unpinComment: (commentId, liveId) => axiosClient.post(`/livestream-comments/${commentId}/unpin-comment`, { liveId }).then(response => response.data),
+
+        // ==== Livestream Products ====
+        // Add product to livestream (Admin only)
+        addProduct: (data) => axiosClient.post("/livestream-products/add-live-product", data).then(response => response.data),
+        // Remove product from livestream (Admin only)
+        removeProduct: (data) => axiosClient.post("/livestream-products/remove-live-product", data).then(response => response.data),
+        // Pin product (Admin only)
+        pinProduct: (liveProductId, data) => axiosClient.post(`/livestream-products/${liveProductId}/pin-live-product`, data).then(response => response.data),
+        // Remove pin from product (Admin only)
+        unpinProduct: (liveProductId, data) => axiosClient.post(`/livestream-products/${liveProductId}/unpin-live-product`, data).then(response => response.data),
+        // Get all active products in a livestream (User và Admin dùng chung - chỉ active products)
+        getLiveProducts: (liveId) => axiosClient.get(`/livestream-products/${liveId}/live-products`).then(response => response.data),
+        // Get all live products including removed (Admin only)
+        getAllLiveProductsForAdmin: (liveId) => axiosClient.get(`/livestream-products/${liveId}/live-products/all`).then(response => response.data),
+
+        // ==== Livestream Reactions ====
+        // Get reaction counts for a livestream
+        getReactions: (liveId) => axiosClient.get(`/livestream-reactions/reactions/${liveId}`).then(response => response.data),
     },
 };
 

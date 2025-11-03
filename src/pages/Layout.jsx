@@ -26,7 +26,11 @@ import {
   AccessTime,
   CheckCircle,
   Cancel,
-  Visibility
+  Visibility,
+  VideoCall,
+  LiveTv,
+  RecordVoiceOver,
+  CameraAlt
 } from '@mui/icons-material';
 import '../styles/Layout.css';
 import gashLogo from '../assets/image/gash-logo.svg';
@@ -98,6 +102,7 @@ const Layout = ({ children }) => {
         { label: 'Feedback', to: '/feedbacks', icon: Comment },
         { label: 'Chat', to: '/chat', icon: Chat },
         { label: 'Notifications', to: '/notifications', icon: Notifications },
+        { label: 'Livestream', to: '/livestream', icon: LiveTv },
       ];
 
       if (user?.role === 'admin') {
