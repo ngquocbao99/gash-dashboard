@@ -626,10 +626,9 @@ const LiveStream = () => {
 
                 // Get livestream ID for navigation
                 const livestreamId = response.data.livestreamId || response.data._id;
-                console.log('🔄 Navigating to dashboard for livestream:', livestreamId);
 
                 // Show success message
-                showToast('Livestream started successfully! Redirecting to dashboard...', 'success');
+                showToast('Livestream started successfully!', 'success');
 
                 // Clean up video elements before navigation to prevent AbortError
                 if (localVideoRef.current) {
