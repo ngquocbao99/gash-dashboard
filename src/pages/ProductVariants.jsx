@@ -393,7 +393,7 @@ const ProductVariants = () => {
           variant._id === variantId ? populatedVariant : variant
         )
       );
-      setToast({ type: "success", message: "Variant updated successfully" });
+      setToast({ type: "success", message: "Variant updated successfully!" });
       setEditingVariantId(null);
       setEditFormData({
         productId: "",
@@ -444,7 +444,7 @@ const ProductVariants = () => {
         )
       );
 
-      setToast({ type: "success", message: "Variant marked as discontinued successfully" });
+      setToast({ type: "success", message: "Variant discontinued successfully!" });
       if (editingVariantId === variantId) setEditingVariantId(null);
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.message || 'Failed to delete variant';

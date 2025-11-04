@@ -62,7 +62,7 @@ const EditVariantModal = ({ isOpen, onClose, variant, onSuccess }) => {
         stockQuantity: parseInt(form.stockQuantity),
       };
       await Api.newVariants.update(variant._id, updateData);
-      showToast("Variant updated successfully", "success");
+      showToast("Variant updated successfully!", "success");
       onSuccess();
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Failed to update variant';

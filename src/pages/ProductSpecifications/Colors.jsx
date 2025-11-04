@@ -48,7 +48,7 @@ const Colors = () => {
             const payload = { color_name: newColorForm.content };
             const response = await Api.colors.create(payload);
             await fetchColors(); // Refetch to ensure latest data
-            showToast('Color created successfully', 'success');
+            showToast('Color created successfully!', 'success');
             setNewColorForm({ content: '' });
             setShowCreateModal(false);
         } catch (err) {
@@ -76,7 +76,7 @@ const Colors = () => {
             const payload = { color_name: editFormData.content };
             const response = await Api.colors.update(editingColor._id, payload);
             await fetchColors(); // Refetch to ensure latest data
-            showToast('Color updated successfully', 'success');
+            showToast('Color updated successfully!', 'success');
             setShowEditModal(false);
             setEditingColor(null);
             setEditFormData({ content: '' });
@@ -98,7 +98,7 @@ const Colors = () => {
         try {
             await Api.colors.delete(id);
             setColors(prev => prev.filter(item => item._id !== id));
-            showToast('Color deleted successfully', 'success');
+            showToast('Color deleted successfully!', 'success');
             if (editingColor && editingColor._id === id) {
                 setEditingColor(null);
                 setShowEditModal(false);

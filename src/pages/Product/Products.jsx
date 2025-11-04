@@ -322,7 +322,7 @@ const Products = () => {
       );
       // Update selectedProductForDetails with new data
       setSelectedProductForDetails(updatedProduct);
-      showToast('Product updated successfully', 'success');
+      showToast('Product updated successfully!', 'success');
       setEditingProductId(null);
       setEditingProduct(null);
       setShowEditModal(false);
@@ -590,7 +590,7 @@ const Products = () => {
                 className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
               >
                 <option value="">All Statuses</option>
-                {statusOptions.map(status => (
+                {['active', 'pending', 'discontinued'].map(status => (
                   <option key={status} value={status}>
                     {status.charAt(0).toUpperCase() + status.slice(1)}
                   </option>
@@ -611,139 +611,213 @@ const Products = () => {
         </div>
       )}
 
-      {/* Error Display */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 lg:mb-6" role="alert" aria-live="assertive">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="flex-shrink-0 w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
+      {/* Unified State: Loading / Empty / Error */}
+      {loading || filteredProducts.length === 0 || error ? (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6" role="status">
+          <div className="flex flex-col items-center justify-center space-y-4 min-h-[180px]">
+
+            {/* ── LOADING ── */}
+            {loading ? (
+              <>
+                <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                <p className="text-gray-600 font-medium">Loading products...</p>
+              </>
+            ) : error ? (
+
+              /* ── NETWORK ERROR ── */
+              <div className="flex flex-col items-center space-y-3">
+                <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center">
+                  <svg className="w-7 h-7 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                    />
+                  </svg>
+                </div>
+
+                <div className="text-center">
+                  <h3 className="text-base font-medium text-gray-900">Network Error</h3>
+                  <p className="text-sm text-gray-500 mt-1">{error}</p>
+                </div>
+
+                <button
+                  onClick={handleRetry}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow"
+                >
+                  Retry
+                </button>
               </div>
-              <span className="text-red-800 font-medium">{error}</span>
-            </div>
-            <button
-              className="px-3 py-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all duration-200 text-sm font-medium"
-              onClick={handleRetry}
-              aria-label="Retry loading products"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      )}
+            ) : (
 
-      {/* Loading State */}
-      {loading && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-4 lg:mb-6" role="status" aria-live="polite">
-          <div className="flex flex-col items-center justify-center space-y-4">
-            <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-            <p className="text-gray-600 font-medium">Loading products...</p>
-          </div>
-        </div>
-      )}
+              /* ── NO PRODUCTS ── */
+              <>
+                <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center">
+                  <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                    />
+                  </svg>
+                </div>
 
-      {/* Products Table */}
-      {!loading && filteredProducts.length === 0 && !error ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8" role="status">
-          <div className="flex flex-col items-center justify-center space-y-4">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
-              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-            </div>
-            <div className="text-center">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
-              <p className="text-gray-500 text-sm">
-                {products.length === 0
-                  ? "Get started by creating your first product"
-                  : "Try adjusting your search or filter criteria"
-                }
-              </p>
-            </div>
+                <div className="text-center">
+                  <h3 className="text-base font-medium text-gray-900">No products found</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {products.length === 0
+                      ? "Get started by creating your first product"
+                      : "Try adjusting your search or filter criteria"}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
       ) : (
+        /* Products Table - Only when data exists */
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px]">
+            <table className="w-full table-fixed min-w-[900px]">
+              {/* ---------- HEADER ---------- */}
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">#</th>
-                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Product Name</th>
-                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Category</th>
-                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Main Image</th>
-                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Description</th>
-                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                  <th className="w-[5%]  px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    #
+                  </th>
+                  <th className="w-[20%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Product Name
+                  </th>
+                  <th className="w-[12%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Category
+                  </th>
+                  <th className="w-[10%] px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Main Image
+                  </th>
+                  <th className="w-[30%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Description
+                  </th>
+                  <th className="w-[10%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="w-[13%] px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
+
               <tbody className="bg-white divide-y divide-gray-200">
                 {currentProducts.map((product, index) => {
                   const discontinued = isProductDiscontinued(product);
                   return (
-                    <React.Fragment key={product._id}>
-                      <tr className={`hover:bg-gray-50 transition-colors duration-150 ${discontinued ? 'opacity-60' : ''}`}>
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm text-gray-900">
-                          {startIndex + index + 1}
-                        </td>
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
-                          <div className="text-xs lg:text-sm font-medium text-gray-900">
-                            {product.productName || 'N/A'}
+                    <tr
+                      key={product._id}
+                      className={`hover:bg-gray-50 transition-colors duration-150 ${
+                        discontinued ? 'opacity-60' : ''
+                      }`}
+                    >
+                      {/* # */}
+                      <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm text-gray-900">
+                        {startIndex + index + 1}
+                      </td>
+
+                      {/* Product Name */}
+                      <td className="px-2 lg:px-4 py-3">
+                        <div className="text-xs lg:text-sm font-medium text-gray-900 truncate">
+                          {product.productName || 'N/A'}
+                        </div>
+                      </td>
+
+                      {/* Category */}
+                      <td className="px-2 lg:px-4 py-3">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize">
+                          {getCategoryName(product.categoryId)}
+                        </span>
+                      </td>
+
+                      {/* Main Image */}
+                      <td className="px-2 lg:px-4 py-3">
+                        {product.productImageIds && product.productImageIds.length > 0 ? (
+                          <img
+                            src={
+                              product.productImageIds.find(img => img.isMain)?.imageUrl ||
+                              product.productImageIds[0]?.imageUrl
+                            }
+                            alt={product.productName || 'Product'}
+                            className="mx-auto w-12 h-12 lg:w-14 lg:h-14 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-80 transition-all duration-200 hover:scale-105"
+                            onClick={e => {
+                              e.stopPropagation();
+                              handleImageClick(
+                                product.productImageIds.find(img => img.isMain)?.imageUrl ||
+                                  product.productImageIds[0]?.imageUrl
+                              );
+                            }}
+                            title="Click to view larger image"
+                            onError={e => {
+                              e.target.alt = 'Image not available';
+                              e.target.style.opacity = '0.5';
+                            }}
+                          />
+                        ) : (
+                          <div className="mx-auto w-12 h-12 lg:w-14 lg:h-14 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+                            <svg
+                              className="w-6 h-6 text-gray-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                              />
+                            </svg>
                           </div>
-                        </td>
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {getCategoryName(product.categoryId)}
-                          </span>
-                        </td>
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
-                          {product.productImageIds && product.productImageIds.length > 0 ? (
-                            <img
-                              src={product.productImageIds.find(img => img.isMain)?.imageUrl || product.productImageIds[0]?.imageUrl}
-                              alt={product.productName || 'Product'}
-                              className="w-12 h-12 lg:w-16 lg:h-16 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-80 transition-all duration-200 hover:scale-110"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleImageClick(product.productImageIds.find(img => img.isMain)?.imageUrl || product.productImageIds[0]?.imageUrl);
-                              }}
-                              title="Click to view larger image"
-                              onError={(e) => {
-                                e.target.alt = 'Image not available';
-                                e.target.style.opacity = '0.5';
-                              }}
-                            />
-                          ) : (
-                            <div className="w-12 h-12 lg:w-16 lg:h-16 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
-                              <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke Capstone="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm text-gray-900 max-w-xs">
-                          <div className="truncate">
-                            {product.description ? `${product.description.substring(0, 50)}${product.description.length > 50 ? '...' : ''}` : 'N/A'}
-                          </div>
-                        </td>
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${discontinued
-                            ? 'bg-red-100 text-red-800'
-                            : product.productStatus === 'active'
+                        )}
+                      </td>
+
+                      {/* Description */}
+                      <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm text-gray-900">
+                        <div className="truncate">
+                          {product.description
+                            ? `${product.description.substring(0, 80)}${
+                                product.description.length > 80 ? '...' : ''
+                              }`
+                            : 'N/A'}
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize ${
+                            discontinued
+                              ? 'bg-red-100 text-red-800'
+                              : product.productStatus === 'active'
                               ? 'bg-green-100 text-green-800'
                               : 'bg-gray-100 text-gray-800'
-                            }`}>
-                            {discontinued ? 'Discontinued' : product.productStatus || 'N/A'}
-                          </span>
-                        </td>
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm font-medium">
-                          <div className="flex items-center space-x-1">
+                          }`}
+                        >
+                          {discontinued ? 'discontinued' : product.productStatus || 'unknown'}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-2 lg:px-4 py-3">
+                        <div className="flex justify-center items-center space-x-1">
+                            {/* View Button */}
                             <button
                               onClick={() => handleShowDetails(product)}
-                              className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-all duration-200 border border-blue-200 hover:border-blue-300"
-                              aria-label={`View details for product ${product._id}`}
                               disabled={discontinued}
+                              className={`p-1.5 rounded-lg transition-all duration-200 border ${
+                                discontinued
+                                  ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
+                                  : 'text-blue-600 hover:text-blue-800 hover:bg-blue-100 border-blue-200 hover:border-blue-300'
+                              }`}
+                              aria-label={`View details for product ${product._id}`}
                               title="View Details"
                             >
                               <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -751,43 +825,60 @@ const Products = () => {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                               </svg>
                             </button>
+
+                            {/* Edit Button */}
                             <button
                               onClick={() => handleEditProduct(product)}
-                              className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-all duration-200 border border-blue-200 hover:border-blue-300"
-                              aria-label={`Edit product ${product._id}`}
                               disabled={discontinued}
+                              className={`p-1.5 rounded-lg transition-all duration-200 border ${
+                                discontinued
+                                  ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
+                                  : 'text-blue-600 hover:text-blue-800 hover:bg-blue-100 border-blue-200 hover:border-blue-300'
+                              }`}
+                              aria-label={`Edit product ${product._id}`}
                               title="Edit Product"
                             >
                               <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                               </svg>
                             </button>
+
+                            {/* Delete (Discontinue) Button */}
                             <button
                               onClick={() => deleteProduct(product._id)}
-                              className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all duration-200 border border-red-200 hover:border-red-300"
-                              aria-label={`Discontinue product ${product._id}`}
                               disabled={discontinued}
+                              className={`p-1.5 rounded-lg transition-all duration-200 border ${
+                                discontinued
+                                  ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
+                                  : 'text-red-600 hover:text-red-800 hover:bg-red-100 border-red-200 hover:border-red-300'
+                              }`}
+                              aria-label={`Discontinue product ${product._id}`}
                               title="Discontinue Product"
                             >
                               <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                               </svg>
                             </button>
+
+                            {/* Add Variant Button */}
                             <button
                               onClick={() => handleOpenAddVariantModal(product)}
-                              className="p-1.5 text-green-600 hover:text-green-800 hover:bg-green-100 rounded-lg transition-all duration-200 border border-green-200 hover:border-green-300"
-                              aria-label={`Add variant for product ${product._id}`}
                               disabled={discontinued}
+                              className={`p-1.5 rounded-lg transition-all duration-200 border ${
+                                discontinued
+                                  ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
+                                  : 'text-green-600 hover:text-green-800 hover:bg-green-100 border-green-200 hover:border-green-300'
+                              }`}
+                              aria-label={`Add variant for product ${product._id}`}
                               title="Add Variant"
                             >
                               <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                               </svg>
                             </button>
-                          </div>
-                        </td>
-                      </tr>
-                    </React.Fragment>
+                        </div>
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>

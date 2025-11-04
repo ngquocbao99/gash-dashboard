@@ -49,7 +49,7 @@ const Sizes = () => {
             const response = await Api.sizes.create(payload);
             setSizes(prev => [...prev, response]);
             await fetchSizes();
-            showToast('Size created successfully', 'success');
+            showToast('Size created successfully!', 'success');
             setNewSizeForm({ content: '' });
             setShowCreateModal(false);
         } catch (err) {
@@ -79,7 +79,7 @@ const Sizes = () => {
             const response = await Api.sizes.update(editingSize._id, payload);
             setSizes(prev => prev.map(item => item._id === editingSize._id ? response : item));
             await fetchSizes();
-            showToast('Size updated successfully', 'success');
+            showToast('Size updated successfully!', 'success');
             setShowEditModal(false);
             setEditingSize(null);
             setEditFormData({ content: '' });
@@ -102,7 +102,7 @@ const Sizes = () => {
         try {
             await Api.sizes.delete(id);
             setSizes(prev => prev.filter(item => item._id !== id));
-            showToast('Size deleted successfully', 'success');
+            showToast('Size deleted successfully!', 'success');
             if (editingSize && editingSize._id === id) {
                 setEditingSize(null);
                 setShowEditModal(false);

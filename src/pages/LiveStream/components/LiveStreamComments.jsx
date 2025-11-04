@@ -318,7 +318,7 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
             const response = await Api.livestream.hideComment(commentId);
 
             if (response?.success) {
-                showToast('Comment deleted successfully', 'success');
+                showToast('Comment deleted successfully!', 'success');
             } else {
                 const errorMsg = response?.message || 'Unable to delete comment';
                 setError(errorMsg);
@@ -338,7 +338,7 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
             const response = await Api.livestream.pinComment(commentId, liveId);
 
             if (response?.success || response?.data?.success) {
-                showToast('Comment pinned successfully', 'success');
+                showToast('Comment pinned successfully!', 'success');
             } else {
                 const errorMsg = response?.message || response?.data?.message || 'Unable to pin comment';
                 setError(errorMsg);
@@ -358,7 +358,7 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
             const response = await Api.livestream.unpinComment(commentId, liveId);
 
             if (response?.success || response?.data?.success) {
-                showToast('Comment unpinned successfully', 'success');
+                showToast('Comment unpinned successfully!', 'success');
             } else {
                 const errorMsg = response?.message || response?.data?.message || 'Unable to unpin comment';
                 setError(errorMsg);

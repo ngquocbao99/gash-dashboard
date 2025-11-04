@@ -229,7 +229,7 @@ const EditVariantModal = ({
             const response = await Api.newVariants.update(variant._id, updateData);
             console.log('Variant update response:', response);
 
-            showToast("Variant updated successfully", "success");
+            showToast("Variant updated successfully!", "success");
 
             // Notify parent
             if (onVariantUpdated) {

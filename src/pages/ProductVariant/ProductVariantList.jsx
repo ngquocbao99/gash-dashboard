@@ -26,7 +26,7 @@ const ProductVariantList = ({
 
         try {
             await Api.newVariants.delete(variantId);
-            showToast("Variant deleted successfully", "success");
+            showToast("Variant deleted successfully!", "success");
 
             // Notify parent
             if (onVariantDeleted) {

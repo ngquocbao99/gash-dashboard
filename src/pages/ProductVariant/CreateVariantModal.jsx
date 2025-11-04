@@ -207,7 +207,7 @@ const CreateVariantModal = ({
             const response = await Api.newVariants.create(variantData);
             console.log('Variant creation response:', response);
 
-            showToast("Variant created successfully", "success");
+            showToast("Variant created successfully!", "success");
 
             // Reset form
             setVariantForm({

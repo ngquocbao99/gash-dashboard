@@ -81,7 +81,7 @@ const ProductVariants = () => {
 
     try {
       await Api.newVariants.delete(variantToDelete._id);
-      showToast("Variant deleted successfully", "success");
+      showToast("Variant deleted successfully!", "success");
       fetchVariants();
     } catch (err) {
       console.error(err);

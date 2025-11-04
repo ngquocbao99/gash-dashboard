@@ -97,7 +97,7 @@ export default function Notifications() {
 
       await axios.post("http://localhost:5000/notifications/admin/create", payload);
 
-      alert("Notification sent successfully.");
+      alert("Notification sent successfully!");
       // reset form
       setNewNotification({ title: "", message: "", recipient: "all", userId: "" });
       // refresh list
