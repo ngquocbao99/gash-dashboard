@@ -267,17 +267,17 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
     const isInitialLoadRef = useRef(true);
     const previousCommentsLengthRef = useRef(0);
 
-    const isHost = user?.role === 'admin' || user?.role === 'manager';
+    // Only for admin and manager
     const isAdmin = user?.role === 'admin' || user?.role === 'manager';
+    const isHost = isAdmin; // Same check
 
     const fetchComments = useCallback(async () => {
-        if (!liveId || !user) return;
+        if (!liveId || !user || !isAdmin) return;
         try {
-            const response = isAdmin
-                ? await Api.livestream.getAdminComments(liveId)
-                : await Api.livestream.getComments(liveId);
+            // Only use getAdminComments for admin/manager
+            const response = await Api.livestream.getAdminComments(liveId);
 
-            // Handle both response formats
+            // Handle response format
             const commentsData = response?.data?.data || response?.data || [];
             const sorted = commentsData.sort((a, b) => {
                 if (a.isPinned !== b.isPinned) return b.isPinned - a.isPinned;
@@ -504,7 +504,8 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
         previousCommentsLengthRef.current = currentLength;
     }, [comments, isVisible]);
 
-    if (!isVisible) return null;
+    // Early return if user is not admin or manager
+    if (!isAdmin || !isVisible) return null;
 
     return (
         <div className="bg-white rounded-lg shadow-md border border-gray-200 flex flex-col h-[calc(100vh-160px)] max-h-[800px] w-full max-w-full">

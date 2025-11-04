@@ -46,7 +46,7 @@ const VideoPreview = ({
                         </div>
 
                         {/* Media Status Indicators */}
-                        <div className="absolute top-3 right-3 flex flex-col gap-1.5">
+                        {/* <div className="absolute top-3 right-3 flex flex-col gap-1.5">
                             <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold shadow-md backdrop-blur-sm ${isVideoPlaying
                                 ? 'bg-green-500/90 text-white'
                                 : 'bg-red-500/90 text-white'
@@ -61,7 +61,7 @@ const VideoPreview = ({
                                 <span className="text-xs">{isAudioPlaying ? '🎤' : '🚫'}</span>
                                 <span>{isAudioPlaying ? 'AUDIO' : 'OFF'}</span>
                             </div>
-                        </div>
+                        </div> */}
 
                         {/* Video Resolution */}
                         {videoDimensions.width > 0 && (
@@ -105,12 +105,6 @@ const VideoPreview = ({
                         {isAudioPlaying ? 'Turn Off Mic' : 'Turn On Mic'}
                     </button>
 
-                    <button
-                        onClick={onCheckLiveKit}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 text-xs font-semibold"
-                    >
-                        Check Status
-                    </button>
                 </div>
 
                 {/* Status Grid */}
@@ -133,22 +127,6 @@ const VideoPreview = ({
                             {isAudioPlaying ? 'ON' : 'OFF'}
                         </div>
                     </div>
-                    {videoDimensions.width > 0 && (
-                        <>
-                            <div className="text-center p-2 bg-white rounded-lg border border-gray-200">
-                                <div className="text-[10px] font-semibold text-gray-500 mb-1.5 uppercase">Resolution</div>
-                                <div className="text-xs font-mono font-bold text-gray-900">
-                                    {videoDimensions.width}×{videoDimensions.height}
-                                </div>
-                            </div>
-                            <div className="text-center p-2 bg-white rounded-lg border border-gray-200">
-                                <div className="text-[10px] font-semibold text-gray-500 mb-1.5 uppercase">Aspect</div>
-                                <div className="text-xs font-mono font-bold text-gray-900">
-                                    {(videoDimensions.width / videoDimensions.height).toFixed(2)}:1
-                                </div>
-                            </div>
-                        </>
-                    )}
                 </div>
 
                 {/* Error Messages */}

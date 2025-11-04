@@ -517,12 +517,10 @@ const LiveStream = () => {
 
             if (videoTrack) {
                 await room.localParticipant.publishTrack(videoTrack, { name: 'camera' });
-                console.log('📹 Video track published');
             }
 
             if (audioTrack) {
                 await room.localParticipant.publishTrack(audioTrack, { name: 'microphone' });
-                console.log('🎤 Audio track published');
             }
 
             setIsPublishing(true);

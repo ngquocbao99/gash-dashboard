@@ -309,7 +309,7 @@ const Api = {
         getAllLiveProductsForAdmin: (liveId) => axiosClient.get(`/livestream-products/${liveId}/live-products/all`).then(response => response.data),
 
         // ==== Livestream Reactions ====
-        // Get reaction counts for a livestream (User và Admin dùng chung - reaction ko có xóa)
+        // Get reaction counts for a livestream
         getReactions: (liveId) => axiosClient.get(`/livestream-reactions/reactions/${liveId}`).then(response => response.data),
     },
 };

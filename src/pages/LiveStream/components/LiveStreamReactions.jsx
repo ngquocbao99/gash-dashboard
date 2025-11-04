@@ -31,19 +31,45 @@ const LiveStreamReactions = ({ liveId }) => {
             if (!token) return;
 
             const response = await Api.livestream.getReactions(liveId, token);
-            if (response.data?.success) {
-                const data = response.data.data || {};
+
+            let reactions = null;
+
+            // Check standard structure: response.data.success && response.data.data.reactions
+            if (response?.data?.success && response?.data?.data?.reactions) {
+                reactions = response.data.data.reactions;
+            }
+            // Check if reactions is directly in response.data
+            else if (response?.data?.reactions) {
+                reactions = response.data.reactions;
+            }
+            // Check if response.data.data exists (without success flag)
+            else if (response?.data?.data?.reactions) {
+                reactions = response.data.data.reactions;
+            }
+            // Check if reactions is at root level of response.data
+            else if (response?.data && typeof response.data === 'object') {
+                const data = response.data;
+                if (data.like !== undefined || data.love !== undefined || data.haha !== undefined) {
+                    // Data is reactions directly
+                    reactions = data;
+                }
+            }
+
+            if (reactions) {
+                // Set reaction counts directly from server (get current state, no calculation)
                 setReactionCounts({
-                    like: data.like || 0,
-                    love: data.love || 0,
-                    haha: data.haha || 0,
-                    wow: data.wow || 0,
-                    sad: data.sad || 0,
-                    angry: data.angry || 0,
+                    like: Number(reactions.like) || 0,
+                    love: Number(reactions.love) || 0,
+                    haha: Number(reactions.haha) || 0,
+                    wow: Number(reactions.wow) || 0,
+                    sad: Number(reactions.sad) || 0,
+                    angry: Number(reactions.angry) || 0,
                 });
+            } else {
+                // Keep existing state (don't reset to 0)
             }
         } catch (error) {
-            console.error('Error fetching reactions:', error);
+            // Don't reset counts on error - keep existing state
         } finally {
             setIsLoading(false);
         }

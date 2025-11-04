@@ -79,7 +79,7 @@ const MediaSetup = ({
                     </div>
 
                     {/* Media Status Indicators */}
-                    <div className="absolute top-3 right-3 flex flex-col gap-2">
+                    {/* <div className="absolute top-3 right-3 flex flex-col gap-2">
                         <div className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-lg backdrop-blur-sm ${isVideoPlaying
                             ? 'bg-green-500/90 text-white'
                             : 'bg-red-500/90 text-white'
@@ -92,7 +92,7 @@ const MediaSetup = ({
                             }`}>
                             {isAudioPlaying ? '🎤 Audio ON' : '🎤 Audio OFF'}
                         </div>
-                    </div>
+                    </div> */}
 
                     {/* Video Dimensions */}
                     {videoDimensions.width > 0 && (

@@ -98,9 +98,13 @@ const LiveStreamDashboard = () => {
 
                 if (livestream && (livestream._id === livestreamId || livestream.livestreamId === parseInt(livestreamId))) {
                     // Ensure _id is set correctly (may be undefined)
+                    // Backend returns peakViewers and minViewers calculated real-time
                     const livestreamWithId = {
                         ...livestream,
-                        _id: livestream._id || livestreamId
+                        _id: livestream._id || livestreamId,
+                        peakViewers: livestream.peakViewers ?? 0,
+                        minViewers: livestream.minViewers ?? 0,
+                        currentViewers: livestream.currentViewers ?? 0
                     };
                     setCurrentLivestream(livestreamWithId);
                     currentLivestreamRef.current = livestreamWithId;
@@ -161,23 +165,25 @@ const LiveStreamDashboard = () => {
         };
     }, [currentLivestream?.startTime, currentLivestream?.endTime, isLive]);
 
-    // Handle viewer count update from socket (real-time)
+    // Handle viewer count update from socket (real-time) - only update currentViewers
+    // Peak and min are calculated by backend and synced via periodic API calls
     const handleViewerCountUpdate = useCallback((count) => {
         setCurrentLivestream(prev => {
-            if (!prev || prev.currentViewers === count) {
+            if (!prev) {
                 return prev;
             }
-            // Update current viewers, and track peak/min
-            const newPeak = Math.max(prev.peakViewers || 0, count);
-            const newMin = prev.minViewers !== undefined
-                ? Math.min(prev.minViewers, count)
-                : count;
-
+            
+            // Only update currentViewers from socket
+            // Peak and min come from backend via periodic sync
+            const currentCount = typeof count === 'number' ? count : 0;
+            
+            if (prev.currentViewers === currentCount) {
+                return prev;
+            }
+            
             return {
                 ...prev,
-                currentViewers: count,
-                peakViewers: newPeak,
-                minViewers: newMin
+                currentViewers: currentCount
             };
         });
     }, []);
@@ -286,7 +292,9 @@ const LiveStreamDashboard = () => {
         };
     }, [isLive, currentLivestream?._id, handleViewerCountUpdate]);
 
-    // Periodic sync for viewer count (fallback and peak/min tracking) - less frequent
+        
+
+    // Periodic sync for viewer count (fallback and peak/min tracking) - more frequent for faster updates
     useEffect(() => {
         if (!isLive || !currentLivestream) return;
 
@@ -304,46 +312,57 @@ const LiveStreamDashboard = () => {
                         // Backend returns: { success: true, data: { livestream: {...} } }
                         const currentStream = response.data?.livestream;
 
-                        if (currentStream && (currentStream._id === livestreamId || currentStream.livestreamId === parseInt(livestreamId))) {
-                            const newViewers = currentStream.currentViewers ?? 0;
+                                                                                                     if (currentStream && (currentStream._id === livestreamId || currentStream.livestreamId === parseInt(livestreamId))) {
+                               const newViewers = currentStream.currentViewers ?? 0;
+                               const backendPeak = currentStream.peakViewers ?? 0;
+                               const backendMin = currentStream.minViewers ?? 0;
 
-                            // Only update if changed (optimize re-renders)
-                            setCurrentLivestream(prev => {
-                                if (!prev || prev.currentViewers === newViewers) {
-                                    return prev;
-                                }
-                                return {
-                                    ...prev,
-                                    currentViewers: newViewers,
-                                    peakViewers: currentStream.peakViewers ?? prev.peakViewers,
-                                    minViewers: currentStream.minViewers ?? prev.minViewers
-                                };
-                            });
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error syncing viewer count:', error);
-                } finally {
-                    ongoingCallsRef.current.updateViewerCount = false;
-                }
-            } catch (error) {
-                console.error('Error in syncViewerCount:', error);
-            }
-        };
+                               // Get peak/min from backend (backend calculates real-time)
+                               setCurrentLivestream(prev => {
+                                   if (!prev) return prev;
+                                   
+                                   // Check if any value changed
+                                   const hasChanges = 
+                                       prev.currentViewers !== newViewers ||
+                                       prev.peakViewers !== backendPeak ||
+                                       prev.minViewers !== backendMin;
 
-        // Initial sync
-        syncViewerCount();
+                                   if (!hasChanges) {
+                                       return prev;
+                                   }
 
-        // Sync every 30 seconds (socket handles real-time updates, this is just for consistency)
-        const interval = setInterval(syncViewerCount, 30000);
+                                   return {
+                                       ...prev,
+                                       currentViewers: newViewers,
+                                       peakViewers: backendPeak,
+                                       minViewers: backendMin
+                                   };
+                               });
+                           }
+                     }
+                 } catch (error) {
+                     console.error('Error syncing viewer count:', error);
+                 } finally {
+                     ongoingCallsRef.current.updateViewerCount = false;
+                 }
+             } catch (error) {
+                 console.error('Error in syncViewerCount:', error);
+             }
+         };
 
-        return () => {
-            clearInterval(interval);
-            // Reset flag on unmount (eslint warning is safe - ref is stable)
-            // eslint-disable-next-line react-hooks/exhaustive-deps
-            ongoingCallsRef.current.updateViewerCount = false;
-        };
-    }, [isLive, currentLivestream, livestreamId]);
+         // Initial sync
+         syncViewerCount();
+
+         // Sync every 5 seconds for faster updates (was 30 seconds)
+         const interval = setInterval(syncViewerCount, 5000);
+
+         return () => {
+             clearInterval(interval);
+             // Reset flag on unmount (eslint warning is safe - ref is stable)
+             // eslint-disable-next-line react-hooks/exhaustive-deps
+             ongoingCallsRef.current.updateViewerCount = false;
+         };
+     }, [isLive, currentLivestream, livestreamId]);
 
     // Cleanup on unmount - CRITICAL for preventing reconnect loops
     useEffect(() => {
@@ -1912,8 +1931,8 @@ const LiveStreamDashboard = () => {
                             {currentLivestream && (
                                 <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
                                     <div className="text-center">
-                                        <div className="text-xs text-gray-500 font-medium">Viewers</div>
-                                        <div className="text-base font-bold text-gray-900">{currentLivestream.currentViewers || 0}</div>
+                                        <div className="text-xs text-gray-500 font-medium">Min</div>
+                                        <div className="text-base font-bold text-gray-900">{currentLivestream.minViewers || 0}</div>
                                     </div>
                                     <div className="h-6 w-px bg-gray-300"></div>
                                     <div className="text-center">
@@ -1922,7 +1941,7 @@ const LiveStreamDashboard = () => {
                                     </div>
                                     <div className="h-6 w-px bg-gray-300"></div>
                                     <div className="text-center">
-                                        <div className="text-xs text-gray-500 font-medium">In Room</div>
+                                        <div className="text-xs text-gray-500 font-medium">Views</div>
                                         <div className="text-base font-bold text-purple-600">{remoteParticipants.length}</div>
                                     </div>
                                 </div>
