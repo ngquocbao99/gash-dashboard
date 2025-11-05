@@ -89,44 +89,51 @@ const Layout = ({ children }) => {
   }, []);
 
   // Sidebar items with MUI Icons
-  const sidebarItems = useMemo(
-    () => {
-      const items = [
-        { label: 'Order', to: '/orders', icon: ShoppingBag },
-        { label: 'Product', to: '/products', icon: Inventory },
-        // { label: 'Cart', to: '/carts', icon: ShoppingCart },
-        { label: 'Product Specification', to: '/specifications', icon: Info },
-        { label: 'Product Variant', to: '/variants', icon: Layers },
-        { label: 'Bills', to: '/bills', icon: FileUpload },
-        { label: 'Voucher', to: '/vouchers', icon: LocalOffer },
-        { label: 'Feedback', to: '/feedbacks', icon: Comment },
-        { label: 'Chat', to: '/chat', icon: Chat },
-        { label: 'Notifications', to: '/notifications', icon: Notifications },
-        { label: 'Livestream', to: '/livestream', icon: LiveTv },
-      ];
+  const sidebarItems = useMemo(() => {
+    const items = [
+      { label: 'Order', to: '/orders', icon: ShoppingBag },
+      { label: 'Product', to: '/products', icon: Inventory },
+      { label: 'Product Specification', to: '/specifications', icon: Info },
+      { label: 'Product Variant', to: '/variants', icon: Layers },
+      { label: 'Bills', to: '/bills', icon: FileUpload },
+      { label: 'Voucher', to: '/vouchers', icon: LocalOffer },
+      { label: 'Feedback', to: '/feedbacks', icon: Comment },
+      { label: 'Chat', to: '/chat', icon: Chat },
+      { label: 'Notifications', to: '/notifications', icon: Notifications },
+      { label: 'Livestream', to: '/livestream', icon: LiveTv },
+    ];
 
-      if (user?.role === 'admin') {
-        items.unshift(
-          { label: 'Account', to: '/accounts', icon: People },
-          {
-            label: 'Statistics',
-            to: '/statistics',
-            icon: BarChart,
-            hasSubmenu: true,
-            submenuItems: [
-              { label: 'Customer', to: '/statistics/customer', icon: People },
-              { label: 'Product', to: '/statistics/product', icon: Inventory },
-              { label: 'Order', to: '/statistics/order', icon: ShoppingBag },
-              { label: 'Revenue', to: '/statistics/revenue', icon: BarChart }
-            ]
-          }
-        );
-      }
+    // Statistics submenu (có ở admin & manager)
+    const statisticsSubmenu = [
+      { label: 'Customer', to: '/statistics/customer', icon: People },
+      { label: 'Product', to: '/statistics/product', icon: Inventory },
+      { label: 'Order', to: '/statistics/order', icon: ShoppingBag },
+    ];
 
-      return items;
-    },
-    [user]
-  );
+    // Chỉ admin mới có Revenue
+    if (user?.role === 'admin') {
+      statisticsSubmenu.push({
+        label: 'Revenue', to: '/statistics/revenue', icon: BarChart
+      });
+    }
+
+    // Add Statistics vào menu
+    items.unshift({
+      label: 'Statistics',
+      to: '/statistics',
+      icon: BarChart,
+      hasSubmenu: true,
+      submenuItems: statisticsSubmenu
+    });
+
+    // Chỉ admin mới có Account
+    if (user?.role === 'admin') {
+      items.unshift({ label: 'Account', to: '/accounts', icon: People });
+    }
+
+    return items;
+  }, [user]);
+
 
   // Account sublist items
   const accountItems = useMemo(
