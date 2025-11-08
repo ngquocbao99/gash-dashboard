@@ -477,7 +477,7 @@ const Feedbacks = () => {
                 <option value="deleted">Deleted</option>
               </select>
             </div>
-            <div className="mt-4 flex justify-end space-x-2">
+            <div>
               <button
                 onClick={clearFilters}
                 disabled={!hasActiveFilters()}

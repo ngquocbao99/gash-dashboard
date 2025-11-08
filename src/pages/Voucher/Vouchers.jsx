@@ -17,9 +17,15 @@ export default function Vouchers() {
   const [editingVoucher, setEditingVoucher] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [voucherToDelete, setVoucherToDelete] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage] = useState(20);
 
   // Fetch vouchers
   const fetchVouchers = useCallback(async () => {
+    setLoading(true);
+    setError('');
     try {
       const data = await SummaryAPI.vouchers.getAll();
       setVouchers(data.data);
@@ -41,7 +47,10 @@ export default function Vouchers() {
         errorMessage = `Failed to fetch vouchers: ${err.message}`;
       }
 
+      setError(errorMessage);
       showToast(errorMessage, "error");
+    } finally {
+      setLoading(false);
     }
   }, [showToast]);
 
@@ -105,6 +114,9 @@ export default function Vouchers() {
   const handleDelete = async () => {
     if (!voucherToDelete) return;
 
+    setLoading(true);
+    setError('');
+
     try {
       const voucherId = voucherToDelete.id || voucherToDelete._id;
       if (!voucherId) {
@@ -132,10 +144,12 @@ export default function Vouchers() {
         errorMessage = `Failed to disable voucher: ${err.message}`;
       }
 
+      setError(errorMessage);
       showToast(errorMessage, "error");
     } finally {
       setShowDeleteConfirm(false);
       setVoucherToDelete(null);
+      setLoading(false);
     }
   };
 
@@ -194,6 +208,45 @@ export default function Vouchers() {
     return matchesStatus && matchesType && matchesSearch;
   });
 
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredVouchers.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const currentVouchers = filteredVouchers.slice(startIndex, endIndex);
+
+  // Handle page change
+  const handlePageChange = useCallback((page) => {
+    setCurrentPage(page);
+  }, []);
+
+  // Handle previous page
+  const handlePreviousPage = useCallback(() => {
+    setCurrentPage(prev => Math.max(prev - 1, 1));
+  }, []);
+
+  // Handle next page
+  const handleNextPage = useCallback(() => {
+    setCurrentPage(prev => Math.min(prev + 1, totalPages));
+  }, [totalPages]);
+
+  // Check if any filters are active
+  const hasActiveFilters = useCallback(() => {
+    return searchTerm ||
+      typeFilter !== 'all' ||
+      statusFilter !== 'all' ||
+      sortBy !== 'code' ||
+      sortOrder !== 'asc';
+  }, [searchTerm, typeFilter, statusFilter, sortBy, sortOrder]);
+
+  // Clear all filters
+  const clearFilters = useCallback(() => {
+    setSearchTerm('');
+    setTypeFilter('all');
+    setStatusFilter('all');
+    setSortBy('code');
+    setSortOrder('asc');
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50 p-2 sm:p-3 lg:p-4 xl:p-6">
       {/* Unified Voucher Modal */}
@@ -238,7 +291,7 @@ export default function Vouchers() {
                 <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                <span className="font-medium">Create Voucher</span>
+                <span className="font-medium">Add Voucher</span>
               </button>
             </div>
           </div>
@@ -278,7 +331,7 @@ export default function Vouchers() {
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
                 >
-                  <option value="all">All Status</option>
+                  <option value="all">All Statuses</option>
                   <option value="ACTIVE">Active</option>
                   <option value="UPCOMING">Upcoming</option>
                   <option value="USED UP">Used Up</option>
@@ -313,14 +366,10 @@ export default function Vouchers() {
               </div>
               <div className="flex items-end">
                 <button
-                  onClick={() => {
-                    setSearchTerm("");
-                    setTypeFilter("all");
-                    setStatusFilter("all");
-                    setSortBy("code");
-                    setSortOrder("asc");
-                  }}
-                  className="w-full px-3 py-2 lg:px-4 lg:py-3 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium text-sm lg:text-base"
+                  onClick={clearFilters}
+                  disabled={!hasActiveFilters()}
+                  className="w-full px-3 py-2 lg:px-4 lg:py-3 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium text-sm lg:text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Clear all filters"
                 >
                   Clear Filters
                 </button>
@@ -331,38 +380,100 @@ export default function Vouchers() {
 
         {/* Vouchers Table */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px]">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Code</th>
-                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Type</th>
-                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Discount</th>
-                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Min Order</th>
-                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Max Discount</th>
-                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Start Date</th>
-                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">End Date</th>
-                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Usage</th>
-                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredVouchers.length > 0 ? (
-                  filteredVouchers.map((v) => {
+          {loading || filteredVouchers.length === 0 || error ? (
+            <div className="p-6" role="status">
+              <div className="flex flex-col items-center justify-center space-y-4 min-h-[180px]">
+                {/* ── LOADING ── */}
+                {loading ? (
+                  <>
+                    <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                    <p className="text-gray-600 font-medium">Loading vouchers...</p>
+                  </>
+                ) : error ? (
+                  /* ── NETWORK ERROR ── */
+                  <div className="flex flex-col items-center space-y-3">
+                    <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center">
+                      <svg className="w-7 h-7 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                        />
+                      </svg>
+                    </div>
+                    <div className="text-center">
+                      <h3 className="text-base font-medium text-gray-900">Network Error</h3>
+                      <p className="text-sm text-gray-500 mt-1">{error}</p>
+                    </div>
+                    <button
+                      onClick={fetchVouchers}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : (
+                  /* ── NO VOUCHERS ── */
+                  <>
+                    <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center">
+                      <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                        />
+                      </svg>
+                    </div>
+                    <div className="text-center">
+                      <h3 className="text-base font-medium text-gray-900">No vouchers found</h3>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {vouchers.length === 0
+                          ? "Get started by creating your first voucher"
+                          : "Try adjusting your search or filter criteria"}
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full table-fixed min-w-[900px]">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="w-[5%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      #
+                    </th>
+                    <th className="w-[12%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Code</th>
+                    <th className="w-[8%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Type</th>
+                    <th className="w-[8%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Discount</th>
+                    <th className="w-[8%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Min Order</th>
+                    <th className="w-[8%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Max Discount</th>
+                    <th className="w-[10%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Start Date</th>
+                    <th className="w-[10%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">End Date</th>
+                    <th className="w-[8%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Usage</th>
+                    <th className="w-[8%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                    <th className="w-[10%] px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {currentVouchers.map((v, index) => {
                     const status = getVoucherStatus(v);
+                    const formattedStatus = status.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
                     return (
-                      <tr key={v.id || v._id} className="hover:bg-gray-50 transition-colors duration-150">
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
-                          <div className="text-xs lg:text-sm font-medium text-gray-900 bg-gray-100 px-2 py-1 rounded-lg inline-block">
+                      <tr key={v.id || v._id} className={`hover:bg-gray-50 transition-colors duration-150 ${v.isDeleted ? 'opacity-60' : ''}`}>
+                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm text-gray-900">
+                          {startIndex + index + 1}
+                        </td>
+                        <td className="px-2 lg:px-4 py-3">
+                          <div className="text-xs lg:text-sm font-medium text-gray-900 truncate">
                             {v.code}
                           </div>
                         </td>
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${v.discountType === 'percentage'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-green-100 text-green-800'
-                            }`}>
+                        <td className="px-2 lg:px-4 py-3">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize">
                             {v.discountType === "percentage" ? "Percentage" : "Fixed"}
                           </span>
                         </td>
@@ -404,26 +515,30 @@ export default function Vouchers() {
                           </div>
                         </td>
                         <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${status === 'ACTIVE'
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize ${status === 'ACTIVE'
                             ? 'bg-green-100 text-green-800'
                             : status === 'UPCOMING'
                               ? 'bg-blue-100 text-blue-800'
                               : status === 'EXPIRED'
-                                ? 'bg-gray-100 text-gray-800'
+                                ? 'bg-red-100 text-red-800'
                                 : status === 'USED UP'
                                   ? 'bg-yellow-100 text-yellow-800'
-                                  : 'bg-red-100 text-red-800'
+                                  : 'bg-gray-100 text-gray-800'
                             }`}>
-                            {status}
+                            {formattedStatus}
                           </span>
                         </td>
-                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm font-medium">
-                          <div className="flex items-center space-x-1">
+                        <td className="px-2 lg:px-4 py-3">
+                          <div className="flex justify-center items-center space-x-1">
                             <button
-                              className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-all duration-200 border border-blue-200 hover:border-blue-300"
+                              className={`p-1.5 rounded-lg transition-all duration-200 border ${v.isDeleted
+                                ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
+                                : 'text-blue-600 hover:text-blue-800 hover:bg-blue-100 border-blue-200 hover:border-blue-300'
+                                }`}
                               onClick={() => handleEdit(v)}
                               disabled={v.isDeleted}
-                              title="Edit voucher"
+                              aria-label={`Edit voucher ${v.code}`}
+                              title="Edit Voucher"
                             >
                               <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -431,53 +546,74 @@ export default function Vouchers() {
                             </button>
                             <button
                               className={`p-1.5 rounded-lg transition-all duration-200 border ${v.isDeleted
-                                ? 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed'
-                                : 'bg-red-100 text-red-600 hover:bg-red-200 border-red-200 hover:border-red-300'
+                                ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
+                                : 'text-red-600 hover:text-red-800 hover:bg-red-100 border-red-200 hover:border-red-300'
                                 }`}
                               onClick={() => handleDeleteClick(v)}
                               disabled={v.isDeleted}
-                              title={v.isDeleted ? "Already disabled" : "Disable voucher"}
+                              aria-label={`Disable voucher ${v.code}`}
+                              title="Disable Voucher"
                             >
-                              {v.isDeleted ? (
-                                <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728" />
-                                </svg>
-                              ) : (
-                                <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              )}
+                              <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
                             </button>
                           </div>
                         </td>
                       </tr>
                     );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan="10" className="px-2 lg:px-4 py-8 text-center">
-                      <div className="flex flex-col items-center justify-center space-y-3">
-                        <div className="w-12 h-12 lg:w-16 lg:h-16 bg-gray-100 rounded-full flex items-center justify-center">
-                          <svg className="w-6 h-6 lg:w-8 lg:h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <h3 className="text-base lg:text-lg font-medium text-gray-900 mb-1 lg:mb-2">No vouchers found</h3>
-                          <p className="text-gray-500 text-xs lg:text-sm">
-                            {searchTerm || statusFilter !== "all" || typeFilter !== "all"
-                              ? "Try adjusting your search or filter criteria"
-                              : "Get started by creating your first voucher"}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
+
+        {/* Pagination */}
+        {filteredVouchers.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 lg:p-6 mt-4 lg:mt-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="text-sm text-gray-700">
+                Showing <span className="font-medium">{startIndex + 1}</span> to <span className="font-medium">{Math.min(endIndex, filteredVouchers.length)}</span> of <span className="font-medium">{filteredVouchers.length}</span> vouchers
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={handlePreviousPage}
+                  disabled={currentPage === 1}
+                  className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                  aria-label="Previous page"
+                >
+                  Previous
+                </button>
+
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                    <button
+                      key={page}
+                      className={`px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${currentPage === page
+                        ? 'bg-blue-600 text-white border border-blue-600'
+                        : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50 hover:text-gray-700'
+                        }`}
+                      onClick={() => handlePageChange(page)}
+                      aria-label={`Page ${page}`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                  aria-label="Next page"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </>
 
       {/* Delete Confirmation Modal */}
