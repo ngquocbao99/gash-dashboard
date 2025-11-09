@@ -180,7 +180,7 @@ const CreateProductModal = ({
             setMainImageIndex(0);
             setValidationErrors({});
         } catch (err) {
-            console.error('Create product error:', err);
+            console.error('Add product error:', err);
             showToast('Failed to create product. Please try again.', 'error');
         }
     }, [formData, images, mainImageIndex, uploadSingleImage, onSubmit, validateForm, showToast]);

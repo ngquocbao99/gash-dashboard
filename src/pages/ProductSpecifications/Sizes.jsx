@@ -55,7 +55,7 @@ const Sizes = () => {
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to create size');
             showToast(err.response?.data?.message || 'Failed to create size', 'error');
-            console.error('Create size error:', err);
+            console.error('Add size error:', err);
         } finally {
             setLoading(false);
         }
@@ -86,7 +86,7 @@ const Sizes = () => {
         } catch (err) {
             setError(err.response?.data?.message || err.message || 'Failed to update size');
             showToast(err.response?.data?.message || err.message || 'Failed to update size', 'error');
-            console.error('Update size error:', err);
+            console.error('Edit size error:', err);
         } finally {
             setLoading(false);
         }
