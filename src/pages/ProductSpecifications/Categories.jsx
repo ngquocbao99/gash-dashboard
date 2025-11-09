@@ -57,7 +57,7 @@ const Categories = () => {
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to create category');
             showToast(err.response?.data?.message || 'Failed to create category', 'error');
-            console.error('Create category error:', err);
+            console.error('Add category error:', err);
         } finally {
             setLoading(false);
         }
@@ -88,7 +88,7 @@ const Categories = () => {
         } catch (err) {
             setError(err.response?.data?.message || err.message || 'Failed to update category');
             showToast(err.response?.data?.message || err.message || 'Failed to update category', 'error');
-            console.error('Update category error:', err);
+            console.error('Edit category error:', err);
         } finally {
             setLoading(false);
         }

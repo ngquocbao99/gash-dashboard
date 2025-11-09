@@ -670,9 +670,7 @@ const Feedbacks = () => {
                   return (
                     <tr
                       key={feedback._id}
-                      className={`hover:bg-gray-50 transition-colors duration-150 ${
-                        deleted ? "opacity-60" : ""
-                      }`}
+                      className={`hover:bg-gray-50 transition-colors duration-150`}
                     >
                       {/* # */}
                       <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm text-gray-900">

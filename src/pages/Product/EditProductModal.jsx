@@ -228,7 +228,7 @@ const EditProductModal = ({
             setMainImageIndex(0);
             setValidationErrors({});
         } catch (err) {
-            console.error('Update product error:', err);
+            console.error('Edit product error:', err);
             showToast('Failed to update product. Please try again.', 'error');
         }
     }, [formData, newImages, mainImageIndex, uploadSingleImage, onSubmit, validateForm, showToast]);

@@ -299,7 +299,7 @@ const Products = () => {
       const errorMessage = err.response?.data?.message || err.message || 'Failed to create product';
       setError(errorMessage);
       showToast(errorMessage, 'error');
-      console.error('Create product error:', err);
+      console.error('Add product error:', err);
     } finally {
       setLoading(false);
     }
@@ -332,7 +332,7 @@ const Products = () => {
       const errorMessage = err.response?.data?.message || err.message || 'Failed to update product';
       setError(errorMessage);
       showToast(errorMessage, 'error');
-      console.error('Update product error:', err);
+      console.error('Edit product error:', err);
     } finally {
       setLoading(false);
     }
