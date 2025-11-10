@@ -1,3 +1,4 @@
+// CreateProductModal.jsx
 import React, { useState, useCallback, useContext, useRef, useEffect } from 'react';
 import { FaTimes, FaImage, FaStar } from 'react-icons/fa';
 import { MdFormatBold, MdFormatItalic, MdFormatListBulleted, MdFormatListNumbered, MdLink, MdFormatUnderlined, MdLooksOne, MdLooksTwo, MdLooks3 } from 'react-icons/md';
@@ -342,13 +343,13 @@ const CreateProductModal = ({
                                     onClick={() => { descriptionRef.current.focus(); document.execCommand('insertOrderedList', false); updateActiveFormats(); }} 
                                     className={`p-2 rounded ${activeFormats.numbered ? 'bg-gray-300' : 'hover:bg-gray-300'}`}><MdFormatListNumbered /></button>
                                 <button type="button" onMouseDown={(e) => e.preventDefault()} 
-                                    onClick={() => { descriptionRef.current.focus(); document.execCommand('formatBlock', false, '<h1>'); updateActiveFormats(); }} 
+                                    onClick={() => { descriptionRef.current.focus(); document.execCommand('formatBlock', false, 'h1'); updateActiveFormats(); }} 
                                     className={`p-2 rounded ${activeFormats.h1 ? 'bg-gray-300' : 'hover:bg-gray-300'}`}><MdLooksOne /></button>
                                 <button type="button" onMouseDown={(e) => e.preventDefault()} 
-                                    onClick={() => { descriptionRef.current.focus(); document.execCommand('formatBlock', false, '<h2>'); updateActiveFormats(); }} 
+                                    onClick={() => { descriptionRef.current.focus(); document.execCommand('formatBlock', false, 'h2'); updateActiveFormats(); }} 
                                     className={`p-2 rounded ${activeFormats.h2 ? 'bg-gray-300' : 'hover:bg-gray-300'}`}><MdLooksTwo /></button>
                                 <button type="button" onMouseDown={(e) => e.preventDefault()} 
-                                    onClick={() => { descriptionRef.current.focus(); document.execCommand('formatBlock', false, '<h3>'); updateActiveFormats(); }} 
+                                    onClick={() => { descriptionRef.current.focus(); document.execCommand('formatBlock', false, 'h3'); updateActiveFormats(); }} 
                                     className={`p-2 rounded ${activeFormats.h3 ? 'bg-gray-300' : 'hover:bg-gray-300'}`}><MdLooks3 /></button>
                             </div>
 
@@ -361,7 +362,7 @@ const CreateProductModal = ({
                                 className={`min-h-48 px-4 py-3 prose prose-sm max-w-none focus:outline-none bg-white ${
                                     validationErrors.description ? 'border-red-500' : ''
                                 }`}
-                                style={{ minHeight: '24em' }}
+                                style={{ minHeight: '320px' }}
                             />
                         </div>
                         {validationErrors.description && (

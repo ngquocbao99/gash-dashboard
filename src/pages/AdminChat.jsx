@@ -2,7 +2,6 @@
 import React, { useEffect, useState, useRef, useContext } from "react";
 import io from "socket.io-client";
 import axios from "axios";
-import { motion } from "framer-motion";
 import {
   FiSend,
   FiUser,
@@ -33,6 +32,7 @@ export default function AdminChat() {
   const endRef = useRef(null);
   const selectedRef = useRef(null);
   const fileInputRef = useRef(null);
+  const [viewerImage, setViewerImage] = useState(null); // null = hidden, string = image URL
 
   useEffect(() => {
     selectedRef.current = selected;
@@ -61,21 +61,28 @@ export default function AdminChat() {
             : msg.conversationId
         );
 
+        // Update messages in active chat
         if (selectedRef.current && convoId === getId(selectedRef.current)) {
           setMessages((prev) => [...prev, msg]);
-        } else {
-          setConversations((prev) =>
-            prev.map((c) =>
-              getId(c) === convoId
-                ? {
-                    ...c,
-                    unreadCount: (c.unreadCount || 0) + 1,
-                    lastMessage: msg.messageText || "📷 Image",
-                  }
-                : c
-            )
-          );
         }
+
+        // Update conversation list: lastMessage + unread count
+        setConversations((prev) =>
+          prev.map((c) => {
+            if (getId(c) === convoId) {
+              return {
+                ...c,
+                lastMessage:
+                  msg.messageText || (msg.type === "image" ? "Image" : "Media"),
+                unreadCount:
+                  selectedRef.current && getId(selectedRef.current) === convoId
+                    ? 0 // Reset unread if this chat is open
+                    : (c.unreadCount || 0) + 1,
+              };
+            }
+            return c;
+          })
+        );
       } catch (err) {
         console.error("Error handling new_message:", err);
       }
@@ -96,7 +103,16 @@ export default function AdminChat() {
       const res = await axios.get(`${API_URL}/conversations`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      setConversations(res.data?.data || []);
+
+      const convos = res.data?.data || [];
+      // Ensure every conversation has a proper lastMessage string
+      const normalized = convos.map((c) => ({
+        ...c,
+        lastMessage: c.lastMessage || "No message",
+        unreadCount: c.unreadCount || 0,
+      }));
+
+      setConversations(normalized);
     } catch (err) {
       console.error("Error loading conversations:", err);
     } finally {
@@ -111,9 +127,12 @@ export default function AdminChat() {
       socketRef.current.emit("join_room", getId(conv));
 
       const token = localStorage.getItem("token");
-      const res = await axios.get(`${API_URL}/messages/${getId(conv)}/messages`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const res = await axios.get(
+        `${API_URL}/messages/${getId(conv)}/messages`,
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      );
       setMessages(res.data?.data || []);
     } catch (err) {
       console.error("Error loading messages:", err);
@@ -124,17 +143,18 @@ export default function AdminChat() {
 
   // =============== SEND ===================
   const handleSend = () => {
-    if (!input.trim() || !selected) return;
+    if (!input.trim() || input.length > 500 || !selected) return;
+
     const msg = {
       conversationId: getId(selected),
       senderId: adminId,
       messageText: input.trim(),
       type: "text",
-      createdAt: new Date().toISOString(),
     };
-    setMessages((prev) => [...prev, msg]);
+
     setInput("");
     socketRef.current.emit("send_message", msg);
+    // No optimistic update → no duplicates
   };
 
   const handleImageUpload = async (e) => {
@@ -143,7 +163,10 @@ export default function AdminChat() {
     const formData = new FormData();
     formData.append("image", file);
     try {
-      const res = await fetch(`${API_URL}/upload`, { method: "POST", body: formData });
+      const res = await fetch(`${API_URL}/upload`, {
+        method: "POST",
+        body: formData,
+      });
       const data = await res.json();
       if (data.success && data.url) {
         socketRef.current.emit("send_message", {
@@ -163,6 +186,14 @@ export default function AdminChat() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.key === "Escape") setViewerImage(null);
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, []);
+
   const displayName = (conv) => {
     const acc = conv.accountId;
     if (!acc) return "Unknown";
@@ -174,14 +205,10 @@ export default function AdminChat() {
   // =============== UI ===================
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-6">
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-6 h-[calc(100vh-3rem)]">
         {/* SIDEBAR */}
-        <aside className="lg:col-span-4 xl:col-span-3">
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl shadow-lg p-5 border border-gray-100 h-full flex flex-col"
-          >
+        <aside className="w-full lg:w-1/3 xl:w-1/4">
+          <div className="bg-white rounded-2xl shadow-lg p-5 border border-gray-100 flex flex-col h-full">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
                 <FiUsers className="text-indigo-600" /> Active Chats
@@ -195,11 +222,14 @@ export default function AdminChat() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-auto pr-2">
+            <div className="flex-1 overflow-y-auto pr-2 -mr-2">
               {loadingConvos ? (
                 <div className="space-y-2">
                   {[...Array(6)].map((_, i) => (
-                    <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />
+                    <div
+                      key={i}
+                      className="h-12 bg-gray-100 rounded animate-pulse"
+                    />
                   ))}
                 </div>
               ) : (
@@ -208,9 +238,8 @@ export default function AdminChat() {
                     const cid = getId(c);
                     const active = selected && getId(selected) === cid;
                     return (
-                      <motion.li
+                      <li
                         key={cid}
-                        whileHover={{ scale: 1.01 }}
                         onClick={() => loadMessages(c)}
                         className={`cursor-pointer flex items-center justify-between p-3 rounded-xl border transition ${
                           active
@@ -236,22 +265,18 @@ export default function AdminChat() {
                             {c.unreadCount}
                           </span>
                         )}
-                      </motion.li>
+                      </li>
                     );
                   })}
                 </ul>
               )}
             </div>
-          </motion.div>
+          </div>
         </aside>
 
         {/* CHAT AREA */}
-        <section className="lg:col-span-8 xl:col-span-9">
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl shadow-lg border border-gray-100 flex flex-col h-[75vh] overflow-hidden"
-          >
+        <section className="flex-1">
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 flex flex-col h-full overflow-hidden">
             {!selected ? (
               <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
                 <div className="text-4xl mb-3">💬</div>
@@ -260,7 +285,7 @@ export default function AdminChat() {
             ) : (
               <>
                 {/* HEADER */}
-                <div className="border-b border-gray-200 px-6 py-3 bg-gray-50 flex items-center justify-between">
+                <div className="border-b border-gray-200 px-6 py-3 bg-gray-50 flex items-center justify-between flex-shrink-0">
                   <div>
                     <h3 className="font-semibold text-gray-800">
                       {displayName(selected)}
@@ -284,37 +309,92 @@ export default function AdminChat() {
                       return (
                         <div
                           key={i}
-                          className={`flex ${isAdmin ? "justify-end" : "justify-start"}`}
+                          className={`flex ${
+                            isAdmin ? "justify-end" : "justify-start"
+                          }`}
                         >
-                          <motion.div
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className={`max-w-[70%] p-3 rounded-2xl shadow-sm ${
-                              isAdmin
-                                ? "bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-br-none"
-                                : "bg-white text-gray-800 border border-gray-200 rounded-bl-none"
-                            }`}
+                          <div
+                            className={`max-w-[75%] min-w-[100px] p-3 rounded-2xl shadow-sm break-all whitespace-pre-wrap
+      ${
+        isAdmin
+          ? "bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-br-none"
+          : "bg-white text-gray-800 border border-gray-200 rounded-bl-none"
+      }`}
                           >
                             {m.type === "image" ? (
-                              <img
-                                src={m.imageUrl}
-                                alt="uploaded"
-                                className="rounded-lg border border-gray-200 max-w-[220px]"
-                              />
+                              <div
+                                className="relative group cursor-pointer"
+                                onClick={() => {
+                                  setViewerImage(m.imageUrl);
+                                  // Reset zoom/pan when opening
+                                  setTimeout(() => {
+                                    const img =
+                                      document.querySelector("[data-scale]");
+                                    if (img) {
+                                      img.style.transform = "scale(1)";
+                                      img.dataset.scale = "1";
+                                      img.dataset.tx = "0";
+                                      img.dataset.ty = "0";
+                                    }
+                                  }, 50);
+                                }}
+                              >
+                                <img
+                                  src={m.imageUrl}
+                                  alt="sent"
+                                  className="rounded-lg border border-gray-200 max-w-[220px] max-h-[300px] object-cover transition group-hover:brightness-90"
+                                />
+                                {/* Optional: subtle zoom icon on hover */}
+                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                                  <div className="bg-black/50 rounded-full p-2">
+                                    <svg
+                                      className="w-8 h-8 text-white"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                                      />
+                                    </svg>
+                                  </div>
+                                </div>
+                              </div>
                             ) : (
-                              <p className="text-sm leading-relaxed">{m.messageText}</p>
+                              <p className="text-sm leading-relaxed break-words">
+                                {m.messageText}
+                              </p>
                             )}
                             <div
-                              className={`text-[10px] mt-1 ${
+                              className={`text-[10px] mt-1.5 ${
                                 isAdmin ? "text-indigo-100" : "text-gray-400"
                               }`}
                             >
-                              {new Date(m.createdAt).toLocaleTimeString("en-US", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
+                              {(() => {
+                                const date = new Date(m.createdAt);
+                                const now = new Date();
+                                const isToday =
+                                  date.getDate() === now.getDate() &&
+                                  date.getMonth() === now.getMonth() &&
+                                  date.getFullYear() === now.getFullYear();
+
+                                if (isToday) {
+                                  return date.toLocaleTimeString("en-US", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  });
+                                }
+                                return date.toLocaleDateString("en-GB", {
+                                  weekday: "short",
+                                  day: "2-digit",
+                                  month: "short",
+                                });
+                              })()}
                             </div>
-                          </motion.div>
+                          </div>
                         </div>
                       );
                     })
@@ -323,58 +403,175 @@ export default function AdminChat() {
                 </div>
 
                 {/* INPUT */}
-                <div className="border-t border-gray-200 bg-white px-4 py-3 relative">
-                  <div className="flex items-center gap-3">
-                    <button onClick={() => fileInputRef.current.click()}>
-                      <FiImage className="text-gray-500 hover:text-indigo-600" size={20} />
-                    </button>
-                    <button onClick={() => setShowEmoji(!showEmoji)}>
-                      <FiSmile className="text-gray-500 hover:text-indigo-600" size={20} />
-                    </button>
-                    {showEmoji && (
-                      <div className="absolute bottom-12 left-10 z-50">
-                        <EmojiPicker onEmojiClick={(e) => setInput((prev) => prev + e.emoji)} />
+                <div className="border-t border-gray-200 bg-white px-4 py-3 flex-shrink-0 relative">
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => fileInputRef.current.click()}>
+                        <FiImage
+                          className="text-gray-500 hover:text-indigo-600"
+                          size={20}
+                        />
+                      </button>
+                      <button onClick={() => setShowEmoji(!showEmoji)}>
+                        <FiSmile
+                          className="text-gray-500 hover:text-indigo-600"
+                          size={20}
+                        />
+                      </button>
+                      {showEmoji && (
+                        <div className="absolute bottom-12 left-10 z-50">
+                          <EmojiPicker
+                            onEmojiClick={(e) =>
+                              setInput((prev) => (prev + e.emoji).slice(0, 500))
+                            }
+                          />
+                        </div>
+                      )}
+                      <div className="flex-1 relative">
+                        <textarea
+                          className="w-full border border-gray-200 rounded-xl px-4 py-2 pr-14 resize-none focus:ring-2 focus:ring-indigo-200 outline-none min-h-[40px] max-h-[120px]"
+                          placeholder="Type your message..."
+                          value={input}
+                          rows={1}
+                          maxLength={500}
+                          onChange={(e) => {
+                            setInput(e.target.value);
+                            e.target.style.height = "auto";
+                            e.target.style.height =
+                              e.target.scrollHeight + "px";
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSend();
+                            }
+                          }}
+                        />
+                        <div className="absolute right-3 bottom-1 text-xs text-gray-400 pointer-events-none">
+                          {input.length}/500
+                        </div>
                       </div>
-                    )}
-                    <input
-                      type="text"
-                      className="flex-1 border border-gray-200 rounded-full px-4 py-2 focus:ring-2 focus:ring-indigo-200 outline-none"
-                      placeholder="Type your message..."
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSend();
-                        }
-                      }}
-                    />
-                    <button
-                      onClick={handleSend}
-                      disabled={!input.trim()}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition ${
-                        !input.trim()
-                          ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                          : "bg-indigo-600 hover:bg-indigo-700 text-white"
-                      }`}
-                    >
-                      <FiSend size={18} />
-                      <span>Send</span>
-                    </button>
-                    <input
-                      type="file"
-                      hidden
-                      ref={fileInputRef}
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                    />
+                      <button
+                        onClick={handleSend}
+                        disabled={!input.trim() || input.length > 500}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold transition ${
+                          !input.trim() || input.length > 500
+                            ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                            : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                        }`}
+                      >
+                        <FiSend size={18} />
+                        <span>Send</span>
+                      </button>
+                    </div>
                   </div>
+                  <input
+                    type="file"
+                    hidden
+                    ref={fileInputRef}
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                  />
                 </div>
               </>
             )}
-          </motion.div>
+          </div>
         </section>
       </div>
+
+      {/* FULLSCREEN IMAGE VIEWER WITH ZOOM & PAN */}
+      {viewerImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95"
+          onClick={() => setViewerImage(null)}
+        >
+          <div
+            className="relative max-w-full max-h-full overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+            onWheel={(e) => {
+              e.preventDefault();
+              const delta = e.deltaY > 0 ? 0.9 : 1.1;
+              const img = e.currentTarget.querySelector("img");
+              const newScale =
+                (img.dataset.scale ? parseFloat(img.dataset.scale) : 1) * delta;
+              if (newScale >= 0.5 && newScale <= 5) {
+                img.style.transform = `scale(${newScale})`;
+                img.dataset.scale = newScale;
+              }
+            }}
+            style={{ touchAction: "pan-x pan-y pinch-zoom" }}
+          >
+            <img
+              src={viewerImage}
+              alt="Full view"
+              className="max-w-none max-h-screen object-contain transition-transform duration-200 select-none"
+              style={{ transform: "scale(1)", touchAction: "none" }}
+              data-scale="1"
+              draggable={false}
+              onMouseDown={(e) => {
+                if (e.button !== 0) return; // only left click
+                const img = e.currentTarget;
+                const startX = e.clientX;
+                const startY = e.clientY;
+                const startTranslateX = img.dataset.tx
+                  ? parseFloat(img.dataset.tx)
+                  : 0;
+                const startTranslateY = img.dataset.ty
+                  ? parseFloat(img.dataset.ty)
+                  : 0;
+
+                const onMove = (e) => {
+                  const dx = e.clientX - startX;
+                  const dy = e.clientY - startY;
+                  img.dataset.tx = startTranslateX + dx;
+                  img.dataset.ty = startTranslateY + dy;
+                  img.style.transform = `scale(${img.dataset.scale}) translate(${img.dataset.tx}px, ${img.dataset.ty}px)`;
+                };
+
+                const onUp = () => {
+                  document.removeEventListener("mousemove", onMove);
+                  document.removeEventListener("mouseup", onUp);
+                };
+
+                document.addEventListener("mousemove", onMove);
+                document.addEventListener("mouseup", onUp);
+              }}
+            />
+
+            {/* Zoom indicator */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-3 py-1 rounded-full text-sm
+">
+              {(() => {
+                const scale =
+                  (viewerImage &&
+                    document.querySelector("[data-scale]")?.dataset.scale) ||
+                  1;
+                return `${Math.round(scale * 100)}%`;
+              })()}
+            </div>
+
+            {/* Close button */}
+            <button
+              onClick={() => setViewerImage(null)}
+              className="absolute top-4 right-4 bg-gray-800 hover:bg-gray-700 text-white rounded-full p-2 transition"
+            >
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
