@@ -21,7 +21,7 @@ export default function Vouchers() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage] = useState(20);
+  const [rowsPerPage] = useState(10);
 
   // Helper function to extract error message
   const getErrorMessage = (err, defaultMessage) => {
