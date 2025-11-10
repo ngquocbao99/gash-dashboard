@@ -33,25 +33,29 @@ const Loading = ({
     // Type configurations
     const typeConfig = {
         default: {
-            spinnerColor: 'border-blue-200 border-t-blue-600',
+            spinnerBorderColor: '#FCEFCB', // light yellow background
+            spinnerTopColor: '#E9A319', // theme yellow-orange
             textColor: 'text-gray-800',
             subTextColor: 'text-gray-600',
             bgColor: 'bg-gray-100'
         },
         auth: {
-            spinnerColor: 'border-blue-200 border-t-blue-600',
+            spinnerBorderColor: '#FCEFCB',
+            spinnerTopColor: '#E9A319',
             textColor: 'text-gray-600',
             subTextColor: 'text-gray-500',
             bgColor: 'bg-gray-100'
         },
         page: {
-            spinnerColor: 'border-blue-200 border-t-blue-600',
+            spinnerBorderColor: '#FCEFCB',
+            spinnerTopColor: '#E9A319',
             textColor: 'text-gray-800',
             subTextColor: 'text-gray-600',
             bgColor: 'bg-white'
         },
         inline: {
-            spinnerColor: 'border-gray-200 border-t-gray-600',
+            spinnerBorderColor: '#FCEFCB',
+            spinnerTopColor: '#E9A319',
             textColor: 'text-gray-700',
             subTextColor: 'text-gray-500',
             bgColor: 'bg-transparent'
@@ -75,7 +79,13 @@ const Loading = ({
         <div className={containerClasses} role="status" aria-live="true">
             <div className={contentClasses}>
                 {/* Spinner */}
-                <div className={`${config.spinner} border-4 ${typeStyle.spinnerColor} rounded-full animate-spin mx-auto ${config.spacing} shadow-lg`}></div>
+                <div
+                    className={`${config.spinner} border-4 rounded-full animate-spin mx-auto ${config.spacing} shadow-lg`}
+                    style={{
+                        borderColor: typeStyle.spinnerBorderColor,
+                        borderTopColor: typeStyle.spinnerTopColor
+                    }}
+                ></div>
 
                 {/* Main message */}
                 <h3 className={`${config.text} font-bold ${typeStyle.textColor} mb-2`}>

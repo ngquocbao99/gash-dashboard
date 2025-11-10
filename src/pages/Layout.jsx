@@ -11,15 +11,15 @@ import { AuthContext } from "../context/AuthContext";
 import {
   ShoppingCart,
   List,
-  ShoppingBag,
-  Comment,
+  Assignment,
+  RateReview,
   Inventory,
-  Info,
+  Settings as SettingsIcon,
   Layers,
-  FileUpload,
-  LocalOffer,
+  Receipt,
+  ConfirmationNumber,
   Notifications,
-  Chat,
+  Message,
   People,
   BarChart,
   Person,
@@ -38,6 +38,10 @@ import {
   LiveTv,
   RecordVoiceOver,
   CameraAlt,
+  Category,
+  Widgets,
+  AttachMoney,
+  Group,
 } from "@mui/icons-material";
 import "../styles/Layout.css";
 import gashLogo from "../assets/image/gash-logo.svg";
@@ -98,23 +102,23 @@ const Layout = ({ children }) => {
   // Sidebar items with MUI Icons
   const sidebarItems = useMemo(() => {
     const items = [
-      { label: "Order", to: "/orders", icon: ShoppingBag },
+      { label: "Order", to: "/orders", icon: Assignment },
+      { label: "Product Specification", to: "/specifications", icon: Category },
       { label: "Product", to: "/products", icon: Inventory },
-      { label: "Product Specification", to: "/specifications", icon: Info },
-      { label: "Product Variant", to: "/variants", icon: Layers },
-      { label: "Bills", to: "/bills", icon: FileUpload },
-      { label: "Voucher", to: "/vouchers", icon: LocalOffer },
-      { label: "Feedback", to: "/feedbacks", icon: Comment },
-      { label: "Chat", to: "/chat", icon: Chat },
+      { label: "Product Variant", to: "/variants", icon: Widgets },
+      { label: "Bills", to: "/bills", icon: Receipt },
+      { label: "Voucher", to: "/vouchers", icon: ConfirmationNumber },
+      { label: "Feedback", to: "/feedbacks", icon: RateReview },
+      { label: "Chat", to: "/chat", icon: Message },
       { label: "Notifications", to: "/notifications", icon: Notifications },
       { label: "Livestream", to: "/livestream", icon: LiveTv },
     ];
 
     // Statistics submenu (có ở admin & manager)
     const statisticsSubmenu = [
-      { label: "Customer", to: "/statistics/customer", icon: People },
+      { label: "Customer", to: "/statistics/customer", icon: Group },
       { label: "Product", to: "/statistics/product", icon: Inventory },
-      { label: "Order", to: "/statistics/order", icon: ShoppingBag },
+      { label: "Order", to: "/statistics/order", icon: Assignment },
     ];
 
     // Chỉ admin mới có Revenue
@@ -122,7 +126,7 @@ const Layout = ({ children }) => {
       statisticsSubmenu.push({
         label: "Revenue",
         to: "/statistics/revenue",
-        icon: BarChart,
+        icon: AttachMoney,
       });
     }
 
@@ -197,15 +201,14 @@ const Layout = ({ children }) => {
         user.role === "admin"
           ? "Administrator"
           : user.role === "manager"
-          ? "Manager"
-          : "Staff",
+            ? "Manager"
+            : "Staff",
       joinDate: user.createdAt
         ? new Date(user.createdAt).toLocaleDateString()
         : "Unknown",
       lastLogin: user.lastLogin
         ? new Date(user.lastLogin).toLocaleDateString()
         : "Never",
-      status: user.isActive !== false ? "Active" : "Inactive",
     };
   }, [user]);
 
@@ -235,14 +238,14 @@ const Layout = ({ children }) => {
       {/* Sidebar */}
       {user && ["admin", "manager"].includes(user.role) && (
         <aside
-          className={`fixed top-0 left-0 h-full bg-white text-gray-800 shadow-xl z-50 flex flex-col transition-all duration-300 border-r border-gray-200 ${
-            isSidebarExpanded ? "w-72" : "w-20"
-          }`}
+          className={`fixed top-0 left-0 h-full bg-white text-gray-800 shadow-xl z-50 flex flex-col transition-all duration-300 border-r ${isSidebarExpanded ? "w-72" : "w-20"
+            }`}
+          style={{ borderColor: '#A86523' }}
           role="navigation"
           aria-label="Admin navigation"
         >
           {/* Sidebar Header */}
-          <div className="px-4 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-gray-50 to-white">
+          <div className="px-4 py-4 border-b flex items-center justify-between bg-gradient-to-r from-[#FCEFCB] to-white" style={{ borderColor: '#A86523' }}>
             {isSidebarExpanded ? (
               <Link
                 to={user?.role === "manager" ? "/orders" : "/statistics/order"}
@@ -259,7 +262,7 @@ const Layout = ({ children }) => {
             )}
             <button
               onClick={handleSidebarToggle}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200 text-gray-600 hover:text-gray-800"
+              className="p-2 rounded-lg hover:bg-[#FCEFCB] transition-colors duration-200 text-gray-600 hover:text-[#A86523]"
               aria-label={
                 isSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"
               }
@@ -281,24 +284,22 @@ const Layout = ({ children }) => {
                     <div>
                       <button
                         onClick={handleStatisticsToggle}
-                        className={`flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative group ${
-                          location.pathname.startsWith(item.to)
-                            ? "bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 shadow-sm"
-                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
-                        }`}
+                        className={`flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative group ${location.pathname.startsWith(item.to)
+                          ? "bg-[#FCEFCB] text-[#A86523] shadow-sm"
+                          : "text-gray-600 hover:bg-[#FCEFCB] hover:text-[#A86523]"
+                          }`}
                         role="menuitem"
                       >
                         <div className="flex items-center flex-1">
                           {location.pathname.startsWith(item.to) && (
-                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-blue-600 rounded-r-full"></div>
+                            <div className="absolute left-0 top-0 bottom-0 w-1 rounded-r-full" style={{ backgroundColor: '#A86523' }}></div>
                           )}
                           <item.icon
-                            sx={{ fontSize: 21 }}
-                            className={`flex-shrink-0 ${
-                              location.pathname.startsWith(item.to)
-                                ? "text-blue-600"
-                                : "text-gray-500 group-hover:text-gray-700"
-                            }`}
+                            sx={{ fontSize: 21, color: location.pathname.startsWith(item.to) ? '#A86523' : undefined }}
+                            className={`flex-shrink-0 ${location.pathname.startsWith(item.to)
+                              ? ""
+                              : "text-gray-500 group-hover:text-[#A86523]"
+                              }`}
                           />
                           {isSidebarExpanded && (
                             <span className="ml-3 whitespace-nowrap">
@@ -308,9 +309,8 @@ const Layout = ({ children }) => {
                         </div>
                         {isSidebarExpanded && (
                           <div
-                            className={`transition-transform duration-200 ${
-                              isStatisticsExpanded ? "rotate-180" : ""
-                            }`}
+                            className={`transition-transform duration-200 ${isStatisticsExpanded ? "rotate-180" : ""
+                              }`}
                           >
                             <svg
                               className="w-4 h-4"
@@ -336,22 +336,20 @@ const Layout = ({ children }) => {
                             <Link
                               key={subIndex}
                               to={subItem.to}
-                              className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 relative group ${
-                                location.pathname === subItem.to
-                                  ? "bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 shadow-sm"
-                                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
-                              }`}
+                              className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 relative group ${location.pathname === subItem.to
+                                ? "bg-[#FCEFCB] text-[#A86523] shadow-sm"
+                                : "text-gray-600 hover:bg-[#FCEFCB] hover:text-[#A86523]"
+                                }`}
                             >
                               {location.pathname === subItem.to && (
-                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-blue-600 rounded-r-full"></div>
+                                <div className="absolute left-0 top-0 bottom-0 w-1 rounded-r-full" style={{ backgroundColor: '#A86523' }}></div>
                               )}
                               <subItem.icon
-                                sx={{ fontSize: 18 }}
-                                className={`flex-shrink-0 ${
-                                  location.pathname === subItem.to
-                                    ? "text-blue-600"
-                                    : "text-gray-500 group-hover:text-gray-700"
-                                }`}
+                                sx={{ fontSize: 18, color: location.pathname === subItem.to ? '#A86523' : undefined }}
+                                className={`flex-shrink-0 ${location.pathname === subItem.to
+                                  ? ""
+                                  : "text-gray-500 group-hover:text-[#A86523]"
+                                  }`}
                               />
                               <span className="ml-3 whitespace-nowrap">
                                 {subItem.label}
@@ -364,23 +362,21 @@ const Layout = ({ children }) => {
                   ) : (
                     <Link
                       to={item.to}
-                      className={`flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative group ${
-                        location.pathname === item.to
-                          ? "bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 shadow-sm"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
-                      }`}
+                      className={`flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative group ${location.pathname === item.to
+                        ? "bg-[#FCEFCB] text-[#A86523] shadow-sm"
+                        : "text-gray-600 hover:bg-[#FCEFCB] hover:text-[#A86523]"
+                        }`}
                       role="menuitem"
                     >
                       {location.pathname === item.to && (
-                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-blue-600 rounded-r-full"></div>
+                        <div className="absolute left-0 top-0 bottom-0 w-1 rounded-r-full" style={{ backgroundColor: '#A86523' }}></div>
                       )}
                       <item.icon
-                        sx={{ fontSize: 21 }}
-                        className={`flex-shrink-0 ${
-                          location.pathname === item.to
-                            ? "text-blue-600"
-                            : "text-gray-500 group-hover:text-gray-700"
-                        }`}
+                        sx={{ fontSize: 21, color: location.pathname === item.to ? '#A86523' : undefined }}
+                        className={`flex-shrink-0 ${location.pathname === item.to
+                          ? ""
+                          : "text-gray-500 group-hover:text-[#A86523]"
+                          }`}
                       />
                       {isSidebarExpanded && (
                         <span className="ml-3 whitespace-nowrap">
@@ -395,7 +391,7 @@ const Layout = ({ children }) => {
           </nav>
 
           {/* Profile Section */}
-          <div className="flex flex-col border-t border-gray-200 py-4 mt-auto bg-gradient-to-t from-white via-purple-50/30 to-transparent">
+          <div className="flex flex-col border-t py-4 mt-auto bg-gradient-to-t from-white via-[#FCEFCB]/30 to-transparent" style={{ borderColor: '#A86523' }}>
             <div className="px-4">
               {isSidebarExpanded ? (
                 /* Expanded view – full info with consistent spacing */
@@ -403,19 +399,17 @@ const Layout = ({ children }) => {
                   {/* User Info */}
                   <Link
                     to="/profile"
-                    className="flex items-center space-x-3.5 hover:bg-purple-100/60 rounded-xl p-3 -m-3 transition-all duration-200 group"
+                    className="flex items-center space-x-3.5 hover:bg-[#FCEFCB] rounded-xl p-3 -m-3 transition-all duration-200 group"
                   >
-                    <div className="w-11 h-11 bg-gradient-to-tr from-purple-500 to-indigo-500 rounded-full flex items-center justify-center shadow-md ring-2 ring-white">
+                    <div className="w-11 h-11 rounded-full flex items-center justify-center shadow-md ring-2 ring-white" style={{ background: 'linear-gradient(to top right, #E9A319, #A86523)' }}>
                       <AccountCircle sx={{ fontSize: 26, color: "white" }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-gray-900 truncate">
                         {userProfileInfo?.name || "Guest User"}
                       </p>
-                      <p className="text-xs text-gray-500 truncate flex items-center gap-1">
-                        <span>{userProfileInfo?.roleDisplay || "User"}</span>
-                        <span className="text-gray-400">•</span>
-                        <span>{userProfileInfo?.status}</span>
+                      <p className="text-xs text-gray-500 truncate">
+                        {userProfileInfo?.roleDisplay || "User"}
                       </p>
                     </div>
                   </Link>
@@ -434,7 +428,8 @@ const Layout = ({ children }) => {
                 <div className="flex flex-col items-center space-y-4 pt-2">
                   <Link
                     to="/profile"
-                    className="w-11 h-11 bg-gradient-to-tr from-purple-500 to-indigo-500 rounded-full flex items-center justify-center hover:scale-110 transition-all duration-200 shadow-lg ring-2 ring-white"
+                    className="w-11 h-11 rounded-full flex items-center justify-center hover:scale-110 transition-all duration-200 shadow-lg ring-2 ring-white"
+                    style={{ background: 'linear-gradient(to top right, #E9A319, #A86523)' }}
                     title="My Profile"
                   >
                     <AccountCircle sx={{ fontSize: 24, color: "white" }} />
@@ -456,13 +451,12 @@ const Layout = ({ children }) => {
 
       {/* Main Content */}
       <main
-        className={`flex-grow bg-gray-50 min-h-screen transition-all duration-300 ${
-          user && ["admin", "manager"].includes(user.role)
-            ? isSidebarExpanded
-              ? "ml-72 w-[calc(100%-18rem)]"
-              : "ml-20 w-[calc(100%-5rem)]"
-            : "ml-0 w-full"
-        }`}
+        className={`flex-grow bg-gray-50 min-h-screen transition-all duration-300 ${user && ["admin", "manager"].includes(user.role)
+          ? isSidebarExpanded
+            ? "ml-72 w-[calc(100%-18rem)]"
+            : "ml-20 w-[calc(100%-5rem)]"
+          : "ml-0 w-full"
+          }`}
         role="main"
       >
         {children}

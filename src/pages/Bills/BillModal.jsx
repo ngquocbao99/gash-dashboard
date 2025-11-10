@@ -197,9 +197,9 @@ const BillModal = ({ isOpen, onClose, billData }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl border-2 w-full max-w-4xl transform transition-all duration-300 scale-100 animate-in fade-in-0 zoom-in-95 overflow-y-auto max-h-[90vh] flex flex-col" style={{ borderColor: '#A86523' }}>
-        <div className="sticky top-0 bg-white z-10 p-3 sm:p-4 lg:p-5 border-b shrink-0" style={{ borderColor: '#A86523' }}>
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl border-2 w-full max-w-4xl transform transition-all duration-300 scale-100 animate-in fade-in-0 zoom-in-95 max-h-[90vh] flex flex-col overflow-hidden" style={{ borderColor: '#A86523' }}>
+        <div className="bg-white z-10 p-3 sm:p-4 lg:p-5 border-b shrink-0" style={{ borderColor: '#A86523' }}>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">Bill Details</h2>
             <div className="flex items-center gap-2 lg:gap-3 w-full sm:w-auto justify-end">
@@ -216,11 +216,13 @@ const BillModal = ({ isOpen, onClose, billData }) => {
                 <span>Export PDF</span>
               </button>
               <button
+                type="button"
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                style={{ '--tw-ring-color': '#A86523' }}
                 onClick={onClose}
-                className="p-2 lg:p-2.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all duration-200"
-                aria-label="Close modal"
+                aria-label="Close"
               >
-                <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -228,143 +230,137 @@ const BillModal = ({ isOpen, onClose, billData }) => {
           </div>
         </div>
 
-        <div ref={billRef} className="p-4 lg:p-6">
-          {/* Header */}
-          <div className="p-8 rounded-t-xl border-b-4 border-orange-400" style={{ background: 'linear-gradient(to right, #7B542F, #B6771D)' }}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="flex items-center space-x-4">
-                <div className="w-48 h-16 bg-white/20 rounded-lg flex items-center justify-center p-2">
-                  <img src={gashLogo} alt="GASH Logo" className="h-12 w-auto" />
+        <div ref={billRef} className="p-4 lg:p-6 flex-1 overflow-y-auto">
+          <div className="bg-white border-2 shadow-md" style={{ borderColor: '#A86523' }}>
+            {/* Header */}
+            <div className="p-8 border-b-4 border-orange-400" style={{ background: 'linear-gradient(to right, #7B542F, #B6771D)' }}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="flex items-center space-x-4">
+                  <div className="w-48 h-16 bg-white/20 rounded-lg flex items-center justify-center p-2">
+                    <img src={gashLogo} alt="GASH Logo" className="h-12 w-auto" />
+                  </div>
+                  <div className="text-white/90">
+                    <p className="text-sm lg:text-base">Modern fashion for everyone</p>
+                  </div>
                 </div>
-                <div className="text-white/90">
-                  <p className="text-sm lg:text-base">Modern fashion for everyone</p>
-                </div>
-              </div>
-              <div className="text-right text-white">
-                <h2 className="text-2xl lg:text-3xl font-bold mb-2">INVOICE</h2>
-                <p className="text-sm lg:text-base">Date: {formatDate(billData.order?.orderDate)}</p>
-                <p className="text-sm lg:text-base">Order ID: #{billData.order?.orderId || billData.order?._id || 'N/A'}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Bill To / Pay To */}
-          <div className="p-6 lg:p-8 border-b border-gray-200">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
-              <div className="p-6 rounded-lg" style={{ backgroundColor: '#FFCF71', borderLeft: '4px solid #B6771D' }}>
-                <h3 className="text-lg font-bold mb-4" style={{ color: '#7B542F' }}>BILL TO:</h3>
-                <div className="text-gray-700 space-y-1">
-                  <p className="text-gray-600">Name: {billData.customer?.name || 'N/A'}</p>
-                  <p className="text-gray-600">Email: {billData.customer?.email || 'N/A'}</p>
-                  <p className="text-gray-600">Phone: {billData.customer?.phone || 'N/A'}</p>
-                  <p className="text-gray-600">Address: {billData.customer?.address || 'N/A'}</p>
-                </div>
-              </div>
-              <div className="p-6 rounded-lg" style={{ backgroundColor: '#FFCF71', borderLeft: '4px solid #B6771D' }}>
-                <h3 className="text-lg font-bold mb-4" style={{ color: '#7B542F' }}>PAY TO:</h3>
-                <div className="text-gray-700 space-y-1">
-                  <p className="font-semibold text-gray-900">GASH Company</p>
-                  <p className="text-gray-600">support@gash.com</p>
-                  <p className="text-gray-600">123 ABC Street, District 1</p>
-                  <p className="text-gray-600">Ho Chi Minh City, Vietnam</p>
+                <div className="text-right text-white">
+                  <h2 className="text-2xl lg:text-3xl font-bold mb-2">INVOICE</h2>
+                  <p className="text-sm lg:text-base">Date: {formatDate(billData.order?.orderDate)}</p>
+                  <p className="text-sm lg:text-base">Order ID: #{billData.order?.orderId || billData.order?._id || 'N/A'}</p>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Items Table */}
-          <div className="p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">ORDER ITEMS</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse border border-gray-300">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-gray-700">Product</th>
-                    <th className="border border-gray-300 px-4 py-3 text-center font-semibold text-gray-700">Color</th>
-                    <th className="border border-gray-300 px-4 py-3 text-center font-semibold text-gray-700">Size</th>
-                    <th className="border border-gray-300 px-4 py-3 text-center font-semibold text-gray-700">Quantity</th>
-                    <th className="border border-gray-300 px-4 py-3 text-right font-semibold text-gray-700">Unit Price</th>
-                    <th className="border border-gray-300 px-4 py-3 text-right font-semibold text-gray-700">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {billData.items?.map((item, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="border border-gray-300 px-4 py-3">
-                        <p className="font-semibold text-gray-800">{item.productName || 'N/A'}</p>
-                      </td>
-                      <td className="border border-gray-300 px-4 py-3 text-center text-gray-600">
-                        {item.color || 'N/A'}
-                      </td>
-                      <td className="border border-gray-300 px-4 py-3 text-center text-gray-600">
-                        {item.size || 'N/A'}
-                      </td>
-                      <td className="border border-gray-300 px-4 py-3 text-center font-medium">
-                        {item.quantity || 0}
-                      </td>
-                      <td className="border border-gray-300 px-4 py-3 text-right text-gray-600">
-                        {formatPrice(item.unitPrice)}
-                      </td>
-                      <td className="border border-gray-300 px-4 py-3 text-right font-semibold text-gray-800">
-                        {formatPrice(item.totalPrice)}
-                      </td>
+            {/* Bill To / Pay To */}
+            <div className="p-6 lg:p-8 border-b border-gray-200">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+                <div className="p-6 rounded-lg" style={{ backgroundColor: '#FFCF71', borderLeft: '4px solid #B6771D' }}>
+                  <h3 className="text-lg font-bold mb-4" style={{ color: '#7B542F' }}>BILL TO:</h3>
+                  <div className="text-gray-700 space-y-1">
+                    <p className="text-gray-600">Name: {billData.customer?.name || 'N/A'}</p>
+                    <p className="text-gray-600">Email: {billData.customer?.email || 'N/A'}</p>
+                    <p className="text-gray-600">Phone: {billData.customer?.phone || 'N/A'}</p>
+                    <p className="text-gray-600">Address: {billData.customer?.address || 'N/A'}</p>
+                  </div>
+                </div>
+                <div className="p-6 rounded-lg" style={{ backgroundColor: '#FFCF71', borderLeft: '4px solid #B6771D' }}>
+                  <h3 className="text-lg font-bold mb-4" style={{ color: '#7B542F' }}>PAY TO:</h3>
+                  <div className="text-gray-700 space-y-1">
+                    <p className="font-semibold text-gray-900">GASH Company</p>
+                    <p className="text-gray-600">support@gash.com</p>
+                    <p className="text-gray-600">123 ABC Street, District 1</p>
+                    <p className="text-gray-600">Ho Chi Minh City, Vietnam</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Items Table */}
+            <div className="p-6">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">ORDER ITEMS</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse border border-gray-300">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="border border-gray-300 px-4 py-3 text-left font-semibold text-gray-700">Product</th>
+                      <th className="border border-gray-300 px-4 py-3 text-center font-semibold text-gray-700">Color</th>
+                      <th className="border border-gray-300 px-4 py-3 text-center font-semibold text-gray-700">Size</th>
+                      <th className="border border-gray-300 px-4 py-3 text-center font-semibold text-gray-700">Quantity</th>
+                      <th className="border border-gray-300 px-4 py-3 text-right font-semibold text-gray-700">Unit Price</th>
+                      <th className="border border-gray-300 px-4 py-3 text-right font-semibold text-gray-700">Total</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Payment Info */}
-          <div className="p-8 border-t border-gray-200" style={{ backgroundColor: '#FFCF71' }}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="bg-white p-6 rounded-lg border border-gray-200">
-                <h3 className="text-lg font-bold mb-4" style={{ color: '#7B542F' }}>PAYMENT INFORMATION</h3>
-                <div className="text-gray-700 space-y-2">
-                  <p><span className="font-semibold">Method:</span> {billData.order?.paymentMethod || 'N/A'}</p>
-                  <p><span className="font-semibold">Payment Status:</span>
-                    <span className={`ml-2 px-3 py-1 rounded-full text-sm font-medium ${billData.order?.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' :
-                      billData.order?.paymentStatus === 'unpaid' ? 'bg-yellow-100 text-yellow-800' :
-                        billData.order?.paymentStatus === 'refunded' ? 'bg-red-100 text-red-800' :
-                          'bg-gray-100 text-gray-800'
-                      }`}>
-                      {billData.order?.paymentStatus ? billData.order.paymentStatus.charAt(0).toUpperCase() + billData.order.paymentStatus.slice(1) : 'N/A'}
-                    </span>
-                  </p>
-                  {billData.discount?.voucher && (
-                    <p><span className="font-semibold">Voucher:</span> {billData.discount.voucher.code} ({billData.discount.voucher.discountValue}{billData.discount.voucher.discountType === 'percentage' ? '%' : '₫'} off)</p>
-                  )}
-                </div>
+                  </thead>
+                  <tbody>
+                    {billData.items?.map((item, index) => (
+                      <tr key={index} className="hover:bg-gray-50">
+                        <td className="border border-gray-300 px-4 py-3">
+                          <p className="font-semibold text-gray-800">{item.productName || 'N/A'}</p>
+                        </td>
+                        <td className="border border-gray-300 px-4 py-3 text-center text-gray-600">
+                          {item.color || 'N/A'}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-3 text-center text-gray-600">
+                          {item.size || 'N/A'}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-3 text-center font-medium">
+                          {item.quantity || 0}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-3 text-right text-gray-600">
+                          {formatPrice(item.unitPrice)}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-3 text-right font-semibold text-gray-800">
+                          {formatPrice(item.totalPrice)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
+            </div>
 
-              <div className="bg-white p-4 rounded-lg border border-gray-200">
-                <h3 className="text-lg font-bold mb-3" style={{ color: '#7B542F' }}>PRICE SUMMARY</h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span>Subtotal:</span>
-                    <span>{formatPrice(billData.summary?.subtotal)}</span>
+            {/* Payment Info */}
+            <div className="p-8 border-t border-gray-200" style={{ backgroundColor: '#FFCF71' }}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="bg-white p-6 rounded-lg border border-gray-200">
+                  <h3 className="text-lg font-bold mb-4" style={{ color: '#7B542F' }}>PAYMENT INFORMATION</h3>
+                  <div className="text-gray-700 space-y-2">
+                    <p><span className="font-semibold">Method:</span> {billData.order?.paymentMethod || 'N/A'}</p>
+                    <p><span className="font-semibold">Payment Status:</span> {billData.order?.paymentStatus ? billData.order.paymentStatus.charAt(0).toUpperCase() + billData.order.paymentStatus.slice(1) : 'N/A'}</p>
+                    {billData.discount?.voucher && (
+                      <p><span className="font-semibold">Voucher:</span> {billData.discount.voucher.code} ({billData.discount.voucher.discountValue}{billData.discount.voucher.discountType === 'percentage' ? '%' : '₫'} off)</p>
+                    )}
                   </div>
-                  {billData.summary?.discount > 0 && (
-                    <div className="flex justify-between" style={{ color: '#B6771D' }}>
-                      <span>Discount:</span>
-                      <span>-{formatPrice(billData.summary.discount)}</span>
+                </div>
+
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                  <h3 className="text-lg font-bold mb-3" style={{ color: '#7B542F' }}>PRICE SUMMARY</h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span>Subtotal:</span>
+                      <span>{formatPrice(billData.summary?.subtotal)}</span>
                     </div>
-                  )}
-                  <hr className="border-gray-300" />
-                  <div className="flex justify-between font-bold text-lg">
-                    <span>Total:</span>
-                    <span style={{ color: '#B6771D' }}>{formatPrice(billData.summary?.totalAmount)}</span>
+                    {billData.summary?.discount > 0 && (
+                      <div className="flex justify-between" style={{ color: '#B6771D' }}>
+                        <span>Discount:</span>
+                        <span>-{formatPrice(billData.summary.discount)}</span>
+                      </div>
+                    )}
+                    <hr className="border-gray-300" />
+                    <div className="flex justify-between font-bold text-lg">
+                      <span>Total:</span>
+                      <span style={{ color: '#B6771D' }}>{formatPrice(billData.summary?.totalAmount)}</span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Footer */}
-          <div className="p-6 border-t border-gray-200" style={{ backgroundColor: '#FFCF71' }}>
-            <div className="text-center text-gray-600">
-              <p className="mb-2">Thank you for your purchase!</p>
-              <p className="text-sm">For support, contact: support@gash.com</p>
+            {/* Footer */}
+            <div className="p-6 border-t border-gray-200" style={{ backgroundColor: '#FFCF71' }}>
+              <div className="text-center text-gray-600">
+                <p className="mb-2">Thank you for your purchase!</p>
+                <p className="text-sm">For support, contact: support@gash.com</p>
+              </div>
             </div>
           </div>
         </div>
