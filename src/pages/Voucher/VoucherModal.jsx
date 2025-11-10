@@ -14,11 +14,11 @@ const VoucherModal = ({
         code: "",
         discountType: "percentage",
         discountValue: "",
-        minOrderValue: 0,
+        minOrderValue: "",
         maxDiscount: "",
         startDate: "",
         endDate: "",
-        usageLimit: 1,
+        usageLimit: "",
     });
     const [loading, setLoading] = useState(false);
     const [fieldErrors, setFieldErrors] = useState({});
@@ -44,30 +44,103 @@ const VoucherModal = ({
                 code: "",
                 discountType: "percentage",
                 discountValue: "",
-                minOrderValue: 0,
+                minOrderValue: "",
                 maxDiscount: "",
                 startDate: "",
                 endDate: "",
-                usageLimit: 1,
+                usageLimit: "",
             });
             setFieldErrors({}); // Clear field errors
         }
     }, [mode, voucher, isOpen]);
 
-    // Handle field changes
+    // Handle field changes - with real-time validation
     const handleChange = (e) => {
         const { name, value } = e.target;
 
-        let newValue = value;
-        if (name === "code") {
-            newValue = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 30);
-        }
+        // Update form data
+        setFormData((prev) => {
+            const updated = { ...prev, [name]: value };
 
-        setFormData((prev) => ({ ...prev, [name]: newValue }));
+            // Validate the current field with updated formData
+            const error = validateField(name, value, mode, updated);
 
-        // Validate field in real-time
-        const error = validateField(name, newValue, mode);
-        setFieldErrors(prev => ({ ...prev, [name]: error }));
+            // Update errors
+            setFieldErrors(prevErrors => {
+                const newErrors = { ...prevErrors };
+                if (error) {
+                    newErrors[name] = error;
+                } else {
+                    delete newErrors[name];
+                }
+                return newErrors;
+            });
+
+            // If discountType changes, re-validate dependent fields
+            if (name === "discountType") {
+                if (value === "percentage") {
+                    // Validate maxDiscount if it exists
+                    if (updated.maxDiscount) {
+                        const maxDiscountError = validateField("maxDiscount", updated.maxDiscount, mode, updated);
+                        setFieldErrors(prevErrors => {
+                            const newErrors = { ...prevErrors };
+                            if (maxDiscountError) {
+                                newErrors.maxDiscount = maxDiscountError;
+                            } else {
+                                delete newErrors.maxDiscount;
+                            }
+                            return newErrors;
+                        });
+                    }
+                } else {
+                    // Clear maxDiscount error when switching to fixed
+                    setFieldErrors(prevErrors => {
+                        const newErrors = { ...prevErrors };
+                        delete newErrors.maxDiscount;
+                        return newErrors;
+                    });
+                }
+
+                // Re-validate discountValue when switching discount type
+                if (updated.discountValue) {
+                    const discountError = validateField("discountValue", updated.discountValue, mode, updated);
+                    setFieldErrors(prevErrors => {
+                        const newErrors = { ...prevErrors };
+                        if (discountError) {
+                            newErrors.discountValue = discountError;
+                        } else {
+                            delete newErrors.discountValue;
+                        }
+                        return newErrors;
+                    });
+                }
+            }
+
+            // If minOrderValue or discountValue changes, validate business logic for fixed discount
+            if (name === "minOrderValue" || name === "discountValue") {
+                if (updated.discountType === "fixed" && updated.minOrderValue && updated.discountValue) {
+                    const minOrderNum = Number(updated.minOrderValue);
+                    const discountNum = Number(updated.discountValue);
+                    if (!isNaN(minOrderNum) && !isNaN(discountNum) && minOrderNum > 0 && discountNum > minOrderNum) {
+                        setFieldErrors(prevErrors => ({
+                            ...prevErrors,
+                            discountValue: 'For fixed discount, the discount value cannot exceed the minimum order value'
+                        }));
+                    } else {
+                        // Clear error if validation passes
+                        setFieldErrors(prevErrors => {
+                            const newErrors = { ...prevErrors };
+                            if (newErrors.discountValue === 'For fixed discount, the discount value cannot exceed the minimum order value') {
+                                delete newErrors.discountValue;
+                            }
+                            return newErrors;
+                        });
+                    }
+                }
+            }
+
+            return updated;
+        });
     };
 
     // Convert yyyy-mm-dd to ISO date for API (HTML5 date input already uses yyyy-mm-dd format)
@@ -87,31 +160,63 @@ const VoucherModal = ({
     };
 
     // Validate individual field
-    const validateField = (name, value, currentMode = mode) => {
+    const validateField = (name, value, currentMode = mode, currentFormData = formData) => {
         switch (name) {
             case 'code':
-                if (!value.trim()) return 'Voucher code is required';
-                if (value.length < 3) return 'Voucher code must be at least 3 characters';
+                if (!value || !value.trim()) return 'Please fill in all required fields';
+                // Combined validation: check length and format together
+                if (value.length < 3 || value.length > 30 || !/^[A-Z0-9]+$/.test(value)) {
+                    return 'Voucher code must contain only uppercase letters and numbers, 3 to 30 characters long.';
+                }
                 return null;
             case 'discountValue':
-                if (!value || value <= 0) return 'Discount value must be greater than 0';
-                if (formData.discountType === 'percentage' && value > 100) {
-                    return 'Percentage must be less than or equal to 100';
+                if (!value || value === '' || value === null) return 'Please fill in all required fields';
+                const discountNum = Number(value);
+                if (isNaN(discountNum) || discountNum <= 0) return 'Discount value must be greater than 0';
+                if (currentFormData.discountType === 'percentage') {
+                    if (discountNum > 100) {
+                        return 'Percentage must be less than or equal to 100';
+                    }
                 }
-                if (formData.discountType === 'fixed' && value < 1000) {
-                    return 'Fixed amount must be at least 1,000₫';
+                // For fixed discount, backend only checks > 0, no minimum amount requirement
+                // But check business logic: if minOrderValue > 0, discountValue cannot exceed minOrderValue
+                if (currentFormData.discountType === 'fixed' && currentFormData.minOrderValue) {
+                    const minOrderNum = Number(currentFormData.minOrderValue);
+                    if (!isNaN(minOrderNum) && minOrderNum > 0 && discountNum > minOrderNum) {
+                        return 'For fixed discount, the discount value cannot exceed the minimum order value';
+                    }
                 }
                 return null;
             case 'minOrderValue':
-                if (value < 0) return 'Minimum order value cannot be negative';
+                // minOrderValue is required, must be filled and valid
+                // Check if value is blank/empty (but allow 0)
+                if (value === '' || value === null || value === undefined) {
+                    return 'Please fill in all required fields';
+                }
+                // Validate it's a valid number
+                const minOrderNum = Number(value);
+                if (isNaN(minOrderNum)) {
+                    return 'Please fill in all required fields';
+                }
+                // Must be >= 0 (0 is allowed)
+                if (minOrderNum < 0) {
+                    return 'Minimum order value cannot be negative';
+                }
                 return null;
             case 'maxDiscount':
-                if (formData.discountType === 'percentage' && value && value <= 0) {
-                    return 'Maximum discount must be greater than 0';
+                // For percentage discount, maxDiscount is required
+                if (currentFormData.discountType === 'percentage') {
+                    if (!value || value === '' || value === null) {
+                        return 'Please fill in all required fields';
+                    }
+                    const maxDiscountNum = Number(value);
+                    if (isNaN(maxDiscountNum) || maxDiscountNum <= 0) {
+                        return 'Maximum discount must be greater than 0';
+                    }
                 }
                 return null;
             case 'startDate':
-                if (!value) return 'Start date is required';
+                if (!value || value === '') return 'Please fill in all required fields';
                 if (value.length !== 10) return 'Please select a valid date';
 
                 // Validate date format (yyyy-mm-dd)
@@ -128,22 +233,24 @@ const VoucherModal = ({
                 }
                 return null;
             case 'endDate':
-                if (!value) return 'End date is required';
+                if (!value || value === '') return 'Please fill in all required fields';
                 if (value.length !== 10) return 'Please select a valid date';
 
                 // Validate date format (yyyy-mm-dd)
                 const endDate = new Date(value);
                 if (isNaN(endDate.getTime())) return 'Invalid date format';
 
-                if (formData.startDate) {
-                    const startDate = new Date(formData.startDate);
+                if (currentFormData.startDate) {
+                    const startDate = new Date(currentFormData.startDate);
                     if (endDate <= startDate) {
                         return 'End date must be after start date';
                     }
                 }
                 return null;
             case 'usageLimit':
-                if (!value || value <= 0) return 'Usage limit must be greater than 0';
+                if (!value || value === '' || value === null) return 'Please fill in all required fields';
+                const usageLimitNum = Number(value);
+                if (isNaN(usageLimitNum) || usageLimitNum < 1) return 'Usage limit must be at least 1';
                 return null;
             default:
                 return null;
@@ -171,9 +278,30 @@ const VoucherModal = ({
                 }
             });
 
+            // Special validation: maxDiscount is required for percentage discount
+            if (formData.discountType === 'percentage') {
+                if (!formData.maxDiscount || formData.maxDiscount === '' || formData.maxDiscount === null) {
+                    errors.maxDiscount = 'Please fill in all required fields';
+                    hasErrors = true;
+                }
+            }
+
+            // Special validation: Business logic for fixed discount
+            // If minOrderValue > 0, discountValue cannot exceed minOrderValue
+            if (formData.discountType === 'fixed' && formData.minOrderValue && formData.discountValue) {
+                const minOrderNum = Number(formData.minOrderValue);
+                const discountNum = Number(formData.discountValue);
+                if (!isNaN(minOrderNum) && !isNaN(discountNum) && minOrderNum > 0 && discountNum > minOrderNum) {
+                    errors.discountValue = 'For fixed discount, the discount value cannot exceed the minimum order value';
+                    hasErrors = true;
+                }
+            }
+
             // If there are field validation errors, show them and stop
             if (hasErrors) {
                 setFieldErrors(errors);
+                // Show generic message since error messages are already displayed under each field
+                showToast("Please check the input fields again", "error");
                 setLoading(false);
                 return;
             }
@@ -187,21 +315,21 @@ const VoucherModal = ({
                 endDate: new Date(formData.endDate),
             };
 
-            if (formData.discountType === "percentage" && formData.maxDiscount !== "") {
+            if (formData.discountType === "percentage" && formData.maxDiscount !== "" && formData.maxDiscount !== null && formData.maxDiscount !== undefined) {
                 payload.maxDiscount = Number(formData.maxDiscount);
             }
 
             if (mode === 'create') {
                 payload.code = formData.code;
                 await SummaryAPI.vouchers.create(payload);
-                showToast("Voucher created successfully!", "success");
+                showToast("Voucher added successfully!", "success");
             } else {
                 if (!voucher?.id && !voucher?._id) {
                     showToast("Invalid voucher data", "error");
                     return;
                 }
                 await SummaryAPI.vouchers.update(voucher.id || voucher._id, payload);
-                showToast("Voucher updated successfully!", "success");
+                showToast("Voucher edited successfully", "success");
             }
 
             // Call success callback after a short delay
@@ -214,25 +342,104 @@ const VoucherModal = ({
             console.error("Voucher operation error:", err);
 
             let errorMessage = "An unexpected error occurred";
+            const blankFields = {};
+            let hasFieldErrors = false;
 
-            // Handle API response errors with specific messages
+            // Handle API response errors - prioritize backend message
             if (err.response?.data?.message) {
                 errorMessage = err.response.data.message;
+
+                // If error is "Please fill in all required fields", highlight blank fields
+                if (errorMessage === "Please fill in all required fields" ||
+                    errorMessage.toLowerCase().includes("fill in all required")) {
+                    // Check which fields are blank based on what was sent to backend
+                    // Required fields for create
+                    if (mode === 'create') {
+                        if (!formData.code || !formData.code.trim()) {
+                            blankFields.code = "Please fill in all required fields";
+                            hasFieldErrors = true;
+                        }
+                    }
+
+                    // Required fields for both create and update
+                    if (!formData.discountType || !formData.discountType.trim()) {
+                        blankFields.discountType = "Please fill in all required fields";
+                        hasFieldErrors = true;
+                    }
+                    if (!formData.discountValue || formData.discountValue === '' || formData.discountValue === null) {
+                        blankFields.discountValue = "Please fill in all required fields";
+                        hasFieldErrors = true;
+                    }
+                    // Check for blank, but allow 0
+                    if (formData.minOrderValue === '' || formData.minOrderValue === null || formData.minOrderValue === undefined) {
+                        blankFields.minOrderValue = "Please fill in all required fields";
+                        hasFieldErrors = true;
+                    }
+                    if (!formData.startDate || formData.startDate === '') {
+                        blankFields.startDate = "Please fill in all required fields";
+                        hasFieldErrors = true;
+                    }
+                    if (!formData.endDate || formData.endDate === '') {
+                        blankFields.endDate = "Please fill in all required fields";
+                        hasFieldErrors = true;
+                    }
+                    if (!formData.usageLimit || formData.usageLimit === '' || formData.usageLimit === null) {
+                        blankFields.usageLimit = "Please fill in all required fields";
+                        hasFieldErrors = true;
+                    }
+
+                    // For percentage discount, maxDiscount is required
+                    if (formData.discountType === "percentage") {
+                        if (!formData.maxDiscount || formData.maxDiscount === '' || formData.maxDiscount === null) {
+                            blankFields.maxDiscount = "Please fill in all required fields";
+                            hasFieldErrors = true;
+                        }
+                    }
+
+                    // Set field errors to highlight blank fields with red border
+                    if (Object.keys(blankFields).length > 0) {
+                        setFieldErrors(prev => ({ ...prev, ...blankFields }));
+                    }
+                }
             } else if (err.response?.data?.error) {
                 errorMessage = err.response.data.error;
+            } else if (err.response?.data?.message) {
+                // If we already processed the message above, don't override
+                // But if it's a different error message, use it
+                if (!errorMessage || errorMessage === "An unexpected error occurred") {
+                    errorMessage = err.response.data.message;
+                }
             } else if (err.message) {
                 errorMessage = err.message;
             }
 
-            // Handle specific HTTP status codes with backend-specific messages
-            if (err.response?.status === 400) {
-                // Backend validation errors - use the specific message from backend
-                if (err.response?.data?.message) {
-                    errorMessage = err.response.data.message;
-                } else {
-                    errorMessage = "Invalid voucher data. Please check your input.";
+            // Handle specific error messages from backend - set field errors
+            if (err.response?.data?.message) {
+                const backendMessage = err.response.data.message;
+                // Handle specific backend validation errors
+                if (backendMessage.includes('discount value cannot exceed the minimum order value')) {
+                    setFieldErrors(prev => ({
+                        ...prev,
+                        discountValue: backendMessage
+                    }));
+                    hasFieldErrors = true;
+                } else if (backendMessage.includes('Usage limit cannot be less than used count')) {
+                    setFieldErrors(prev => ({
+                        ...prev,
+                        usageLimit: backendMessage
+                    }));
+                    hasFieldErrors = true;
+                } else if (backendMessage.includes('Voucher code must contain only uppercase')) {
+                    setFieldErrors(prev => ({
+                        ...prev,
+                        code: backendMessage
+                    }));
+                    hasFieldErrors = true;
                 }
-            } else if (err.response?.status === 401) {
+            }
+
+            // Handle specific HTTP status codes
+            if (err.response?.status === 401) {
                 errorMessage = "You are not authorized to perform this action";
             } else if (err.response?.status === 403) {
                 errorMessage = "Access denied. Only admin and manager can perform this action";
@@ -242,17 +449,16 @@ const VoucherModal = ({
                 } else {
                     errorMessage = "Service not available";
                 }
-            } else if (err.response?.status === 409) {
-                errorMessage = "Voucher code already exists";
             } else if (err.response?.status >= 500) {
                 errorMessage = "Server error. Please try again later.";
-            } else if (mode === 'create') {
-                errorMessage = "Failed to create voucher";
-            } else {
-                errorMessage = "Failed to update voucher";
             }
 
-            showToast(errorMessage, "error");
+            // Show toast: if field errors are displayed, show generic message; otherwise show specific error
+            if (hasFieldErrors || Object.keys(blankFields).length > 0) {
+                showToast("Please check the input fields again", "error");
+            } else {
+                showToast(errorMessage, "error");
+            }
         } finally {
             setLoading(false);
         }
@@ -264,20 +470,15 @@ const VoucherModal = ({
         onClose();
     };
 
-    // Helper function to render field with error
+    // Helper function to render field with error (red border and error message)
     const renderFieldWithError = (name, label, children) => (
         <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-                {label}
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                {label} <span className="text-red-500">*</span>
             </label>
             {children}
             {fieldErrors[name] && (
-                <div className="mt-1 flex items-center text-sm text-red-600">
-                    <svg className="w-4 h-4 mr-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                    {fieldErrors[name]}
-                </div>
+                <p className="mt-1.5 text-sm text-red-600">{fieldErrors[name]}</p>
             )}
         </div>
     );
@@ -288,70 +489,76 @@ const VoucherModal = ({
     const isDisabled = isEditMode && formData.isDeleted;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-4xl max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-100 animate-in fade-in-0 zoom-in-95">
-                <div className="p-3 sm:p-4 lg:p-6">
-                    <div className="flex items-center justify-between mb-4 lg:mb-6">
-                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
-                            {isEditMode ? `Edit Voucher` : "Create New Voucher"}
-                        </h2>
-                        <button
-                            className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 hover:shadow-sm"
-                            onClick={handleClose}
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                            <span>Close</span>
-                        </button>
-                    </div>
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl border-2 w-full max-w-4xl max-h-[90vh] flex flex-col transform transition-all duration-300" style={{ borderColor: '#A86523' }}>
+                {/* Fixed Header */}
+                <div className="flex items-center justify-between p-3 sm:p-4 lg:p-5 border-b shrink-0" style={{ borderColor: '#A86523' }}>
+                    <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
+                        {isEditMode ? `Edit Voucher` : "Add New Voucher"}
+                    </h2>
+                    <button
+                        type="button"
+                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                        style={{ '--tw-ring-color': '#A86523' }}
+                        onClick={handleClose}
+                        aria-label="Close"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-4 lg:space-y-6">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+                {/* Scrollable Form Content */}
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+                    <form id="voucher-form" onSubmit={handleSubmit} className="space-y-5 lg:space-y-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Voucher Code
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                    Voucher Code <span className="text-red-500">*</span>
                                 </label>
                                 <input
+                                    type="text"
                                     name="code"
                                     value={formData.code}
                                     onChange={handleChange}
-                                    disabled={isEditMode} // Code should not be editable in edit mode
-                                    className={`w-full px-3 py-2 lg:px-4 lg:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm lg:text-base ${fieldErrors.code
-                                        ? 'border-red-300 bg-red-50'
-                                        : 'border-gray-300'
-                                        } ${isEditMode ? 'bg-gray-50' : 'bg-white'}`}
+                                    disabled={isEditMode}
+                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 transition-all duration-200 text-sm lg:text-base disabled:bg-gray-50 disabled:cursor-not-allowed ${fieldErrors.code
+                                        ? 'border-red-400 bg-white focus:ring-red-500 focus:border-red-500'
+                                        : 'border-gray-300 bg-white hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
+                                        }`}
                                     placeholder="Enter voucher code"
                                 />
                                 {fieldErrors.code && (
-                                    <div className="mt-1 flex items-center text-sm text-red-600">
-                                        <svg className="w-4 h-4 mr-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                        </svg>
-                                        {fieldErrors.code}
-                                    </div>
+                                    <p className="mt-1.5 text-sm text-red-600">{fieldErrors.code}</p>
                                 )}
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Discount Type
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                    Discount Type <span className="text-red-500">*</span>
                                 </label>
                                 <select
                                     name="discountType"
                                     value={formData.discountType}
                                     onChange={handleChange}
                                     disabled={isDisabled}
-                                    className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
+                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base disabled:bg-gray-50 disabled:cursor-not-allowed ${fieldErrors.discountType
+                                        ? 'border-red-400 bg-white focus:ring-red-500 focus:border-red-500'
+                                        : 'border-gray-300 hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
+                                        }`}
                                 >
                                     <option value="percentage">Percentage (%)</option>
                                     <option value="fixed">Fixed Amount (₫)</option>
                                 </select>
+                                {fieldErrors.discountType && (
+                                    <p className="mt-1.5 text-sm text-red-600">{fieldErrors.discountType}</p>
+                                )}
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    {formData.discountType === "percentage" ? "Discount (%)" : "Discount Amount (₫)"}
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                    {formData.discountType === "percentage" ? "Discount (%)" : "Discount Amount (₫)"} <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                     type="number"
@@ -359,19 +566,14 @@ const VoucherModal = ({
                                     value={formData.discountValue}
                                     onChange={handleChange}
                                     disabled={isDisabled}
-                                    className={`w-full px-3 py-2 lg:px-4 lg:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base ${fieldErrors.discountValue
-                                        ? 'border-red-300 bg-red-50'
-                                        : 'border-gray-300'
+                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base disabled:bg-gray-50 disabled:cursor-not-allowed ${fieldErrors.discountValue
+                                        ? 'border-red-400 bg-white focus:ring-red-500 focus:border-red-500'
+                                        : 'border-gray-300 hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
                                         }`}
                                     placeholder={formData.discountType === "percentage" ? "Enter percentage" : "Enter amount"}
                                 />
                                 {fieldErrors.discountValue && (
-                                    <div className="mt-1 flex items-center text-sm text-red-600">
-                                        <svg className="w-4 h-4 mr-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                        </svg>
-                                        {fieldErrors.discountValue}
-                                    </div>
+                                    <p className="mt-1.5 text-sm text-red-600">{fieldErrors.discountValue}</p>
                                 )}
                             </div>
 
@@ -382,9 +584,9 @@ const VoucherModal = ({
                                     value={formData.minOrderValue}
                                     onChange={handleChange}
                                     disabled={isDisabled}
-                                    className={`w-full px-3 py-2 lg:px-4 lg:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base ${fieldErrors.minOrderValue
-                                        ? 'border-red-300 bg-red-50'
-                                        : 'border-gray-300'
+                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base disabled:bg-gray-50 disabled:cursor-not-allowed ${fieldErrors.minOrderValue
+                                        ? 'border-red-400 bg-white focus:ring-red-500 focus:border-red-500'
+                                        : 'border-gray-300 hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
                                         }`}
                                     placeholder="Enter minimum order value"
                                 />
@@ -398,9 +600,9 @@ const VoucherModal = ({
                                         value={formData.maxDiscount}
                                         onChange={handleChange}
                                         disabled={isDisabled}
-                                        className={`w-full px-3 py-2 lg:px-4 lg:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base ${fieldErrors.maxDiscount
-                                            ? 'border-red-300 bg-red-50'
-                                            : 'border-gray-300'
+                                        className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base disabled:bg-gray-50 disabled:cursor-not-allowed ${fieldErrors.maxDiscount
+                                            ? 'border-red-400 bg-white focus:ring-red-500 focus:border-red-500'
+                                            : 'border-gray-300 hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
                                             }`}
                                         placeholder="Enter maximum discount"
                                     />
@@ -414,11 +616,9 @@ const VoucherModal = ({
                                     value={formData.startDate}
                                     onChange={handleChange}
                                     disabled={isDisabled}
-                                    min={mode === 'create' ? new Date().toISOString().split('T')[0] : undefined}
-                                    max={formData.endDate ? new Date(new Date(formData.endDate).getTime() - 24 * 60 * 60 * 1000).toISOString().split('T')[0] : undefined}
-                                    className={`w-full px-3 py-2 lg:px-4 lg:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base ${isDisabled ? 'cursor-not-allowed bg-gray-50' : ''} ${fieldErrors.startDate
-                                        ? 'border-red-300 bg-red-50 focus:ring-red-500 focus:border-red-500'
-                                        : 'border-gray-300'
+                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base disabled:bg-gray-50 disabled:cursor-not-allowed ${fieldErrors.startDate
+                                        ? 'border-red-400 bg-white focus:ring-red-500 focus:border-red-500'
+                                        : 'border-gray-300 hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
                                         }`}
                                 />
                             )}
@@ -430,10 +630,9 @@ const VoucherModal = ({
                                     value={formData.endDate}
                                     onChange={handleChange}
                                     disabled={isDisabled}
-                                    min={formData.startDate ? new Date(new Date(formData.startDate).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0] : undefined}
-                                    className={`w-full px-3 py-2 lg:px-4 lg:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base ${isDisabled ? 'cursor-not-allowed bg-gray-50' : ''} ${fieldErrors.endDate
-                                        ? 'border-red-300 bg-red-50 focus:ring-red-500 focus:border-red-500'
-                                        : 'border-gray-300'
+                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base disabled:bg-gray-50 disabled:cursor-not-allowed ${fieldErrors.endDate
+                                        ? 'border-red-400 bg-white focus:ring-red-500 focus:border-red-500'
+                                        : 'border-gray-300 hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
                                         }`}
                                 />
                             )}
@@ -445,39 +644,48 @@ const VoucherModal = ({
                                     value={formData.usageLimit}
                                     onChange={handleChange}
                                     disabled={isDisabled}
-                                    className={`w-full px-3 py-2 lg:px-4 lg:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base ${fieldErrors.usageLimit
-                                        ? 'border-red-300 bg-red-50'
-                                        : 'border-gray-300'
+                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base disabled:bg-gray-50 disabled:cursor-not-allowed ${fieldErrors.usageLimit
+                                        ? 'border-red-400 bg-white focus:ring-red-500 focus:border-red-500'
+                                        : 'border-gray-300 hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
                                         }`}
                                     placeholder="Enter usage limit"
                                 />
                             )}
                         </div>
-
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 sm:gap-4 pt-4 lg:pt-6 border-t border-gray-200">
-                            <button
-                                type="button"
-                                onClick={handleClose}
-                                className="px-4 py-2 lg:px-6 lg:py-3 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 hover:shadow-sm font-medium text-sm lg:text-base"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={loading || isDisabled}
-                                className="px-4 py-2 lg:px-6 lg:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm lg:text-base transform hover:scale-105 disabled:hover:scale-100"
-                            >
-                                {loading ? (
-                                    <div className="flex items-center space-x-2">
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                        <span>Processing...</span>
-                                    </div>
-                                ) : (
-                                    isEditMode ? "Update Voucher" : "Create Voucher"
-                                )}
-                            </button>
-                        </div>
                     </form>
+                </div>
+
+                {/* Fixed Footer */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 sm:gap-4 p-3 sm:p-4 lg:p-5 border-t shrink-0" style={{ borderColor: '#A86523' }}>
+                    <button
+                        type="button"
+                        onClick={handleClose}
+                        className="px-5 py-2.5 text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-offset-2"
+                        style={{ '--tw-ring-color': '#A86523' }}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        form="voucher-form"
+                        disabled={loading || isDisabled}
+                        className="px-6 py-2.5 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:hover:shadow-md"
+                        style={{
+                            backgroundColor: '#E9A319',
+                            '--tw-ring-color': '#A86523'
+                        }}
+                        onMouseEnter={(e) => !e.currentTarget.disabled && (e.currentTarget.style.backgroundColor = '#A86523')}
+                        onMouseLeave={(e) => !e.currentTarget.disabled && (e.currentTarget.style.backgroundColor = '#E9A319')}
+                    >
+                        {loading ? (
+                            <div className="flex items-center justify-center space-x-2">
+                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                <span>Processing...</span>
+                            </div>
+                        ) : (
+                            isEditMode ? "Edit" : "Add"
+                        )}
+                    </button>
                 </div>
             </div>
         </div>

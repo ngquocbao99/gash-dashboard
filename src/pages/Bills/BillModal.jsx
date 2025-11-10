@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import gashLogo from '../../assets/image/gash-logo.svg';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -7,6 +7,7 @@ import { useToast } from '../../hooks/useToast';
 const BillModal = ({ isOpen, onClose, billData }) => {
   const { showToast } = useToast();
   const billRef = useRef(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   if (!isOpen || !billData) {
     return null;
@@ -15,9 +16,9 @@ const BillModal = ({ isOpen, onClose, billData }) => {
   const formatPrice = (price) => {
     return price !== undefined && price !== null
       ? new Intl.NumberFormat('vi-VN', {
-          style: 'currency',
-          currency: 'VND'
-        }).format(price)
+        style: 'currency',
+        currency: 'VND'
+      }).format(price)
       : 'N/A';
   };
 
@@ -189,22 +190,25 @@ const BillModal = ({ isOpen, onClose, billData }) => {
       pdf.save(`invoice_${billData.order?.orderId || billData.order?._id || 'bill'}.pdf`);
 
       document.body.removeChild(pdfContent);
-      showToast('PDF exported successfully!', 'success');
+      showToast('PDF exported successfully', 'success');
     } catch (err) {
       showToast('Failed to export PDF', 'error');
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-4xl transform transition-all duration-300 scale-100 animate-in fade-in-0 zoom-in-95 overflow-y-auto max-h-[90vh]">
-        <div className="sticky top-0 bg-white z-10 p-4 lg:p-6 border-b border-gray-200">
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl border-2 w-full max-w-4xl transform transition-all duration-300 scale-100 animate-in fade-in-0 zoom-in-95 overflow-y-auto max-h-[90vh] flex flex-col" style={{ borderColor: '#A86523' }}>
+        <div className="sticky top-0 bg-white z-10 p-3 sm:p-4 lg:p-5 border-b shrink-0" style={{ borderColor: '#A86523' }}>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <h2 className="text-xl lg:text-2xl font-bold text-gray-900">Bill Details</h2>
-            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+            <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">Bill Details</h2>
+            <div className="flex items-center gap-2 lg:gap-3 w-full sm:w-auto justify-end">
               <button
                 onClick={handleExportPDF}
-                className="px-4 py-2 lg:px-6 lg:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md font-medium text-sm lg:text-base flex items-center space-x-2"
+                className="px-3 lg:px-4 py-2 lg:py-3 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md font-medium text-xs lg:text-sm flex items-center space-x-2"
+                style={{ backgroundColor: '#E9A319' }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#A86523'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#E9A319'}
               >
                 <svg className="w-4 h-4 lg:w-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -213,9 +217,12 @@ const BillModal = ({ isOpen, onClose, billData }) => {
               </button>
               <button
                 onClick={onClose}
-                className="px-4 py-2 lg:px-6 lg:py-3 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 hover:shadow-sm font-medium text-sm lg:text-base"
+                className="p-2 lg:p-2.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all duration-200"
+                aria-label="Close modal"
               >
-                Close
+                <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
           </div>
@@ -316,12 +323,11 @@ const BillModal = ({ isOpen, onClose, billData }) => {
                 <div className="text-gray-700 space-y-2">
                   <p><span className="font-semibold">Method:</span> {billData.order?.paymentMethod || 'N/A'}</p>
                   <p><span className="font-semibold">Payment Status:</span>
-                    <span className={`ml-2 px-3 py-1 rounded-full text-sm font-medium ${
-                      billData.order?.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' :
+                    <span className={`ml-2 px-3 py-1 rounded-full text-sm font-medium ${billData.order?.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' :
                       billData.order?.paymentStatus === 'unpaid' ? 'bg-yellow-100 text-yellow-800' :
-                      billData.order?.paymentStatus === 'refunded' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
+                        billData.order?.paymentStatus === 'refunded' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                      }`}>
                       {billData.order?.paymentStatus ? billData.order.paymentStatus.charAt(0).toUpperCase() + billData.order.paymentStatus.slice(1) : 'N/A'}
                     </span>
                   </p>
