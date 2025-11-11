@@ -1,6 +1,7 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { ToastContext } from './ToastContext'; // Adjust path if needed
 
 export const AuthContext = createContext();
 
@@ -9,9 +10,12 @@ export const AuthProvider = ({ children }) => {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Simple session expiration handler
+  // Use Toast context
+  const { showToast } = useContext(ToastContext);
+
+  // Handle session expiration with toast
   const handleSessionExpired = () => {
-    alert('Your session has expired. You will be logged out.');
+    showToast('Your session has expired. You will be logged out.', 'error');
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('loginTime');
@@ -19,7 +23,7 @@ export const AuthProvider = ({ children }) => {
     navigate('/login');
   };
 
-  // Check session on app load and set up timer
+  // Check session on app load and set up expiration timer
   useEffect(() => {
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
@@ -27,29 +31,31 @@ export const AuthProvider = ({ children }) => {
 
     if (token && storedUser && loginTime) {
       const currentTime = Date.now();
-      const sessionDuration = 24 * 60 * 60 * 1000; // 1 day in milliseconds
+      const sessionDuration = 24 * 60 * 60 * 1000; // 1 day
       const timeElapsed = currentTime - parseInt(loginTime);
 
       if (timeElapsed >= sessionDuration) {
-        // Session already expired
         handleSessionExpired();
         setIsAuthLoading(false);
       } else {
-        // Session still valid, set user and create timer for remaining time
         setUser(JSON.parse(storedUser));
         const remainingTime = sessionDuration - timeElapsed;
-        
-        setTimeout(() => {
+
+        const timer = setTimeout(() => {
           handleSessionExpired();
         }, remainingTime);
-        setIsAuthLoading(false);
+
+        setIsAuthLoading(false); // Added this to ensure loading state is cleared on valid session
+
+        // Cleanup timer on unmount
+        return () => clearTimeout(timer);
       }
     } else {
       setIsAuthLoading(false);
     }
   }, []);
 
-  // Add axios interceptor for 401 responses
+  // Axios interceptor for 401 responses
   useEffect(() => {
     const interceptor = axios.interceptors.response.use(
       (response) => response,
@@ -73,71 +79,75 @@ export const AuthProvider = ({ children }) => {
 
       const { token, account } = response.data;
 
-      // Restrict login to admin or manager roles
+      // Restrict to admin or manager only
       if (!['admin', 'manager'].includes(account.role)) {
-        throw new Error('Access denied: Only admin or manager roles are allowed');
+        showToast('Only admin or manager roles are allowed', 'error');
+        return;
       }
 
-      // Restrict access to /accounts and /statistics for non-admins
+      // Block non-admins from protected routes after login
       if (account.role !== 'admin' && window.location.pathname.match(/^\/(accounts|statistics)/)) {
+        showToast('You do not have permission to access this page.', 'error');
         navigate('/');
+        return;
       }
 
       const loginTime = Date.now().toString();
-
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(account));
       localStorage.setItem('loginTime', loginTime);
-      
       setUser(account);
 
-      // Set 1-day timer for auto logout
+      // Auto logout after 24 hours
       setTimeout(() => {
         handleSessionExpired();
-      }, 24 * 60 * 60 * 1000); // 1 day
+      }, 24 * 60 * 60 * 1000);
 
       navigate('/');
     } catch (error) {
-      throw new Error(error.response?.data?.message || error.message || 'Login failed');
+      const message = error.response?.data?.message || error.message || 'Login failed';
+      showToast(message, 'error');
     }
   };
 
   const signup = async (userData) => {
     try {
-      // Validate role in userData before sending to server
+      // Client-side role validation
       if (!['admin', 'manager'].includes(userData.role)) {
-        throw new Error('Access denied: Only admin or manager roles are allowed');
+        showToast('Only admin or manager roles are allowed', 'error');
+        return;
       }
 
       const response = await axios.post('http://localhost:5000/auth/register', userData);
       const { token, account } = response.data;
 
-      // Double-check role from server response
+      // Server-side role double-check
       if (!['admin', 'manager'].includes(account.role)) {
-        throw new Error('Access denied: Only admin or manager roles are allowed');
+        showToast('Invalid role assigned by server', 'error');
+        return;
       }
 
-      // Restrict access to /accounts and /statistics for non-admins
       if (account.role !== 'admin' && window.location.pathname.match(/^\/(accounts|statistics)/)) {
+        showToast('You do not have permission to access this page.', 'error');
         navigate('/');
+        return;
       }
 
       const loginTime = Date.now().toString();
-
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(account));
       localStorage.setItem('loginTime', loginTime);
-      
       setUser(account);
 
-      // Set 1-day timer for auto logout
       setTimeout(() => {
         handleSessionExpired();
-      }, 24 * 60 * 60 * 1000); // 1 day
+      }, 24 * 60 * 60 * 1000);
 
+      showToast('Account created successfully!', 'success');
       navigate('/');
     } catch (error) {
-      throw new Error(error.response?.data?.message || error.message || 'Signup failed');
+      const message = error.response?.data?.message || error.message || 'Signup failed';
+      showToast(message, 'error');
     }
   };
 

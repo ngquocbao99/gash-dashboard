@@ -498,23 +498,43 @@ const Orders = () => {
     }
   }, [user, isAuthLoading, navigate, fetchOrders]);
 
-  useEffect(() => {
-    if (!user?._id) return;
-    if (!socketRef.current) {
-      socketRef.current = io(
-        import.meta.env.VITE_API_URL || "http://localhost:5000",
-        {
-          transports: ["websocket"],
-          withCredentials: true,
-        }
-      );
-    }
-    const socket = socketRef.current;
-    socket.on("orderUpdated", () => fetchOrders());
-    return () => {
-      socket.off("orderUpdated");
-    };
-  }, [user, fetchOrders]);
+useEffect(() => {
+  if (!user?._id) return;
+
+  if (!socketRef.current) {
+    socketRef.current = io(
+      import.meta.env.VITE_API_URL || "http://localhost:5000",
+      {
+        transports: ["websocket"],
+        withCredentials: true,
+      }
+    );
+  }
+
+  const socket = socketRef.current;
+
+  // Updated handler: receive full order object from backend
+  socket.on("orderUpdated", (payload) => {
+    const updatedOrder = payload.order || payload; // backend sends { userId, order }
+
+    setOrders((prevOrders) =>
+      prevOrders.map((o) =>
+        o._id === updatedOrder._id ? { ...o, ...updatedOrder } : o
+      )
+    );
+
+    // Also update filteredOrders immediately so UI reflects change without re-filter
+    setFilteredOrders((prevFiltered) =>
+      prevFiltered.map((o) =>
+        o._id === updatedOrder._id ? { ...o, ...updatedOrder } : o
+      )
+    );
+  });
+
+  return () => {
+    socket.off("orderUpdated");
+  };
+}, [user]);
 
   const totalPages = Math.ceil(filteredOrders.length / rowsPerPage);
   const startIndex = (currentPage - 1) * rowsPerPage;
