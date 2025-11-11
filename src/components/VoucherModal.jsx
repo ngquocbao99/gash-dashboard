@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { ToastContext } from '../../context/ToastContext';
-import SummaryAPI from '../../common/SummaryAPI';
+import { ToastContext } from '../context/ToastContext';
+import SummaryAPI from '../common/SummaryAPI';
 
 const VoucherModal = ({
     isOpen,
@@ -693,3 +693,4 @@ const VoucherModal = ({
 };
 
 export default VoucherModal;
+

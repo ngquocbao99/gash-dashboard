@@ -5,10 +5,9 @@ import { AuthContext } from '../../context/AuthContext';
 import { ToastContext } from '../../context/ToastContext';
 import '../../styles/Products.css';
 import Api from '../../common/SummaryAPI';
-import CreateProductModal from './CreateProductModal';
-import EditProductModal from './EditProductModal';
+import ProductModal from '../../components/ProductModal';
 import ProductDetailsModal from './ProductDetailsModal';
-import CreateVariantModal from '../ProductVariant/CreateVariantModal';
+import VariantModal from '../../components/VariantModal';
 import ImageModal from '../../components/ImageModal';
 import axiosClient from '../../common/axiosClient';
 import Loading from '../../components/Loading';
@@ -1079,7 +1078,7 @@ const Products = () => {
       )}
 
       {/* Add Variant Modal */}
-      <CreateVariantModal
+      <VariantModal
         isOpen={showAddVariantModal}
         onClose={handleCloseAddVariantModal}
         product={selectedProductForVariant}
@@ -1118,7 +1117,7 @@ const Products = () => {
       />
 
       {/* Create Product Modal */}
-      <CreateProductModal
+      <ProductModal
         isOpen={showCreateModal}
         onClose={handleCloseCreateModal}
         onSubmit={createProduct}
@@ -1128,7 +1127,7 @@ const Products = () => {
       />
 
       {/* Edit Product Modal */}
-      <EditProductModal
+      <ProductModal
         isOpen={showEditModal}
         onClose={handleCloseEditModal}
         onSubmit={updateProduct}

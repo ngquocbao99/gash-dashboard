@@ -2,8 +2,7 @@
 import React, { useState, useCallback, useContext, useEffect, useMemo } from 'react';
 import { FaPlus, FaEdit } from 'react-icons/fa';
 import { ToastContext } from '../../context/ToastContext';
-import CreateVariantModal from '../ProductVariant/CreateVariantModal';
-import EditVariantModal from '../ProductVariant/EditVariantModal';
+import VariantModal from '../../components/VariantModal';
 import ProductVariantList from '../ProductVariant/ProductVariantList';
 import ImageModal from '../../components/ImageModal';
 
@@ -351,7 +350,7 @@ const ProductDetailsModal = ({
             </div>
 
             {/* Create Variant Modal */}
-            <CreateVariantModal
+            <VariantModal
                 isOpen={showCreateVariant}
                 onClose={handleCloseCreateModal}
                 product={product}
@@ -361,7 +360,7 @@ const ProductDetailsModal = ({
             />
 
             {/* Edit Variant Modal */}
-            <EditVariantModal
+            <VariantModal
                 isOpen={!!editingVariant}
                 onClose={handleCloseEditModal}
                 variant={editingVariant}

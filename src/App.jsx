@@ -11,8 +11,8 @@ import { AuthProvider, AuthContext } from "./context/AuthContext.jsx";
 import { ToastProvider } from "./components/Toast.jsx";
 
 // ==== Import các component hiện có ====
-import Products from "./pages/Product/Products.jsx";
-import ProductVariants from "./pages/Variant/ProductVariants.jsx";
+import Products from "./pages/ProductManagement/Products.jsx";
+import ProductVariants from "./pages/VariantManagement/ProductVariants.jsx";
 import Login from "./pages/Login.jsx";
 import Profile from "./pages/Profile.jsx";
 import Orders from "./pages/Order/Orders.jsx";
@@ -30,7 +30,7 @@ import Accounts from "./pages/Account/Accounts.jsx";
 import Feedbacks from "./pages/Feedback/Feedbacks.jsx";
 import Bills from "./pages/Bills/Bill.jsx";
 import Layout from "./pages/Layout.jsx";
-import Vouchers from "./pages/Voucher/Vouchers.jsx";
+import Vouchers from "./pages/VoucherManagement/Vouchers.jsx";
 import AdminChat from "./pages/AdminChat.jsx";
 import Notifications from "./pages/Notifications.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";

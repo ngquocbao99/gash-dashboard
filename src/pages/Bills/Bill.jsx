@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useContext, useCallback } from "react";
 import { ToastContext } from "../../context/ToastContext";
 import SummaryAPI from "../../common/SummaryAPI";
-import BillModal from "./BillModal";
+import BillModal from "../../components/BillModal";
 import Loading from "../../components/Loading";
 
 export default function Bills() {

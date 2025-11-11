@@ -2,7 +2,7 @@ import React, { useEffect, useState, useContext, useCallback } from "react";
 import { ToastContext } from "../../context/ToastContext";
 import Api from "../../common/SummaryAPI";
 import { FaEdit, FaTrash } from 'react-icons/fa';
-import EditVariantModal from "./EditVariantModal";
+import VariantModal from "../../components/VariantModal";
 
 const ProductVariants = () => {
   const { showToast } = useContext(ToastContext);
@@ -20,6 +20,8 @@ const ProductVariants = () => {
   const [itemsPerPage] = useState(5); // Number of products per page
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [colors, setColors] = useState([]);
+  const [sizes, setSizes] = useState([]);
 
   // Fetch variants
   const fetchVariants = useCallback(async () => {
@@ -49,9 +51,96 @@ const ProductVariants = () => {
     }
   }, [showToast]);
 
+  // Helper functions for data extraction
+  const toIdString = useCallback((value) => {
+    if (!value) return '';
+    if (typeof value === 'object') {
+      if (value._id) return String(value._id);
+      if (value.id) return String(value.id);
+    }
+    return String(value);
+  }, []);
+
+  const extractDataArray = useCallback((response) => {
+    if (!response) return [];
+    if (Array.isArray(response)) return response;
+    if (Array.isArray(response.data)) return response.data;
+    if (Array.isArray(response?.data?.data)) return response.data.data;
+    if (response.success && Array.isArray(response.data)) return response.data;
+    return [];
+  }, []);
+
+  // Fetch colors
+  const fetchColors = useCallback(async () => {
+    try {
+      const response = await Api.colors.getAll();
+      const rawColors = extractDataArray(response);
+      const normalized = rawColors
+        .map((color) => ({
+          ...color,
+          color_name: (color.color_name || '').trim(),
+        }))
+        .filter((color) => color.color_name);
+
+      const uniqueMap = new Map();
+      normalized.forEach((color) => {
+        const key = toIdString(color._id || color.id);
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, color);
+        }
+      });
+
+      const sorted = Array.from(uniqueMap.values()).sort((a, b) => {
+        if (Boolean(a.isDeleted) !== Boolean(b.isDeleted)) {
+          return a.isDeleted ? 1 : -1;
+        }
+        return (a.color_name || '').localeCompare(b.color_name || '');
+      });
+
+      setColors(sorted);
+    } catch (err) {
+      setColors([]);
+    }
+  }, [extractDataArray, toIdString]);
+
+  // Fetch sizes
+  const fetchSizes = useCallback(async () => {
+    try {
+      const response = await Api.sizes.getAll();
+      const rawSizes = extractDataArray(response);
+      const normalized = rawSizes
+        .map((size) => ({
+          ...size,
+          size_name: (size.size_name || '').trim(),
+        }))
+        .filter((size) => size.size_name);
+
+      const uniqueMap = new Map();
+      normalized.forEach((size) => {
+        const key = toIdString(size._id || size.id);
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, size);
+        }
+      });
+
+      const sorted = Array.from(uniqueMap.values()).sort((a, b) => {
+        if (Boolean(a.isDeleted) !== Boolean(b.isDeleted)) {
+          return a.isDeleted ? 1 : -1;
+        }
+        return (a.size_name || '').localeCompare(b.size_name || '');
+      });
+
+      setSizes(sorted);
+    } catch (err) {
+      setSizes([]);
+    }
+  }, [extractDataArray, toIdString]);
+
   useEffect(() => {
     fetchVariants();
-  }, [fetchVariants]);
+    fetchColors();
+    fetchSizes();
+  }, [fetchVariants, fetchColors, fetchSizes]);
 
   // Edit variant
   const handleEdit = (variant) => {
@@ -65,11 +154,12 @@ const ProductVariants = () => {
     setEditingVariant(null);
   };
 
-  // Handle successful operation
-  const handleSuccess = () => {
+  // Handle variant updated
+  const handleVariantUpdated = useCallback(() => {
     fetchVariants();
-    closeModal();
-  };
+    setShowModal(false);
+    setEditingVariant(null);
+  }, [fetchVariants]);
 
   // Toggle filters
   const toggleFilters = () => {
@@ -237,12 +327,17 @@ const ProductVariants = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-2 sm:p-3 lg:p-4 xl:p-6">
       {/* Edit Variant Modal */}
-      <EditVariantModal
-        isOpen={showModal}
-        onClose={closeModal}
-        variant={editingVariant}
-        onSuccess={handleSuccess}
-      />
+      {editingVariant && (
+        <VariantModal
+          isOpen={showModal}
+          onClose={closeModal}
+          variant={editingVariant}
+          product={editingVariant.productId || editingVariant.product}
+          colors={colors}
+          sizes={sizes}
+          onVariantUpdated={handleVariantUpdated}
+        />
+      )}
 
       {/* Main Variant Management UI */}
       <div>
@@ -478,11 +573,10 @@ const ProductVariants = () => {
                               </td>
                               <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
                                 <span
-                                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize ${
-                                    variant.variantStatus === 'active' ? 'bg-green-100 text-green-800' :
+                                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize ${variant.variantStatus === 'active' ? 'bg-green-100 text-green-800' :
                                     variant.variantStatus === 'inactive' ? 'bg-red-100 text-red-800' :
-                                    'bg-gray-100 text-gray-800'
-                                  }`}
+                                      'bg-gray-100 text-gray-800'
+                                    }`}
                                 >
                                   {variant.variantStatus || 'unknown'}
                                 </span>
@@ -492,11 +586,10 @@ const ProductVariants = () => {
                                   <button
                                     onClick={() => handleEdit(variant)}
                                     disabled={inactive}
-                                    className={`p-1.5 rounded-lg transition-all duration-200 border ${
-                                      inactive
-                                        ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
-                                        : 'text-blue-600 hover:text-blue-800 hover:bg-blue-100 border-blue-200 hover:border-blue-300'
-                                    }`}
+                                    className={`p-1.5 rounded-lg transition-all duration-200 border ${inactive
+                                      ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
+                                      : 'text-blue-600 hover:text-blue-800 hover:bg-blue-100 border-blue-200 hover:border-blue-300'
+                                      }`}
                                     title="Edit Variant"
                                   >
                                     <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -506,11 +599,10 @@ const ProductVariants = () => {
                                   <button
                                     onClick={() => handleDeleteClick(variant)}
                                     disabled={inactive}
-                                    className={`p-1.5 rounded-lg transition-all duration-200 border ${
-                                      inactive
-                                        ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
-                                        : 'text-red-600 hover:text-red-800 hover:bg-red-100 border-red-200 hover:border-red-300'
-                                    }`}
+                                    className={`p-1.5 rounded-lg transition-all duration-200 border ${inactive
+                                      ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
+                                      : 'text-red-600 hover:text-red-800 hover:bg-red-100 border-red-200 hover:border-red-300'
+                                      }`}
                                     title="Deactivate Variant"
                                   >
                                     <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -551,11 +643,10 @@ const ProductVariants = () => {
                         <button
                           key={idx + 1}
                           onClick={() => handlePageChange(idx + 1)}
-                          className={`px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-                            currentPage === idx + 1
-                              ? 'bg-blue-600 text-white border border-blue-600'
-                              : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50 hover:text-gray-700'
-                          }`}
+                          className={`px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${currentPage === idx + 1
+                            ? 'bg-blue-600 text-white border border-blue-600'
+                            : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50 hover:text-gray-700'
+                            }`}
                           aria-label={`Page ${idx + 1}`}
                         >
                           {idx + 1}

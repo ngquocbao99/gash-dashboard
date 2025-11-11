@@ -1,27 +1,31 @@
-// CreateProductModal.jsx
+// ProductModal.jsx - Combined Create and Edit Product Modal
 import React, { useState, useCallback, useContext, useRef, useEffect } from 'react';
 import { FaStar } from 'react-icons/fa';
 import { MdFormatBold, MdFormatItalic, MdFormatListBulleted, MdFormatListNumbered, MdLink, MdFormatUnderlined, MdLooksOne, MdLooksTwo, MdLooks3 } from 'react-icons/md';
-import { ToastContext } from '../../context/ToastContext';
-import Api from '../../common/SummaryAPI';
+import { ToastContext } from '../context/ToastContext';
+import Api from '../common/SummaryAPI';
 
-const CreateProductModal = ({
+const ProductModal = ({
     isOpen,
     onClose,
     onSubmit,
+    product, // Optional: if provided, it's edit mode
     categories,
     loading,
     error
 }) => {
     const { showToast } = useContext(ToastContext);
+    const isEditMode = !!product;
+
     const [formData, setFormData] = useState({
         productName: '',
         categoryId: '',
         description: '',
         productStatus: 'active',
+        productImageIds: []
     });
-    const [images, setImages] = useState([]);
-    const [imagePreviews, setImagePreviews] = useState([]);
+    const [newImages, setNewImages] = useState([]);
+    const [newImagePreviews, setNewImagePreviews] = useState([]);
     const [mainImageIndex, setMainImageIndex] = useState(0);
     const [validationErrors, setValidationErrors] = useState({});
     const descriptionRef = useRef(null);
@@ -66,6 +70,54 @@ const CreateProductModal = ({
             };
         }
     }, []);
+
+    // Initialize form data when product changes (edit mode)
+    useEffect(() => {
+        if (isEditMode && product && isOpen) {
+            const initialData = {
+                productName: product.productName || '',
+                categoryId: product.categoryId?._id || product.categoryId || '',
+                description: product.description || '',
+                productStatus: product.productStatus || 'active',
+                productImageIds: product.productImageIds || []
+            };
+            setFormData(initialData);
+            setNewImages([]);
+            setNewImagePreviews([]);
+            // Find the main image index
+            const mainIndex = product.productImageIds?.findIndex(img => img.isMain) || 0;
+            setMainImageIndex(mainIndex >= 0 ? mainIndex : 0);
+
+            // Set description HTML
+            if (descriptionRef.current) {
+                descriptionRef.current.innerHTML = initialData.description;
+            }
+        } else if (!isEditMode && isOpen) {
+            // Reset form for create mode
+            setFormData({
+                productName: '',
+                categoryId: '',
+                description: '',
+                productStatus: 'active',
+                productImageIds: []
+            });
+            setNewImages([]);
+            setNewImagePreviews([]);
+            setMainImageIndex(0);
+            setValidationErrors({});
+            if (descriptionRef.current) {
+                descriptionRef.current.innerHTML = '';
+            }
+        }
+    }, [product, isOpen, isEditMode]);
+
+    // Set initial description HTML for create mode
+    useEffect(() => {
+        if (!isEditMode && isOpen && descriptionRef.current) {
+            descriptionRef.current.innerHTML = formData.description;
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, isEditMode]);
 
     // Validate individual field
     const validateField = useCallback((name, value, currentFormData = formData) => {
@@ -116,18 +168,35 @@ const CreateProductModal = ({
         if (descriptionError) errors.description = descriptionError;
 
         // Validate images
-        if (images.length === 0) {
-            errors.images = 'Please fill in all required fields';
+        if (isEditMode) {
+            // Edit mode: combine existing and new images
+            const hasExistingImages = formData.productImageIds && formData.productImageIds.length > 0;
+            const hasNewImages = newImages.length > 0;
+            const allImagesCount = (formData.productImageIds?.length || 0) + newImages.length;
+
+            if (!hasExistingImages && !hasNewImages) {
+                errors.images = 'Please fill in all required fields';
+            } else {
+                // Validate mainImageIndex is valid (within range of all images)
+                if (mainImageIndex < 0 || mainImageIndex >= allImagesCount) {
+                    errors.images = 'Exactly one product image must have isMain set to true';
+                }
+            }
         } else {
-            // Validate mainImageIndex is valid (within range)
-            if (mainImageIndex < 0 || mainImageIndex >= images.length) {
-                errors.images = 'Exactly one product image must have isMain set to true';
+            // Create mode: only new images
+            if (newImages.length === 0) {
+                errors.images = 'Please fill in all required fields';
+            } else {
+                // Validate mainImageIndex is valid (within range)
+                if (mainImageIndex < 0 || mainImageIndex >= newImages.length) {
+                    errors.images = 'Exactly one product image must have isMain set to true';
+                }
             }
         }
 
         setValidationErrors(errors);
         return Object.keys(errors).length === 0;
-    }, [formData, images, mainImageIndex, validateField]);
+    }, [formData, newImages, mainImageIndex, validateField, isEditMode]);
 
     // Handle field change with real-time validation
     const handleFieldChange = useCallback((field, value) => {
@@ -175,8 +244,8 @@ const CreateProductModal = ({
         }
     }, []);
 
-    // Handle multiple image file selection
-    const handleImageFilesChange = useCallback((e) => {
+    // Handle new image file selection
+    const handleNewImageFilesChange = useCallback((e) => {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
 
@@ -188,22 +257,24 @@ const CreateProductModal = ({
             return;
         }
 
-        setImages(prev => [...prev, ...files]);
+        setNewImages(prev => [...prev, ...files]);
 
         // Create previews
         files.forEach(file => {
             const reader = new FileReader();
             reader.onloadend = () => {
-                setImagePreviews(prev => [...prev, reader.result]);
+                setNewImagePreviews(prev => [...prev, reader.result]);
             };
             reader.readAsDataURL(file);
         });
     }, []);
 
-    // Remove an image
-    const removeImage = useCallback((index) => {
-        setImages(prev => prev.filter((_, i) => i !== index));
-        setImagePreviews(prev => prev.filter((_, i) => i !== index));
+    // Remove an existing image (edit mode only)
+    const removeExistingImage = useCallback((index) => {
+        setFormData(prev => ({
+            ...prev,
+            productImageIds: prev.productImageIds.filter((_, i) => i !== index)
+        }));
         // Adjust main image index if needed
         if (mainImageIndex === index) {
             setMainImageIndex(0);
@@ -212,6 +283,26 @@ const CreateProductModal = ({
         }
     }, [mainImageIndex]);
 
+    // Remove a new image
+    const removeNewImage = useCallback((index) => {
+        setNewImages(prev => prev.filter((_, i) => i !== index));
+        setNewImagePreviews(prev => prev.filter((_, i) => i !== index));
+        // Adjust main image index if needed
+        if (isEditMode) {
+            const adjustedIndex = index + (formData.productImageIds?.length || 0);
+            if (mainImageIndex === adjustedIndex) {
+                setMainImageIndex(0);
+            } else if (mainImageIndex > adjustedIndex) {
+                setMainImageIndex(prev => prev - 1);
+            }
+        } else {
+            if (mainImageIndex === index) {
+                setMainImageIndex(0);
+            } else if (mainImageIndex > index) {
+                setMainImageIndex(prev => prev - 1);
+            }
+        }
+    }, [formData.productImageIds, mainImageIndex, isEditMode]);
 
     // Handle form submit
     const handleSubmit = useCallback(async (e) => {
@@ -225,29 +316,66 @@ const CreateProductModal = ({
         }
 
         try {
-            // Upload all images
-            const uploadedImageUrls = await Promise.all(
-                images.map(file => uploadSingleImage(file))
-            );
+            if (isEditMode) {
+                // Edit mode: Upload new images if any
+                let updatedImageData = [...(formData.productImageIds || [])];
 
-            // Validate that all images were uploaded successfully
-            const failedUploads = uploadedImageUrls.filter(url => !url || url === '');
-            if (failedUploads.length > 0) {
-                showToast('Some images failed to upload. Please try again.', 'error');
-                return;
+                if (newImages.length > 0) {
+                    const uploadedImageUrls = await Promise.all(
+                        newImages.map(file => uploadSingleImage(file))
+                    );
+
+                    // Validate that all images were uploaded successfully
+                    const failedUploads = uploadedImageUrls.filter(url => !url || url === '');
+                    if (failedUploads.length > 0) {
+                        showToast('Some images failed to upload. Please try again.', 'error');
+                        return;
+                    }
+
+                    // Add new images to the array
+                    const newImageData = uploadedImageUrls.map(url => ({
+                        imageUrl: url,
+                        isMain: false
+                    }));
+                    updatedImageData = [...updatedImageData, ...newImageData];
+                }
+
+                // Set the main image
+                updatedImageData = updatedImageData.map((img, index) => ({
+                    ...img,
+                    isMain: index === mainImageIndex
+                }));
+
+                // Call parent onSubmit with updated data
+                await onSubmit({
+                    ...formData,
+                    productImageIds: updatedImageData,
+                });
+            } else {
+                // Create mode: Upload all images
+                const uploadedImageUrls = await Promise.all(
+                    newImages.map(file => uploadSingleImage(file))
+                );
+
+                // Validate that all images were uploaded successfully
+                const failedUploads = uploadedImageUrls.filter(url => !url || url === '');
+                if (failedUploads.length > 0) {
+                    showToast('Some images failed to upload. Please try again.', 'error');
+                    return;
+                }
+
+                // Prepare image data with isMain flag
+                const imageData = uploadedImageUrls.map((url, index) => ({
+                    imageUrl: url,
+                    isMain: index === mainImageIndex
+                }));
+
+                // Call parent onSubmit with form data and images
+                await onSubmit({
+                    ...formData,
+                    productImageIds: imageData,
+                });
             }
-
-            // Prepare image data with isMain flag
-            const imageData = uploadedImageUrls.map((url, index) => ({
-                imageUrl: url,
-                isMain: index === mainImageIndex
-            }));
-
-            // Call parent onSubmit with form data and images
-            await onSubmit({
-                ...formData,
-                productImageIds: imageData,
-            });
 
             // Reset form
             setFormData({
@@ -255,13 +383,14 @@ const CreateProductModal = ({
                 categoryId: '',
                 description: '',
                 productStatus: 'active',
+                productImageIds: []
             });
-            setImages([]);
-            setImagePreviews([]);
+            setNewImages([]);
+            setNewImagePreviews([]);
             setMainImageIndex(0);
             setValidationErrors({});
         } catch (err) {
-            console.error("Create product error:", err);
+            console.error(`${isEditMode ? 'Edit' : 'Add'} product error:`, err);
 
             let errorMessage = "An unexpected error occurred";
             const blankFields = {};
@@ -270,9 +399,10 @@ const CreateProductModal = ({
             // Handle API response errors - prioritize backend message
             if (err.response?.data?.message) {
                 errorMessage = err.response.data.message;
-                // Extract actual message if wrapped in "Failed to create product: "
-                if (errorMessage.includes('Failed to create product: ')) {
-                    errorMessage = errorMessage.replace('Failed to create product: ', '');
+                // Extract actual message if wrapped
+                const prefix = isEditMode ? 'Failed to update product: ' : 'Failed to create product: ';
+                if (errorMessage.includes(prefix)) {
+                    errorMessage = errorMessage.replace(prefix, '');
                 }
 
                 // If error is "Please fill in all required fields", highlight blank fields
@@ -290,9 +420,18 @@ const CreateProductModal = ({
                         blankFields.description = "Please fill in all required fields";
                         hasFieldErrors = true;
                     }
-                    if (images.length === 0) {
-                        blankFields.images = "Please fill in all required fields";
-                        hasFieldErrors = true;
+                    if (isEditMode) {
+                        const hasExistingImages = formData.productImageIds && formData.productImageIds.length > 0;
+                        const hasNewImages = newImages.length > 0;
+                        if (!hasExistingImages && !hasNewImages) {
+                            blankFields.images = "Please fill in all required fields";
+                            hasFieldErrors = true;
+                        }
+                    } else {
+                        if (newImages.length === 0) {
+                            blankFields.images = "Please fill in all required fields";
+                            hasFieldErrors = true;
+                        }
                     }
                     if (Object.keys(blankFields).length > 0) {
                         setValidationErrors(prev => ({ ...prev, ...blankFields }));
@@ -331,6 +470,12 @@ const CreateProductModal = ({
                         productName: 'Product with this name already exists'
                     }));
                     hasFieldErrors = true;
+                } else if (backendMessage.includes('Product not found')) {
+                    errorMessage = 'Product not found';
+                } else if (backendMessage.includes('Cannot update a discontinued product')) {
+                    errorMessage = 'Cannot update a discontinued product';
+                } else if (backendMessage.includes('Invalid product ID')) {
+                    errorMessage = 'Invalid product ID';
                 } else if (backendMessage.includes('Product status must be')) {
                     setValidationErrors(prev => ({
                         ...prev,
@@ -346,7 +491,7 @@ const CreateProductModal = ({
             } else if (err.response?.status === 403) {
                 errorMessage = "Access denied. Only admin and manager can perform this action";
             } else if (err.response?.status === 404) {
-                errorMessage = "Service not available";
+                errorMessage = isEditMode ? "Product not found" : "Service not available";
             } else if (err.response?.status >= 500) {
                 errorMessage = "Server error. Please try again later.";
             }
@@ -358,7 +503,7 @@ const CreateProductModal = ({
                 showToast(errorMessage, "error");
             }
         }
-    }, [formData, images, mainImageIndex, uploadSingleImage, onSubmit, validateForm, showToast]);
+    }, [formData, newImages, mainImageIndex, uploadSingleImage, onSubmit, validateForm, showToast, isEditMode]);
 
     // Reset form when modal closes
     const handleClose = useCallback(() => {
@@ -367,23 +512,30 @@ const CreateProductModal = ({
             categoryId: '',
             description: '',
             productStatus: 'active',
+            productImageIds: []
         });
-        setImages([]);
-        setImagePreviews([]);
+        setNewImages([]);
+        setNewImagePreviews([]);
         setMainImageIndex(0);
         setValidationErrors({});
         onClose();
     }, [onClose]);
 
-    // Set initial description HTML
-    useEffect(() => {
-        if (isOpen && descriptionRef.current) {
-            descriptionRef.current.innerHTML = formData.description;
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen]);
-
     if (!isOpen) return null;
+    if (isEditMode && !product) return null;
+
+    // Combine images for display (edit mode only)
+    const allImages = isEditMode ? [
+        ...(formData.productImageIds || []),
+        ...newImagePreviews.map((preview, index) => ({
+            imageUrl: preview,
+            isMain: false,
+            isNew: true,
+            newIndex: index
+        }))
+    ] : [];
+
+    const hasNoVariants = isEditMode && product?.productVariantIds?.length === 0;
 
     return (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
@@ -396,7 +548,9 @@ const CreateProductModal = ({
                     className="flex items-center justify-between p-3 sm:p-4 lg:p-5 border-b shrink-0"
                     style={{ borderColor: '#A86523' }}
                 >
-                    <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">Add New Product</h2>
+                    <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
+                        {isEditMode ? 'Edit Product' : 'Add New Product'}
+                    </h2>
                     <button
                         type="button"
                         onClick={handleClose}
@@ -416,11 +570,11 @@ const CreateProductModal = ({
                         {/* Basic Info */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 lg:gap-6">
                             <div>
-                                <label htmlFor="productName" className="block text-sm font-semibold text-gray-700 mb-2">
+                                <label htmlFor={isEditMode ? "edit-productName" : "productName"} className="block text-sm font-semibold text-gray-700 mb-2">
                                     Product Name <span className="text-red-500">*</span>
                                 </label>
                                 <input
-                                    id="productName"
+                                    id={isEditMode ? "edit-productName" : "productName"}
                                     type="text"
                                     value={formData.productName}
                                     onChange={(e) => handleFieldChange('productName', e.target.value)}
@@ -437,11 +591,11 @@ const CreateProductModal = ({
                             </div>
 
                             <div>
-                                <label htmlFor="categoryId" className="block text-sm font-semibold text-gray-700 mb-2">
+                                <label htmlFor={isEditMode ? "edit-categoryId" : "categoryId"} className="block text-sm font-semibold text-gray-700 mb-2">
                                     Category <span className="text-red-500">*</span>
                                 </label>
                                 <select
-                                    id="categoryId"
+                                    id={isEditMode ? "edit-categoryId" : "categoryId"}
                                     value={formData.categoryId}
                                     onChange={(e) => handleFieldChange('categoryId', e.target.value)}
                                     className={`w-full px-4 py-2.5 border rounded-lg transition-all duration-200 bg-white text-sm lg:text-base ${validationErrors.categoryId
@@ -468,18 +622,18 @@ const CreateProductModal = ({
                             <label className="block text-sm font-semibold text-gray-700 mb-2">
                                 Description <span className="text-red-500">*</span>
                             </label>
-                            <div className="border rounded-xl overflow-hidden shadow-sm border-gray-200">
+                            <div className={`border rounded-xl overflow-hidden shadow-sm ${isEditMode ? 'rounded-lg' : ''} ${isEditMode ? 'border-gray-200' : 'border-gray-200'}`}>
                                 {/* Toolbar */}
-                                <div className="flex items-center gap-1 bg-[#FCEFCB]/50 p-2 border-b border-gray-200 flex-wrap">
+                                <div className={`flex items-center gap-1 p-2 border-b flex-wrap ${isEditMode ? 'bg-gray-100' : 'bg-[#FCEFCB]/50'}`}>
                                     <button type="button" onMouseDown={(e) => e.preventDefault()}
                                         onClick={() => { descriptionRef.current.focus(); document.execCommand('bold', false); updateActiveFormats(); }}
-                                        className={`p-2 rounded ${activeFormats.bold ? 'bg-[#FCEFCB]' : 'hover:bg-[#FCEFCB]'}`}><MdFormatBold /></button>
+                                        className={`p-2 rounded ${activeFormats.bold ? (isEditMode ? 'bg-gray-300' : 'bg-[#FCEFCB]') : (isEditMode ? 'hover:bg-gray-300' : 'hover:bg-[#FCEFCB]')}`}><MdFormatBold /></button>
                                     <button type="button" onMouseDown={(e) => e.preventDefault()}
                                         onClick={() => { descriptionRef.current.focus(); document.execCommand('italic', false); updateActiveFormats(); }}
-                                        className={`p-2 rounded ${activeFormats.italic ? 'bg-[#FCEFCB]' : 'hover:bg-[#FCEFCB]'}`}><MdFormatItalic /></button>
+                                        className={`p-2 rounded ${activeFormats.italic ? (isEditMode ? 'bg-gray-300' : 'bg-[#FCEFCB]') : (isEditMode ? 'hover:bg-gray-300' : 'hover:bg-[#FCEFCB]')}`}><MdFormatItalic /></button>
                                     <button type="button" onMouseDown={(e) => e.preventDefault()}
                                         onClick={() => { descriptionRef.current.focus(); document.execCommand('underline', false); updateActiveFormats(); }}
-                                        className={`p-2 rounded ${activeFormats.underline ? 'bg-[#FCEFCB]' : 'hover:bg-[#FCEFCB]'}`}><MdFormatUnderlined /></button>
+                                        className={`p-2 rounded ${activeFormats.underline ? (isEditMode ? 'bg-gray-300' : 'bg-[#FCEFCB]') : (isEditMode ? 'hover:bg-gray-300' : 'hover:bg-[#FCEFCB]')}`}><MdFormatUnderlined /></button>
                                     <button type="button" onMouseDown={(e) => e.preventDefault()}
                                         onClick={() => {
                                             descriptionRef.current.focus();
@@ -487,25 +641,25 @@ const CreateProductModal = ({
                                             if (url) document.execCommand('createLink', false, url);
                                             updateActiveFormats();
                                         }}
-                                        className="p-2 hover:bg-[#FCEFCB] rounded"><MdLink /></button>
+                                        className={`p-2 rounded ${isEditMode ? 'hover:bg-gray-300' : 'hover:bg-[#FCEFCB]'}`}><MdLink /></button>
                                     <button type="button" onMouseDown={(e) => e.preventDefault()}
                                         onClick={() => { descriptionRef.current.focus(); document.execCommand('insertUnorderedList', false); updateActiveFormats(); }}
-                                        className={`p-2 rounded ${activeFormats.bullet ? 'bg-[#FCEFCB]' : 'hover:bg-[#FCEFCB]'}`}><MdFormatListBulleted /></button>
+                                        className={`p-2 rounded ${activeFormats.bullet ? (isEditMode ? 'bg-gray-300' : 'bg-[#FCEFCB]') : (isEditMode ? 'hover:bg-gray-300' : 'hover:bg-[#FCEFCB]')}`}><MdFormatListBulleted /></button>
                                     <button type="button" onMouseDown={(e) => e.preventDefault()}
                                         onClick={() => { descriptionRef.current.focus(); document.execCommand('insertOrderedList', false); updateActiveFormats(); }}
-                                        className={`p-2 rounded ${activeFormats.numbered ? 'bg-[#FCEFCB]' : 'hover:bg-[#FCEFCB]'}`}><MdFormatListNumbered /></button>
+                                        className={`p-2 rounded ${activeFormats.numbered ? (isEditMode ? 'bg-gray-300' : 'bg-[#FCEFCB]') : (isEditMode ? 'hover:bg-gray-300' : 'hover:bg-[#FCEFCB]')}`}><MdFormatListNumbered /></button>
                                     <button type="button" onMouseDown={(e) => e.preventDefault()}
                                         onClick={() => { descriptionRef.current.focus(); document.execCommand('formatBlock', false, 'h1'); updateActiveFormats(); }}
-                                        className={`p-2 rounded ${activeFormats.h1 ? 'bg-[#FCEFCB]' : 'hover:bg-[#FCEFCB]'}`}><MdLooksOne /></button>
+                                        className={`p-2 rounded ${activeFormats.h1 ? (isEditMode ? 'bg-gray-300' : 'bg-[#FCEFCB]') : (isEditMode ? 'hover:bg-gray-300' : 'hover:bg-[#FCEFCB]')}`}><MdLooksOne /></button>
                                     <button type="button" onMouseDown={(e) => e.preventDefault()}
                                         onClick={() => { descriptionRef.current.focus(); document.execCommand('formatBlock', false, 'h2'); updateActiveFormats(); }}
-                                        className={`p-2 rounded ${activeFormats.h2 ? 'bg-[#FCEFCB]' : 'hover:bg-[#FCEFCB]'}`}><MdLooksTwo /></button>
+                                        className={`p-2 rounded ${activeFormats.h2 ? (isEditMode ? 'bg-gray-300' : 'bg-[#FCEFCB]') : (isEditMode ? 'hover:bg-gray-300' : 'hover:bg-[#FCEFCB]')}`}><MdLooksTwo /></button>
                                     <button type="button" onMouseDown={(e) => e.preventDefault()}
                                         onClick={() => { descriptionRef.current.focus(); document.execCommand('formatBlock', false, 'h3'); updateActiveFormats(); }}
-                                        className={`p-2 rounded ${activeFormats.h3 ? 'bg-[#FCEFCB]' : 'hover:bg-[#FCEFCB]'}`}><MdLooks3 /></button>
+                                        className={`p-2 rounded ${activeFormats.h3 ? (isEditMode ? 'bg-gray-300' : 'bg-[#FCEFCB]') : (isEditMode ? 'hover:bg-gray-300' : 'hover:bg-[#FCEFCB]')}`}><MdLooks3 /></button>
                                 </div>
 
-                                {/* Rich editor – taller + cursor works */}
+                                {/* Rich editor */}
                                 <div
                                     ref={descriptionRef}
                                     contentEditable
@@ -513,7 +667,7 @@ const CreateProductModal = ({
                                     onInput={(e) => handleFieldChange('description', e.currentTarget.innerHTML)}
                                     className={`min-h-48 px-4 py-3 prose prose-sm max-w-none focus:outline-none bg-white ${validationErrors.description ? 'border-red-500' : ''
                                         }`}
-                                    style={{ minHeight: '320px' }}
+                                    style={{ minHeight: isEditMode ? '24em' : '320px' }}
                                 />
                             </div>
                             {validationErrors.description && (
@@ -521,7 +675,33 @@ const CreateProductModal = ({
                             )}
                         </div>
 
-                        {/* Image Upload */}
+                        {/* Status - Only in edit mode */}
+                        {isEditMode && (
+                            <div>
+                                <label htmlFor="edit-status" className="block text-sm font-semibold text-gray-700 mb-2">
+                                    Status
+                                </label>
+                                <select
+                                    id="edit-status"
+                                    value={formData.productStatus}
+                                    onChange={(e) => handleFieldChange('productStatus', e.target.value)}
+                                    className={`w-full px-4 py-2.5 border rounded-lg transition-all duration-200 bg-white ${hasNoVariants
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-300'
+                                        : 'border-gray-300 hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
+                                        }`}
+                                    disabled={hasNoVariants}
+                                    title={hasNoVariants ? 'Status is disabled because the product has no variants' : ''}
+                                >
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                                {hasNoVariants && (
+                                    <p className="mt-1 text-sm text-gray-500">Add a variant to enable status changes</p>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Image Management */}
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-2">
                                 Product Images <span className="text-red-500">*</span>
@@ -532,19 +712,19 @@ const CreateProductModal = ({
                                     type="file"
                                     accept="image/*"
                                     multiple
-                                    onChange={handleImageFilesChange}
+                                    onChange={handleNewImageFilesChange}
                                     className="hidden"
-                                    id="image-files"
+                                    id={isEditMode ? "edit-image-files" : "image-files"}
                                 />
                                 {validationErrors.images && (
                                     <p className="text-sm text-red-600">{validationErrors.images}</p>
                                 )}
 
-                                {/* Upload Button and Image Previews Grid */}
+                                {/* Upload Button and Images Grid */}
                                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                                     {/* Upload Button */}
                                     <label
-                                        htmlFor="image-files"
+                                        htmlFor={isEditMode ? "edit-image-files" : "image-files"}
                                         className={`flex flex-col items-center justify-center w-full aspect-square border-2 border-dashed rounded-lg cursor-pointer transition-all duration-200 bg-white hover:bg-gray-50 ${validationErrors.images
                                             ? 'border-red-400 bg-red-50'
                                             : 'border-gray-300'
@@ -568,44 +748,97 @@ const CreateProductModal = ({
                                         </p>
                                     </label>
 
-                                    {/* Image Previews */}
-                                    {imagePreviews.map((preview, index) => (
-                                        <div
-                                            key={index}
-                                            className={`relative border-2 rounded-lg overflow-hidden aspect-square ${mainImageIndex === index ? 'border-blue-500' : 'border-gray-200'
-                                                }`}
-                                        >
-                                            <img
-                                                src={preview}
-                                                alt={`Preview ${index + 1}`}
-                                                className="w-full h-full object-cover"
-                                            />
-                                            <div className="absolute top-2 right-2 flex space-x-1">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeImage(index)}
-                                                    className="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
-                                                >
-                                                    ×
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setMainImageIndex(index)}
-                                                    className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${mainImageIndex === index
-                                                        ? 'bg-yellow-500 text-white'
-                                                        : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                                                        }`}
-                                                >
-                                                    <FaStar />
-                                                </button>
-                                            </div>
-                                            {mainImageIndex === index && (
-                                                <div className="absolute bottom-2 left-2 bg-yellow-500 text-white text-xs px-2 py-1 rounded">
-                                                    Main
+                                    {/* Images */}
+                                    {isEditMode ? (
+                                        // Edit mode: show existing + new images
+                                        allImages.map((img, index) => (
+                                            <div
+                                                key={index}
+                                                className={`relative border-2 rounded-lg overflow-hidden aspect-square ${mainImageIndex === index ? 'border-blue-500' : 'border-gray-200'
+                                                    }`}
+                                            >
+                                                <img
+                                                    src={img.imageUrl}
+                                                    alt={`Image ${index + 1}`}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                                <div className="absolute top-2 right-2 flex space-x-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            if (img.isNew) {
+                                                                removeNewImage(img.newIndex);
+                                                            } else {
+                                                                removeExistingImage(index);
+                                                            }
+                                                        }}
+                                                        className="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                                                    >
+                                                        ×
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setMainImageIndex(index)}
+                                                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${mainImageIndex === index
+                                                            ? 'bg-yellow-500 text-white'
+                                                            : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                                                            }`}
+                                                    >
+                                                        <FaStar />
+                                                    </button>
                                                 </div>
-                                            )}
-                                        </div>
-                                    ))}
+                                                {mainImageIndex === index && (
+                                                    <div className="absolute bottom-2 left-2 bg-yellow-500 text-white text-xs px-2 py-1 rounded">
+                                                        Main
+                                                    </div>
+                                                )}
+                                                {img.isNew && (
+                                                    <div className="absolute bottom-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">
+                                                        New
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))
+                                    ) : (
+                                        // Create mode: show only new images
+                                        newImagePreviews.map((preview, index) => (
+                                            <div
+                                                key={index}
+                                                className={`relative border-2 rounded-lg overflow-hidden aspect-square ${mainImageIndex === index ? 'border-blue-500' : 'border-gray-200'
+                                                    }`}
+                                            >
+                                                <img
+                                                    src={preview}
+                                                    alt={`Preview ${index + 1}`}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                                <div className="absolute top-2 right-2 flex space-x-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeNewImage(index)}
+                                                        className="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                                                    >
+                                                        ×
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setMainImageIndex(index)}
+                                                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${mainImageIndex === index
+                                                            ? 'bg-yellow-500 text-white'
+                                                            : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                                                            }`}
+                                                    >
+                                                        <FaStar />
+                                                    </button>
+                                                </div>
+                                                {mainImageIndex === index && (
+                                                    <div className="absolute bottom-2 left-2 bg-yellow-500 text-white text-xs px-2 py-1 rounded">
+                                                        Main
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -649,10 +882,10 @@ const CreateProductModal = ({
                         {loading ? (
                             <div className="flex items-center justify-center space-x-2">
                                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                                <span>Creating...</span>
+                                <span>Processing...</span>
                             </div>
                         ) : (
-                            'Create Product'
+                            isEditMode ? 'Edit' : 'Add'
                         )}
                     </button>
                 </div>
@@ -661,4 +894,5 @@ const CreateProductModal = ({
     );
 };
 
-export default CreateProductModal;
+export default ProductModal;
+
