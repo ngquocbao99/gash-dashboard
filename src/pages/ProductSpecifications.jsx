@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { ToastContext } from '../context/ToastContext';
@@ -27,7 +27,7 @@ const ProductSpecifications = () => {
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage] = useState(20);
+  const [rowsPerPage] = useState(10);
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -163,19 +163,19 @@ const ProductSpecifications = () => {
     setCurrentPage(1);
   }, [user, fetchAll]);
 
-  // Helper functions
-  const tabToLabel = {
+  // Helper functions - useMemo to prevent unnecessary re-renders
+  const tabToLabel = useMemo(() => ({
     'specifcations': 'Specification',
     'colors': 'Color',
     'sizes': 'Size',
     'categories': 'Category'
-  };
+  }), []);
 
-  const tabToType = {
+  const tabToType = useMemo(() => ({
     'colors': 'color',
     'sizes': 'size',
     'categories': 'category'
-  };
+  }), []);
 
   const getLabel = () => tabToLabel[activeTab];
 
@@ -196,6 +196,35 @@ const ProductSpecifications = () => {
       default: return '';
     }
   };
+
+  // Helper: Get items to check for duplicate based on type
+  const getItemsToCheck = useCallback((type, activeTabParam) => {
+    let items = [];
+    if (activeTabParam === 'specifcations') {
+      items = [...colors, ...sizes, ...categories];
+    } else if (activeTabParam === 'colors' || type === 'color') {
+      items = colors;
+    } else if (activeTabParam === 'sizes' || type === 'size') {
+      items = sizes;
+    } else if (activeTabParam === 'categories' || type === 'category') {
+      items = categories;
+    }
+    // Filter to only check with items that are NOT deleted (isDeleted !== true)
+    return items.filter(item => item.isDeleted !== true);
+  }, [colors, sizes, categories]);
+
+  // Helper: Check for duplicate name
+  const checkDuplicate = useCallback((itemsToCheck, trimmedName, type, excludeId = null) => {
+    return itemsToCheck.find(item => {
+      if (item.type !== type) return false;
+      if (excludeId) {
+        const currentItemId = item._id || item.id;
+        if (currentItemId === excludeId) return false;
+      }
+      const itemName = (item.name || '').trim();
+      return itemName === trimmedName;
+    });
+  }, []);
 
   const getCurrentItems = () => {
     let items = [];
@@ -314,25 +343,9 @@ const ProductSpecifications = () => {
     }
 
     // Check for duplicate before sending to API
-    let itemsToCheck = [];
-    if (activeTab === 'specifcations') {
-      itemsToCheck = [...colors, ...sizes, ...categories];
-    } else if (activeTab === 'colors') {
-      itemsToCheck = colors;
-    } else if (activeTab === 'sizes') {
-      itemsToCheck = sizes;
-    } else if (activeTab === 'categories') {
-      itemsToCheck = categories;
-    }
-
-    // Normalize for duplicate check: trim and toLowerCase (backend stores trimmed, case-sensitive)
-    const normalizedInput = trimmedName.toLowerCase().trim();
-    const duplicate = itemsToCheck.find(item => {
-      if (item.isDeleted) return false; // Ignore deleted items
-      if (item.type !== type) return false; // Only check same type
-      const normalizedItem = (item.name || '').toLowerCase().trim();
-      return normalizedItem === normalizedInput;
-    });
+    // Only check with items that are not deleted (isDeleted=false), matching backend logic
+    const itemsToCheck = getItemsToCheck(type, activeTab);
+    const duplicate = checkDuplicate(itemsToCheck, trimmedName, type);
 
     if (duplicate) {
       // Duplicate is not an input validation error - only show toast, no field error
@@ -461,7 +474,7 @@ const ProductSpecifications = () => {
     } finally {
       setLoading(false);
     }
-  }, [newForm, activeTab, showToast, colors, sizes, categories, tabToType, tabToLabel]);
+  }, [newForm, activeTab, showToast, tabToType, tabToLabel, getItemsToCheck, checkDuplicate]);
 
   // Update item
   const updateItem = useCallback(async () => {
@@ -485,25 +498,10 @@ const ProductSpecifications = () => {
     const type = editingItem.type;
 
     // Check for duplicate before sending to API (exclude current item)
-    let itemsToCheck = [];
-    if (type === 'color') {
-      itemsToCheck = colors;
-    } else if (type === 'size') {
-      itemsToCheck = sizes;
-    } else if (type === 'category') {
-      itemsToCheck = categories;
-    }
-
-    // Normalize for duplicate check: trim and toLowerCase (backend stores trimmed, case-sensitive)
-    const normalizedInput = trimmedName.toLowerCase().trim();
+    // Only check with items that are not deleted (isDeleted=false), matching backend logic
+    const itemsToCheck = getItemsToCheck(type);
     const editingItemId = editingItem._id || editingItem.id;
-    const duplicate = itemsToCheck.find(item => {
-      if (item.isDeleted) return false; // Ignore deleted items
-      const currentItemId = item._id || item.id;
-      if (currentItemId === editingItemId) return false; // Exclude current item
-      const normalizedItem = (item.name || '').toLowerCase().trim();
-      return normalizedItem === normalizedInput;
-    });
+    const duplicate = checkDuplicate(itemsToCheck, trimmedName, type, editingItemId);
 
     if (duplicate) {
       // Duplicate is not an input validation error - only show toast, no field error
@@ -655,7 +653,7 @@ const ProductSpecifications = () => {
     } finally {
       setLoading(false);
     }
-  }, [editingItem, editForm, loading, showToast, colors, sizes, categories]);
+  }, [editingItem, editForm, loading, showToast, getItemsToCheck, checkDuplicate]);
 
   // Show delete confirmation
   const handleDeleteClick = useCallback((item) => {
@@ -804,19 +802,21 @@ const ProductSpecifications = () => {
       // Color: pattern validation (only letters, numbers, Vietnamese characters - NO spaces)
       const colorNamePattern = /^[a-zA-ZÀ-ỹ0-9]+$/;
       if (trimmed.length < 2 || trimmed.length > 30 || !colorNamePattern.test(trimmed)) {
-        return 'Color name must contain only letters and numbers, 2 to 30 characters long';
+        return 'Color name must be 2 to 30 characters long and contain only letters and numbers';
       }
     } else if (type === 'size') {
       // Size: pattern validation (only letters, numbers, Vietnamese characters - NO spaces)
       const sizeNamePattern = /^[a-zA-ZÀ-ỹ0-9]+$/;
       if (trimmed.length < 1 || trimmed.length > 12 || !sizeNamePattern.test(trimmed)) {
-        return 'Size name must contain only letters and numbers, up to 12 characters long';
+        return 'Size name must be 1 to 12 characters long and contain only letters and numbers';
       }
     } else if (type === 'category') {
       // Category: pattern validation (letters, numbers, Vietnamese characters, hyphen - NO spaces except hyphen)
+      // Must contain at least one letter (cannot be only numbers)
       const categoryNamePattern = /^[a-zA-ZÀ-ỹ0-9\-]+$/;
-      if (trimmed.length < 3 || trimmed.length > 30 || !categoryNamePattern.test(trimmed)) {
-        return 'Category name must contain only letters, numbers, and hyphen, 3 to 30 characters long';
+      const hasLetter = /[a-zA-ZÀ-ỹ]/.test(trimmed);
+      if (trimmed.length < 3 || trimmed.length > 30 || !categoryNamePattern.test(trimmed) || !hasLetter) {
+        return 'Category name must be 3 to 30 characters long and contain only letters, numbers, and hyphens';
       }
     } else {
       // Default validation for unknown types
@@ -1320,7 +1320,7 @@ const ProductSpecifications = () => {
                     <span>Processing...</span>
                   </div>
                 ) : (
-                  `Create ${getLabel()}`
+                  `Add`
                 )}
               </button>
             </div>
@@ -1394,7 +1394,7 @@ const ProductSpecifications = () => {
                     <span>Processing...</span>
                   </div>
                 ) : (
-                  'Update'
+                  'Edit'
                 )}
               </button>
             </div>

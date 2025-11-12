@@ -1,6 +1,15 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 const ImageModal = ({ isOpen, onClose, imageUrl, alt = 'Image' }) => {
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Reset loading state when imageUrl changes
+    useEffect(() => {
+        if (imageUrl) {
+            setIsLoading(true);
+        }
+    }, [imageUrl]);
+
     // Handle ESC key press
     useEffect(() => {
         const handleEscKey = (event) => {
@@ -25,24 +34,13 @@ const ImageModal = ({ isOpen, onClose, imageUrl, alt = 'Image' }) => {
 
     return (
         <div
-            className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in-0 duration-300"
+            className="fixed inset-0 bg-black/30 bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in-0 duration-300"
             onClick={onClose}
         >
             <div
                 className="relative max-w-5xl max-h-[95vh] w-full h-full flex items-center justify-center"
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Close button */}
-                <button
-                    className="absolute top-4 right-4 z-10 p-3 bg-black bg-opacity-60 text-white rounded-full hover:bg-opacity-80 transition-all duration-200 shadow-lg"
-                    onClick={onClose}
-                    aria-label="Close image"
-                >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-
                 {/* Image container with loading state */}
                 <div className="relative w-full h-full flex items-center justify-center">
                     <img
@@ -50,14 +48,27 @@ const ImageModal = ({ isOpen, onClose, imageUrl, alt = 'Image' }) => {
                         alt={alt}
                         className="max-w-full max-h-full object-contain rounded-lg shadow-2xl transition-all duration-300 transform scale-100"
                         onError={(e) => {
+                            setIsLoading(false);
                             e.target.style.display = 'none';
                             e.target.nextSibling.style.display = 'flex';
                         }}
                         onLoad={(e) => {
+                            setIsLoading(false);
                             e.target.style.opacity = '1';
                         }}
                         style={{ opacity: 0 }}
                     />
+
+                    {/* Close button - positioned on top of image */}
+                    <button
+                        className="absolute top-2 right-2 z-10 p-2 bg-black bg-opacity-60 text-white rounded-full hover:bg-opacity-80 transition-all duration-200 shadow-lg"
+                        onClick={onClose}
+                        aria-label="Close image"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
 
                     {/* Error fallback */}
                     <div
@@ -71,10 +82,12 @@ const ImageModal = ({ isOpen, onClose, imageUrl, alt = 'Image' }) => {
                     </div>
                 </div>
 
-                {/* Loading indicator */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin opacity-50"></div>
-                </div>
+                {/* Loading indicator - only show when loading */}
+                {isLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin opacity-50"></div>
+                    </div>
+                )}
             </div>
         </div>
     );

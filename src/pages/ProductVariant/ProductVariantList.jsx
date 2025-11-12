@@ -70,91 +70,114 @@ const ProductVariantList = ({
     return (
         <>
 
-            <div className="overflow-x-auto">
-                <table className="w-full border border-gray-200 rounded-lg overflow-hidden">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                        <tr>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">#</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Color</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Size</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Price</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Stock</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Image</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                            {!viewOnly && (
-                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
-                            )}
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {variants.map((variant, vIdx) => (
-                            <tr key={variant._id} className="hover:bg-gray-50">
-                                <td className="px-4 py-3 text-sm text-gray-900">{vIdx + 1}</td>
-                                <td className="px-4 py-3 text-sm text-gray-900">{variant.productColorId?.color_name || 'N/A'}</td>
-                                <td className="px-4 py-3 text-sm text-gray-900">{variant.productSizeId?.size_name || 'N/A'}</td>
-                                <td className="px-4 py-3 text-sm text-gray-900 font-medium">
-                                    {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(variant.variantPrice || 0)}
-                                </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">{variant.stockQuantity || 0}</td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                    {variant.variantImage ? (
-                                        <img
-                                            src={variant.variantImage}
-                                            alt="Variant"
-                                            className="w-12 h-12 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-80 transition-all duration-200 hover:scale-110"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleImageClick(variant.variantImage);
-                                            }}
-                                            title="Click to view larger image"
-                                            onError={(e) => {
-                                                e.target.style.opacity = '0.5';
-                                                e.target.alt = 'Image not available';
-                                            }}
-                                        />
-                                    ) : (
-                                        <div className="w-12 h-12 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
-                                            <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                            </svg>
-                                        </div>
+            <div className="bg-white rounded-xl shadow-xl">
+                <div className="overflow-x-auto">
+                    <div className="max-h-[360px] overflow-y-auto">
+                        <table className="w-full min-w-[760px] table-fixed">
+                            <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                                <tr>
+                                    <th className="w-[6%] px-3 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">#</th>
+                                    <th className="w-[16%] px-3 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Color</th>
+                                    <th className="w-[14%] px-3 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Size</th>
+                                    <th className="w-[16%] px-3 lg:px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Price</th>
+                                    <th className="w-[12%] px-3 lg:px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Stock</th>
+                                    <th className="w-[18%] px-3 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Image</th>
+                                    <th className="w-[12%] px-3 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Status</th>
+                                    {!viewOnly && (
+                                        <th className="w-[10%] px-3 lg:px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Actions</th>
                                     )}
-                                </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${variant.variantStatus === 'active'
-                                        ? 'bg-green-100 text-green-800'
-                                        : variant.variantStatus === 'inactive'
-                                            ? 'bg-gray-100 text-gray-800'
-                                            : 'bg-yellow-100 text-yellow-800'
-                                        }`}>
-                                        {variant.variantStatus || 'N/A'}
-                                    </span>
-                                </td>
-                                {!viewOnly && (
-                                    <td className="px-4 py-3 text-sm text-gray-900">
-                                        <div className="flex items-center space-x-2">
-                                            <button
-                                                onClick={() => onEditVariant && onEditVariant(variant)}
-                                                className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-all duration-200 border border-blue-200 hover:border-blue-300"
-                                                title="Edit Variant"
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white">
+                                {variants.map((variant, vIdx) => (
+                                    <tr
+                                        key={variant._id || variant.id || vIdx}
+                                        className="hover:bg-[#FDF5E7] transition-colors duration-150"
+                                    >
+                                        <td className="px-3 lg:px-4 py-3 text-xs lg:text-sm text-gray-900 whitespace-nowrap">{vIdx + 1}</td>
+                                        <td className="px-3 lg:px-4 py-3 text-xs lg:text-sm text-gray-900 whitespace-nowrap">{variant.productColorId?.color_name || 'N/A'}</td>
+                                        <td className="px-3 lg:px-4 py-3 text-xs lg:text-sm text-gray-900 whitespace-nowrap">{variant.productSizeId?.size_name || 'N/A'}</td>
+                                        <td className="px-3 lg:px-4 py-3 text-xs lg:text-sm text-gray-900 text-right font-semibold whitespace-nowrap">
+                                            {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(variant.variantPrice || 0)}
+                                        </td>
+                                        <td className="px-3 lg:px-4 py-3 text-xs lg:text-sm text-gray-900 text-center whitespace-nowrap">{variant.stockQuantity || 0}</td>
+                                        <td className="px-3 lg:px-4 py-3 text-xs lg:text-sm text-gray-900">
+                                            {variant.variantImage ? (
+                                                <div className="flex items-center gap-2">
+                                                    <img
+                                                        src={variant.variantImage}
+                                                        alt="Variant"
+                                                        className="w-12 h-12 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-all duration-200 hover:scale-105"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleImageClick(variant.variantImage);
+                                                        }}
+                                                        title="Click to view larger image"
+                                                        onError={(e) => {
+                                                            e.target.style.opacity = '0.5';
+                                                            e.target.alt = 'Image not available';
+                                                        }}
+                                                    />
+                                                    {variant.isMain && (
+                                                        <span className="text-xs font-medium text-[#A86523] bg-[#FCEFCB] px-2 py-1 rounded-md border border-[#E9A319]">
+                                                            Main
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="w-12 h-12 bg-gray-50 rounded-lg border border-dashed border-gray-300 flex items-center justify-center">
+                                                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                    </svg>
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="px-3 lg:px-4 py-3 text-xs lg:text-sm text-gray-900 whitespace-nowrap">
+                                            <span
+                                                className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize ${variant.variantStatus === 'active'
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : variant.variantStatus === 'inactive'
+                                                        ? 'bg-gray-100 text-gray-800 border border-gray-200'
+                                                        : 'bg-yellow-100 text-yellow-800'
+                                                    }`}
                                             >
-                                                <FaEdit className="w-3 h-3" />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteVariant(variant._id)}
-                                                className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all duration-200 border border-red-200 hover:border-red-300"
-                                                title="Delete Variant"
-                                                disabled={loading}
-                                            >
-                                                <FaTrash className="w-3 h-3" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                )}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+                                                {variant.variantStatus || 'N/A'}
+                                            </span>
+                                        </td>
+                                        {!viewOnly && (
+                                            <td className="px-3 lg:px-4 py-3 text-xs lg:text-sm text-center text-gray-900 whitespace-nowrap">
+                                                <div className="flex justify-center items-center space-x-2">
+                                                    <button
+                                                        onClick={() => onEditVariant && onEditVariant(variant)}
+                                                        className="p-1.5 rounded-lg transition-all duration-200 border"
+                                                        style={{ color: '#A86523', borderColor: '#A86523' }}
+                                                        onMouseEnter={(e) => {
+                                                            e.currentTarget.style.backgroundColor = '#FCEFCB';
+                                                        }}
+                                                        onMouseLeave={(e) => {
+                                                            e.currentTarget.style.backgroundColor = 'transparent';
+                                                        }}
+                                                        title="Edit Variant"
+                                                    >
+                                                        <FaEdit className="w-3 h-3" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteVariant(variant._id)}
+                                                        className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all duration-200 border border-red-200 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        title="Delete Variant"
+                                                        disabled={loading}
+                                                    >
+                                                        <FaTrash className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
             {/* Image Modal */}

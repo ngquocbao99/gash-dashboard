@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useContext, useCallback } from "react";
 import { ToastContext } from "../../context/ToastContext";
 import SummaryAPI from "../../common/SummaryAPI";
-import BillModal from "./BillModal";
+import BillModal from "../../components/BillModal";
 import Loading from "../../components/Loading";
 
 export default function Bills() {
@@ -12,6 +12,8 @@ export default function Bills() {
   const [searchTerm, setSearchTerm] = useState("");
   const [startDateFilter, setStartDateFilter] = useState("");
   const [endDateFilter, setEndDateFilter] = useState("");
+  const [sortBy, setSortBy] = useState("orderDate"); // 'orderDate', 'finalPrice', 'order_status', 'payment_method'
+  const [sortOrder, setSortOrder] = useState("desc"); // 'asc' or 'desc'
   const [showFilters, setShowFilters] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedBillData, setSelectedBillData] = useState(null);
@@ -57,11 +59,37 @@ export default function Bills() {
     fetchOrders();
   }, [fetchOrders]);
 
-  // Sort orders by date (newest first) - default sorting
+  // Sort orders based on sortBy and sortOrder
   const sortedOrders = [...orders].sort((a, b) => {
-    const aDate = new Date(a.orderDate);
-    const bDate = new Date(b.orderDate);
-    return bDate - aDate; // Newest first (desc)
+    let aValue, bValue;
+
+    switch (sortBy) {
+      case 'orderDate':
+        aValue = new Date(a.orderDate);
+        bValue = new Date(b.orderDate);
+        break;
+      case 'finalPrice':
+        aValue = a.finalPrice || 0;
+        bValue = b.finalPrice || 0;
+        break;
+      case 'order_status':
+        aValue = (a.order_status || '').toLowerCase();
+        bValue = (b.order_status || '').toLowerCase();
+        break;
+      case 'payment_method':
+        aValue = (a.payment_method || '').toLowerCase();
+        bValue = (b.payment_method || '').toLowerCase();
+        break;
+      default:
+        aValue = new Date(a.orderDate);
+        bValue = new Date(b.orderDate);
+    }
+
+    if (sortBy === 'orderDate' || sortBy === 'finalPrice') {
+      return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+    } else {
+      return sortOrder === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+    }
   });
 
   // Filter orders by status, payment method, search term, and date range
@@ -126,7 +154,9 @@ export default function Bills() {
     statusFilter !== 'all' ||
     paymentMethodFilter !== 'all' ||
     startDateFilter !== '' ||
-    endDateFilter !== '';
+    endDateFilter !== '' ||
+    sortBy !== 'orderDate' ||
+    sortOrder !== 'desc';
 
   // Clear all filters
   const clearFilters = useCallback(() => {
@@ -135,6 +165,8 @@ export default function Bills() {
     setPaymentMethodFilter('all');
     setStartDateFilter('');
     setEndDateFilter('');
+    setSortBy('orderDate');
+    setSortOrder('desc');
     setCurrentPage(1);
   }, []);
 
@@ -195,7 +227,7 @@ export default function Bills() {
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 lg:gap-4">
             <div>
               <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Search</label>
               <input
@@ -256,6 +288,30 @@ export default function Bills() {
                 }}
                 className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base focus:border-[#A86523] focus:ring-[#A86523]"
               />
+            </div>
+            <div>
+              <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Sort By</label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base focus:border-[#A86523] focus:ring-[#A86523]"
+              >
+                <option value="orderDate">Order Date</option>
+                <option value="finalPrice">Total Amount</option>
+                <option value="order_status">Order Status</option>
+                <option value="payment_method">Payment Method</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Order</label>
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base focus:border-[#A86523] focus:ring-[#A86523]"
+              >
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
             </div>
           </div>
         </div>

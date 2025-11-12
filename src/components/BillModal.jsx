@@ -1,8 +1,8 @@
 import React, { useRef, useState } from 'react';
-import gashLogo from '../../assets/image/gash-logo.svg';
+import gashLogo from '../assets/image/gash-logo.svg';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import { useToast } from '../../hooks/useToast';
+import { useToast } from '../hooks/useToast';
 
 const BillModal = ({ isOpen, onClose, billData }) => {
   const { showToast } = useToast();
@@ -370,3 +370,4 @@ const BillModal = ({ isOpen, onClose, billData }) => {
 };
 
 export default BillModal;
+

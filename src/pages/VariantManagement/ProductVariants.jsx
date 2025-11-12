@@ -2,14 +2,15 @@ import React, { useEffect, useState, useContext, useCallback } from "react";
 import { ToastContext } from "../../context/ToastContext";
 import Api from "../../common/SummaryAPI";
 import { FaEdit, FaTrash } from 'react-icons/fa';
-import EditVariantModal from "./EditVariantModal";
+import VariantModal from "../../components/VariantModal";
 
 const ProductVariants = () => {
   const { showToast } = useContext(ToastContext);
   const [variants, setVariants] = useState([]);
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [productFilter, setProductFilter] = useState("");
   const [sortBy, setSortBy] = useState("color");
   const [sortOrder, setSortOrder] = useState("asc");
   const [showModal, setShowModal] = useState(false);
@@ -20,6 +21,8 @@ const ProductVariants = () => {
   const [itemsPerPage] = useState(5); // Number of products per page
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [colors, setColors] = useState([]);
+  const [sizes, setSizes] = useState([]);
 
   // Fetch variants
   const fetchVariants = useCallback(async () => {
@@ -49,9 +52,96 @@ const ProductVariants = () => {
     }
   }, [showToast]);
 
+  // Helper functions for data extraction
+  const toIdString = useCallback((value) => {
+    if (!value) return '';
+    if (typeof value === 'object') {
+      if (value._id) return String(value._id);
+      if (value.id) return String(value.id);
+    }
+    return String(value);
+  }, []);
+
+  const extractDataArray = useCallback((response) => {
+    if (!response) return [];
+    if (Array.isArray(response)) return response;
+    if (Array.isArray(response.data)) return response.data;
+    if (Array.isArray(response?.data?.data)) return response.data.data;
+    if (response.success && Array.isArray(response.data)) return response.data;
+    return [];
+  }, []);
+
+  // Fetch colors
+  const fetchColors = useCallback(async () => {
+    try {
+      const response = await Api.colors.getAll();
+      const rawColors = extractDataArray(response);
+      const normalized = rawColors
+        .map((color) => ({
+          ...color,
+          color_name: (color.color_name || '').trim(),
+        }))
+        .filter((color) => color.color_name);
+
+      const uniqueMap = new Map();
+      normalized.forEach((color) => {
+        const key = toIdString(color._id || color.id);
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, color);
+        }
+      });
+
+      const sorted = Array.from(uniqueMap.values()).sort((a, b) => {
+        if (Boolean(a.isDeleted) !== Boolean(b.isDeleted)) {
+          return a.isDeleted ? 1 : -1;
+        }
+        return (a.color_name || '').localeCompare(b.color_name || '');
+      });
+
+      setColors(sorted);
+    } catch (err) {
+      setColors([]);
+    }
+  }, [extractDataArray, toIdString]);
+
+  // Fetch sizes
+  const fetchSizes = useCallback(async () => {
+    try {
+      const response = await Api.sizes.getAll();
+      const rawSizes = extractDataArray(response);
+      const normalized = rawSizes
+        .map((size) => ({
+          ...size,
+          size_name: (size.size_name || '').trim(),
+        }))
+        .filter((size) => size.size_name);
+
+      const uniqueMap = new Map();
+      normalized.forEach((size) => {
+        const key = toIdString(size._id || size.id);
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, size);
+        }
+      });
+
+      const sorted = Array.from(uniqueMap.values()).sort((a, b) => {
+        if (Boolean(a.isDeleted) !== Boolean(b.isDeleted)) {
+          return a.isDeleted ? 1 : -1;
+        }
+        return (a.size_name || '').localeCompare(b.size_name || '');
+      });
+
+      setSizes(sorted);
+    } catch (err) {
+      setSizes([]);
+    }
+  }, [extractDataArray, toIdString]);
+
   useEffect(() => {
     fetchVariants();
-  }, [fetchVariants]);
+    fetchColors();
+    fetchSizes();
+  }, [fetchVariants, fetchColors, fetchSizes]);
 
   // Edit variant
   const handleEdit = (variant) => {
@@ -65,11 +155,12 @@ const ProductVariants = () => {
     setEditingVariant(null);
   };
 
-  // Handle successful operation
-  const handleSuccess = () => {
+  // Handle variant updated
+  const handleVariantUpdated = useCallback(() => {
     fetchVariants();
-    closeModal();
-  };
+    setShowModal(false);
+    setEditingVariant(null);
+  }, [fetchVariants]);
 
   // Toggle filters
   const toggleFilters = () => {
@@ -121,9 +212,10 @@ const ProductVariants = () => {
   const hasActiveFilters = useCallback(() => {
     return searchTerm ||
       statusFilter !== "all" ||
+      productFilter !== "" ||
       sortBy !== "color" ||
       sortOrder !== "asc";
-  }, [searchTerm, statusFilter, sortBy, sortOrder]);
+  }, [searchTerm, statusFilter, productFilter, sortBy, sortOrder]);
 
   // Sort variants
   const sortedVariants = [...variants].sort((a, b) => {
@@ -161,15 +253,34 @@ const ProductVariants = () => {
     }
   });
 
+  // Get unique products from variants for filter dropdown (only active products)
+  const uniqueProducts = React.useMemo(() => {
+    const productMap = new Map();
+    variants.forEach((variant) => {
+      const productId = variant.productId?._id || variant.productId?.id || variant.productId;
+      const productName = variant.productId?.productName || 'Unknown Product';
+      const productStatus = variant.productId?.productStatus || variant.product?.productStatus;
+      // Only include active products
+      if (productId && productStatus === 'active' && !productMap.has(toIdString(productId))) {
+        productMap.set(toIdString(productId), {
+          id: toIdString(productId),
+          name: productName
+        });
+      }
+    });
+    return Array.from(productMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [variants, toIdString]);
+
   // Filter variants
   const filteredVariants = sortedVariants.filter((v) => {
     const matchesStatus = statusFilter === "all" || v.variantStatus === statusFilter;
+    const matchesProduct = productFilter === "" || toIdString(v.productId?._id || v.productId?.id || v.productId) === productFilter;
     const matchesSearch =
       searchTerm === "" ||
       v.productColorId?.color_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       v.productSizeId?.size_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       v.productId?.productName?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesStatus && matchesSearch;
+    return matchesStatus && matchesProduct && matchesSearch;
   });
 
   // Group variants by product
@@ -224,6 +335,7 @@ const ProductVariants = () => {
   const clearFilters = () => {
     setSearchTerm("");
     setStatusFilter("all");
+    setProductFilter("");
     setSortBy("color");
     setSortOrder("asc");
     setCurrentPage(1);
@@ -237,30 +349,38 @@ const ProductVariants = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-2 sm:p-3 lg:p-4 xl:p-6">
       {/* Edit Variant Modal */}
-      <EditVariantModal
-        isOpen={showModal}
-        onClose={closeModal}
-        variant={editingVariant}
-        onSuccess={handleSuccess}
-      />
+      {editingVariant && (
+        <VariantModal
+          isOpen={showModal}
+          onClose={closeModal}
+          variant={editingVariant}
+          product={editingVariant.productId || editingVariant.product}
+          colors={colors}
+          sizes={sizes}
+          onVariantUpdated={handleVariantUpdated}
+        />
+      )}
 
       {/* Main Variant Management UI */}
       <div>
         {/* Header Section */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6">
+        <div className="bg-white rounded-xl shadow-xl border p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6" style={{ borderColor: '#A86523' }}>
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4">
             <div className="flex-1 min-w-0">
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-2">Product Variant Management</h1>
               <p className="text-gray-600 text-sm sm:text-base lg:text-lg">Manage product variants</p>
             </div>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 lg:gap-4 flex-shrink-0">
-              <div className="bg-gray-50 px-2 lg:px-4 py-1 lg:py-2 rounded-lg border border-gray-200">
-                <span className="text-xs lg:text-sm font-medium text-gray-700">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 lg:gap-4 shrink-0">
+              <div className="bg-[#FCEFCB]/60 px-2 lg:px-4 py-1 lg:py-2 rounded-lg border" style={{ borderColor: '#A86523' }}>
+                <span className="text-xs lg:text-sm font-medium text-[#A86523]">
                   {filteredVariants.length} variant{filteredVariants.length !== 1 ? 's' : ''} in {totalProducts} product{totalProducts !== 1 ? 's' : ''}
                 </span>
               </div>
               <button
-                className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-xs lg:text-sm"
+                className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-xs lg:text-sm"
+                style={{ backgroundColor: '#E9A319' }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#A86523'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#E9A319'}
                 onClick={toggleFilters}
                 aria-label="Toggle filters"
               >
@@ -276,9 +396,21 @@ const ProductVariants = () => {
 
         {/* Filter Section */}
         {showFilters && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6">
-            <h2 className="text-base lg:text-lg font-semibold text-gray-900 mb-3 lg:mb-4">Search & Filter</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+          <div className="bg-white rounded-xl shadow-xl border p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6" style={{ borderColor: '#A86523' }}>
+            <div className="flex items-center justify-between mb-3 lg:mb-4">
+              <h2 className="text-base lg:text-lg font-semibold text-gray-900">Search & Filter</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={clearFilters}
+                  disabled={!hasActiveFilters()}
+                  className="px-2 py-1.5 lg:px-3 lg:py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium text-xs lg:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Clear all filters"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-4">
               <div>
                 <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Search by Color/Size/Product</label>
                 <input
@@ -286,15 +418,30 @@ const ProductVariants = () => {
                   placeholder="Enter color, size, or product..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
+                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base focus:border-[#A86523] focus:ring-[#A86523]"
                 />
+              </div>
+              <div>
+                <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Product</label>
+                <select
+                  value={productFilter}
+                  onChange={(e) => setProductFilter(e.target.value)}
+                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base focus:border-[#A86523] focus:ring-[#A86523]"
+                >
+                  <option value="">All Products</option>
+                  {uniqueProducts.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Status</label>
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
+                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base focus:border-[#A86523] focus:ring-[#A86523]"
                 >
                   <option value="all">All Status</option>
                   <option value="active">Active</option>
@@ -306,7 +453,7 @@ const ProductVariants = () => {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
+                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base focus:border-[#A86523] focus:ring-[#A86523]"
                 >
                   <option value="color">Color</option>
                   <option value="size">Size</option>
@@ -320,20 +467,11 @@ const ProductVariants = () => {
                 <select
                   value={sortOrder}
                   onChange={(e) => setSortOrder(e.target.value)}
-                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
+                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base focus:border-[#A86523] focus:ring-[#A86523]"
                 >
                   <option value="asc">Ascending</option>
                   <option value="desc">Descending</option>
                 </select>
-              </div>
-              <div className="flex items-end">
-                <button
-                  onClick={clearFilters}
-                  disabled={!hasActiveFilters()}
-                  className="w-full px-3 py-2 lg:px-4 lg:py-3 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium text-sm lg:text-base disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Clear Filters
-                </button>
               </div>
             </div>
           </div>
@@ -341,13 +479,13 @@ const ProductVariants = () => {
 
         {/* Unified State: Loading / Empty / Error */}
         {loading || error || paginatedProductNames.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6" role="status">
+          <div className="bg-white rounded-xl shadow-xl border p-6" style={{ borderColor: '#A86523' }} role="status">
             <div className="flex flex-col items-center justify-center space-y-4 min-h-[180px]">
 
               {/* ── LOADING ── */}
               {loading ? (
                 <>
-                  <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                  <div className="w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: '#FCEFCB', borderTopColor: '#A86523' }}></div>
                   <p className="text-gray-600 font-medium">Loading variants...</p>
                 </>
               ) : error ? (
@@ -372,7 +510,10 @@ const ProductVariants = () => {
 
                   <button
                     onClick={handleRetry}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow"
+                    className="px-4 py-2 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow"
+                    style={{ backgroundColor: '#E9A319' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#A86523'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#E9A319'}
                   >
                     Retry
                   </button>
@@ -405,7 +546,7 @@ const ProductVariants = () => {
         ) : (
           <>
             {/* Variants Table */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-xl border overflow-hidden" style={{ borderColor: '#A86523' }}>
               <div className="overflow-x-auto">
                 <table className="w-full table-fixed min-w-[900px]">
                   <thead className="bg-gray-50 border-b border-gray-200">
@@ -478,11 +619,10 @@ const ProductVariants = () => {
                               </td>
                               <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
                                 <span
-                                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize ${
-                                    variant.variantStatus === 'active' ? 'bg-green-100 text-green-800' :
+                                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize ${variant.variantStatus === 'active' ? 'bg-green-100 text-green-800' :
                                     variant.variantStatus === 'inactive' ? 'bg-red-100 text-red-800' :
-                                    'bg-gray-100 text-gray-800'
-                                  }`}
+                                      'bg-gray-100 text-gray-800'
+                                    }`}
                                 >
                                   {variant.variantStatus || 'unknown'}
                                 </span>
@@ -492,11 +632,13 @@ const ProductVariants = () => {
                                   <button
                                     onClick={() => handleEdit(variant)}
                                     disabled={inactive}
-                                    className={`p-1.5 rounded-lg transition-all duration-200 border ${
-                                      inactive
-                                        ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
-                                        : 'text-blue-600 hover:text-blue-800 hover:bg-blue-100 border-blue-200 hover:border-blue-300'
-                                    }`}
+                                    className={`p-1.5 rounded-lg transition-all duration-200 border ${inactive
+                                      ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
+                                      : 'border-[#A86523]'
+                                      }`}
+                                    style={!inactive ? { color: '#A86523' } : {}}
+                                    onMouseEnter={(e) => !inactive && (e.currentTarget.style.backgroundColor = '#FCEFCB')}
+                                    onMouseLeave={(e) => !inactive && (e.currentTarget.style.backgroundColor = 'transparent')}
                                     title="Edit Variant"
                                   >
                                     <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -506,11 +648,10 @@ const ProductVariants = () => {
                                   <button
                                     onClick={() => handleDeleteClick(variant)}
                                     disabled={inactive}
-                                    className={`p-1.5 rounded-lg transition-all duration-200 border ${
-                                      inactive
-                                        ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
-                                        : 'text-red-600 hover:text-red-800 hover:bg-red-100 border-red-200 hover:border-red-300'
-                                    }`}
+                                    className={`p-1.5 rounded-lg transition-all duration-200 border ${inactive
+                                      ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
+                                      : 'text-red-600 hover:text-red-800 hover:bg-red-100 border-red-200 hover:border-red-300'
+                                      }`}
                                     title="Deactivate Variant"
                                   >
                                     <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -531,7 +672,7 @@ const ProductVariants = () => {
 
             {/* Pagination Controls */}
             {totalPages > 1 && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 lg:p-6 mt-4 lg:mt-6">
+              <div className="bg-white rounded-xl shadow-xl border p-4 lg:p-6 mt-4 lg:mt-6" style={{ borderColor: '#A86523' }}>
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div className="text-sm text-gray-700">
                     Showing <span className="font-medium">{startIndex + 1}</span> to <span className="font-medium">{Math.min(endIndex, totalProducts)}</span> of <span className="font-medium">{totalProducts}</span> products
@@ -540,7 +681,13 @@ const ProductVariants = () => {
                     <button
                       onClick={handlePreviousPage}
                       disabled={currentPage === 1}
-                      className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                      className="px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{ borderColor: '#A86523', color: '#A86523' }}
+                      onMouseEnter={(e) => !e.currentTarget.disabled && (e.currentTarget.style.backgroundColor = '#FCEFCB')}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.color = '#A86523';
+                      }}
                       aria-label="Previous page"
                     >
                       Previous
@@ -551,11 +698,26 @@ const ProductVariants = () => {
                         <button
                           key={idx + 1}
                           onClick={() => handlePageChange(idx + 1)}
-                          className={`px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                          className={`px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 border ${currentPage === idx + 1
+                            ? 'text-white'
+                            : ''
+                            }`}
+                          style={
                             currentPage === idx + 1
-                              ? 'bg-blue-600 text-white border border-blue-600'
-                              : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50 hover:text-gray-700'
-                          }`}
+                              ? { backgroundColor: '#E9A319', borderColor: '#A86523' }
+                              : { borderColor: '#A86523', color: '#A86523' }
+                          }
+                          onMouseEnter={(e) => {
+                            if (currentPage !== idx + 1) {
+                              e.currentTarget.style.backgroundColor = '#FCEFCB';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (currentPage !== idx + 1) {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                              e.currentTarget.style.color = '#A86523';
+                            }
+                          }}
                           aria-label={`Page ${idx + 1}`}
                         >
                           {idx + 1}
@@ -566,7 +728,13 @@ const ProductVariants = () => {
                     <button
                       onClick={handleNextPage}
                       disabled={currentPage === totalPages}
-                      className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                      className="px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{ borderColor: '#A86523', color: '#A86523' }}
+                      onMouseEnter={(e) => !e.currentTarget.disabled && (e.currentTarget.style.backgroundColor = '#FCEFCB')}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.color = '#A86523';
+                      }}
                       aria-label="Next page"
                     >
                       Next
@@ -584,7 +752,7 @@ const ProductVariants = () => {
             <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-md transform transition-all duration-300 scale-100 animate-in fade-in-0 zoom-in-95">
               <div className="p-6">
                 <div className="flex items-center mb-4">
-                  <div className="flex-shrink-0 w-10 h-10 mx-auto bg-red-100 rounded-full flex items-center justify-center">
+                  <div className="shrink-0 w-10 h-10 mx-auto bg-red-100 rounded-full flex items-center justify-center">
                     <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
                     </svg>

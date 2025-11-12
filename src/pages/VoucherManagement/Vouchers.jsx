@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useContext, useCallback } from "react";
 import { ToastContext } from "../../context/ToastContext";
 import SummaryAPI from "../../common/SummaryAPI";
-import VoucherModal from "./VoucherModal";
+import VoucherModal from "../../components/VoucherModal";
 import DeleteConfirmModal from "../../components/DeleteConfirmModal";
 import Loading from "../../components/Loading";
 
