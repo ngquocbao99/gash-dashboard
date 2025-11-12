@@ -10,6 +10,8 @@ import {
   FiImage,
   FiSmile,
   FiRefreshCcw,
+  FiCheck,
+  FiX,
 } from "react-icons/fi";
 import EmojiPicker from "emoji-picker-react";
 import { AuthContext } from "../context/AuthContext";
@@ -53,39 +55,87 @@ export default function AdminChat() {
       console.info("✅ Socket connected:", socketRef.current.id);
     });
 
-    socketRef.current.on("new_message", (msg) => {
-      try {
-        const convoId = String(
-          typeof msg.conversationId === "object"
-            ? msg.conversationId._id || msg.conversationId
-            : msg.conversationId
-        );
+socketRef.current.on("new_message", (msg) => {
+  try {
+    const convoId = String(
+      typeof msg.conversationId === "object"
+        ? msg.conversationId._id || msg.conversationId
+        : msg.conversationId
+    );
 
-        // Update messages in active chat
-        if (selectedRef.current && convoId === getId(selectedRef.current)) {
-          setMessages((prev) => [...prev, msg]);
+    // 1. Push message into the open chat
+    if (selectedRef.current && convoId === getId(selectedRef.current)) {
+      setMessages((prev) => [...prev, msg]);
+    }
+
+    // 2. UPDATE SIDEBAR LIVE: lastMessage + unread count
+    setConversations((prev) =>
+      prev.map((c) => {
+        if (getId(c) === convoId) {
+          return {
+            ...c,
+            lastMessage:
+              msg.messageText ||
+              (msg.type === "image" ? "Image" :
+               msg.type === "sticker" ? "Sticker" :
+               msg.type === "emoji" ? "Emoji" : "Media"),
+            unreadCount:
+              selectedRef.current && getId(selectedRef.current) === convoId
+                ? 0
+                : (c.unreadCount || 0) + 1,
+          };
         }
+        return c;
+      })
+    );
+  } catch (err) {
+    console.error("Error handling new_message:", err);
+  }
+});
 
-        // Update conversation list: lastMessage + unread count
-        setConversations((prev) =>
-          prev.map((c) => {
-            if (getId(c) === convoId) {
-              return {
-                ...c,
-                lastMessage:
-                  msg.messageText || (msg.type === "image" ? "Image" : "Media"),
-                unreadCount:
-                  selectedRef.current && getId(selectedRef.current) === convoId
-                    ? 0 // Reset unread if this chat is open
-                    : (c.unreadCount || 0) + 1,
-              };
-            }
-            return c;
-          })
-        );
-      } catch (err) {
-        console.error("Error handling new_message:", err);
+    socketRef.current.on("conversation_created", (convo) => {
+      const newConvo = {
+        ...convo,
+        lastMessage: convo.lastMessage || "New conversation",
+        unreadCount: 1,
+        status: convo.status || "open",
+        staffId: convo.staffId || null,
+      };
+      setConversations((prev) => [...prev, newConvo]);
+      socketRef.current.emit("join_room", getId(newConvo));
+    });
+
+    socketRef.current.on("conversation_taken", (updatedConvo) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          getId(c) === getId(updatedConvo)
+            ? { ...c, ...updatedConvo, staffId: getId(updatedConvo.staffId) }
+            : c
+        )
+      );
+      if (
+        selectedRef.current &&
+        getId(selectedRef.current) === getId(updatedConvo)
+      ) {
+        setSelected((prev) => ({
+          ...prev,
+          ...updatedConvo,
+          staffId: getId(updatedConvo.staffId),
+        }));
       }
+    });
+
+    socketRef.current.on("conversation_closed", ({ conversationId }) => {
+      const id = String(conversationId);
+      setConversations((prev) => prev.filter((c) => getId(c) !== id));
+      if (selectedRef.current && getId(selectedRef.current) === id) {
+        setSelected(null);
+      }
+      socketRef.current.emit("leave_room", id);
+    });
+
+    socketRef.current.on("messages_read", ({ conversationId, readerId }) => {
+      // Optionally handle if needed, but frontend manages unread for now
     });
 
     return () => socketRef.current.disconnect();
@@ -110,6 +160,10 @@ export default function AdminChat() {
         ...c,
         lastMessage: c.lastMessage || "No message",
         unreadCount: c.unreadCount || 0,
+        status: c.status || "open",
+        staffId: c.staffId ? getId(c.staffId) : null,
+        accountId:
+          typeof c.accountId === "string" ? { _id: c.accountId } : c.accountId, // Fallback to object if string
       }));
 
       setConversations(normalized);
@@ -119,6 +173,14 @@ export default function AdminChat() {
       setLoadingConvos(false);
     }
   };
+
+  useEffect(() => {
+    if (conversations.length > 0) {
+      conversations.forEach((c) =>
+        socketRef.current.emit("join_room", getId(c))
+      );
+    }
+  }, [conversations]);
 
   const loadMessages = async (conv) => {
     try {
@@ -134,11 +196,36 @@ export default function AdminChat() {
         }
       );
       setMessages(res.data?.data || []);
+
+      // Mark as read
+      socketRef.current.emit("mark_read", {
+        conversationId: getId(conv),
+        readerId: adminId,
+      });
+      setConversations((prev) =>
+        prev.map((c) =>
+          getId(c) === getId(conv) ? { ...c, unreadCount: 0 } : c
+        )
+      );
     } catch (err) {
       console.error("Error loading messages:", err);
     } finally {
       setLoadingMessages(false);
     }
+  };
+
+  const handleTakeConversation = (conv) => {
+    socketRef.current.emit("take_conversation", {
+      staffId: adminId,
+      conversationId: getId(conv),
+    });
+  };
+
+  const handleCloseConversation = () => {
+    if (!selected) return;
+    socketRef.current.emit("close_conversation", {
+      conversationId: getId(selected),
+    });
   };
 
   // =============== SEND ===================
@@ -202,6 +289,13 @@ export default function AdminChat() {
       : String(acc);
   };
 
+  const canOpenChat = (conv) => {
+    return (
+      conv.status === "open" ||
+      (conv.status === "pending" && String(conv.staffId) === adminId)
+    );
+  };
+
   // =============== UI ===================
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-6">
@@ -240,18 +334,24 @@ export default function AdminChat() {
                     return (
                       <li
                         key={cid}
-                        onClick={() => loadMessages(c)}
+                        onClick={() =>
+                          canOpenChat(c)
+                            ? loadMessages(c)
+                            : alert(
+                                "This conversation is assigned to another staff."
+                              )
+                        }
                         className={`cursor-pointer flex items-center justify-between p-3 rounded-xl border transition ${
                           active
                             ? "bg-indigo-50 border-indigo-200"
                             : "hover:bg-gray-50 border-transparent"
                         }`}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-1">
                           <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
                             {displayName(c).charAt(0).toUpperCase()}
                           </div>
-                          <div>
+                          <div className="flex-1">
                             <p className="font-medium text-gray-800 text-sm">
                               {displayName(c)}
                             </p>
@@ -260,11 +360,33 @@ export default function AdminChat() {
                             </p>
                           </div>
                         </div>
-                        {c.unreadCount > 0 && (
-                          <span className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full">
-                            {c.unreadCount}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {c.unreadCount > 0 && (
+                            <span className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full">
+                              {c.unreadCount}
+                            </span>
+                          )}
+                          {c.status === "open" ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleTakeConversation(c);
+                              }}
+                              className="text-xs bg-yellow-500 text-white px-2 py-0.5 rounded-full flex items-center gap-1"
+                            >
+                              <FiCheck /> Take
+                            </button>
+                          ) : c.status === "pending" &&
+                            String(c.staffId) === adminId ? (
+                            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">
+                              Assigned to you
+                            </span>
+                          ) : (
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                              Assigned
+                            </span>
+                          )}
+                        </div>
                       </li>
                     );
                   })}
@@ -292,9 +414,20 @@ export default function AdminChat() {
                     </h3>
                     <p className="text-xs text-gray-500">Chat active</p>
                   </div>
-                  <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded">
-                    Active
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded">
+                      Active
+                    </span>
+                    {selected.status === "pending" &&
+                      String(selected.staffId) === adminId && (
+                        <button
+                          onClick={handleCloseConversation}
+                          className="text-xs bg-red-500 text-white px-2 py-1 rounded flex items-center gap-1"
+                        >
+                          <FiX /> Close
+                        </button>
+                      )}
+                  </div>
                 </div>
 
                 {/* MESSAGES */}
@@ -539,8 +672,10 @@ export default function AdminChat() {
             />
 
             {/* Zoom indicator */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-3 py-1 rounded-full text-sm
-">
+            <div
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-3 py-1 rounded-full text-sm
+"
+            >
               {(() => {
                 const scale =
                   (viewerImage &&
