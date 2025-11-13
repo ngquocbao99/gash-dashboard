@@ -22,16 +22,33 @@ const Feedbacks = () => {
     ratingFilter: "",
     statusFilter: "",
   });
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(true);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage] = useState(20);
+  const [rowsPerPage] = useState(10);
 
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [statistics, setStatistics] = useState(null);
+
+  // Helper function to extract error message
+  const getErrorMessage = (err, defaultMessage) => {
+    if (err.response?.data?.message) {
+      return err.response.data.message;
+    } else if (err.response?.status === 403) {
+      return "Access denied. Only admin and manager can perform this action";
+    } else if (err.response?.status === 401) {
+      return "You are not authorized to perform this action";
+    } else if (err.response?.status === 404) {
+      return "Resource not found";
+    } else if (err.response?.status >= 500) {
+      return "Server error. Please try again later";
+    } else if (err.message) {
+      return err.message;
+    }
+    return defaultMessage;
+  };
 
   // Fetch feedbacks without parameters
   const fetchFeedbacks = useCallback(async () => {
@@ -75,21 +92,14 @@ const Feedbacks = () => {
       setFeedbacks(sortedFeedbacks);
       setFilteredFeedbacks(sortedFeedbacks);
 
-      if (response?.data?.statistics) {
-        setStatistics(response.data.statistics);
-      }
-
       if (sortedFeedbacks.length === 0) {
         showToast("No feedback found for the given criteria", "info");
       }
     } catch (err) {
-      const errorMessage =
-        err.response?.data?.message ||
-        err.message ||
-        "Failed to load feedbacks. Please try again later.";
+      console.error("Fetch feedbacks error:", err);
+      const errorMessage = getErrorMessage(err, "Failed to fetch feedbacks");
       setError(errorMessage);
       showToast(errorMessage, "error");
-      console.error("Fetch feedbacks error:", err);
     } finally {
       setLoading(false);
     }
@@ -113,16 +123,21 @@ const Feedbacks = () => {
   }, [user, isAuthLoading, navigate, fetchData]);
 
   useEffect(() => {
-    const names = [
-      ...new Set(
-        feedbacks
-          .map(
-            (fb) =>
-              fb.product?.product_name || fb.product?.productName || "Unknown"
-          )
-          .filter(Boolean)
-      ),
-    ].sort();
+    // Only show products that have feedback (all products in feedbacks list have feedback)
+    const productMap = new Map();
+
+    feedbacks.forEach((fb) => {
+      const productName = fb.product?.product_name || fb.product?.productName;
+
+      if (productName) {
+        // All products in feedbacks list have feedback, so include them all
+        if (!productMap.has(productName)) {
+          productMap.set(productName, productName);
+        }
+      }
+    });
+
+    const names = Array.from(productMap.values()).sort();
 
     setUniqueProductNames(names);
   }, [feedbacks]);
@@ -241,12 +256,12 @@ const Feedbacks = () => {
       prev.map((fb) =>
         fb._id === feedbackId
           ? {
-              ...fb,
-              feedback: {
-                ...fb.feedback,
-                is_deleted: newDeletedState,
-              },
-            }
+            ...fb,
+            feedback: {
+              ...fb.feedback,
+              is_deleted: newDeletedState,
+            },
+          }
           : fb
       )
     );
@@ -255,12 +270,12 @@ const Feedbacks = () => {
       prev.map((fb) =>
         fb._id === feedbackId
           ? {
-              ...fb,
-              feedback: {
-                ...fb.feedback,
-                is_deleted: newDeletedState,
-              },
-            }
+            ...fb,
+            feedback: {
+              ...fb.feedback,
+              is_deleted: newDeletedState,
+            },
+          }
           : fb
       )
     );
@@ -268,10 +283,10 @@ const Feedbacks = () => {
     try {
       if (newDeletedState) {
         await Api.feedback.delete(feedbackId);
-        showToast("Feedback deleted successfully!", "success");
+        showToast("Feedback deleted successfully", "success");
       } else {
         await Api.feedback.restore(feedbackId);
-        showToast("Feedback restored successfully!", "success");
+        showToast("Feedback restored successfully", "success");
       }
     } catch (err) {
       // Revert on error
@@ -279,12 +294,12 @@ const Feedbacks = () => {
         prev.map((fb) =>
           fb._id === feedbackId
             ? {
-                ...fb,
-                feedback: {
-                  ...fb.feedback,
-                  is_deleted: currentDeletedState,
-                },
-              }
+              ...fb,
+              feedback: {
+                ...fb.feedback,
+                is_deleted: currentDeletedState,
+              },
+            }
             : fb
         )
       );
@@ -293,20 +308,21 @@ const Feedbacks = () => {
         prev.map((fb) =>
           fb._id === feedbackId
             ? {
-                ...fb,
-                feedback: {
-                  ...fb.feedback,
-                  is_deleted: currentDeletedState,
-                },
-              }
+              ...fb,
+              feedback: {
+                ...fb.feedback,
+                is_deleted: currentDeletedState,
+              },
+            }
             : fb
         )
       );
 
-      showToast(
-        err.response?.data?.message || "Failed to update feedback",
-        "error"
-      );
+      const defaultMessage = newDeletedState
+        ? "Failed to delete feedback"
+        : "Failed to restore feedback";
+      const errorMessage = getErrorMessage(err, defaultMessage);
+      showToast(errorMessage, "error");
     }
   };
 
@@ -346,7 +362,7 @@ const Feedbacks = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-2 sm:p-3 lg:p-4 xl:p-6">
       {/* Header Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6">
+      <div className="bg-white rounded-xl shadow-xl border p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6" style={{ borderColor: '#A86523' }}>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4">
           <div className="flex-1 min-w-0">
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-2">
@@ -356,7 +372,7 @@ const Feedbacks = () => {
               Manage and review customer feedbacks
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 lg:gap-4 flex-shrink-0">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 lg:gap-4 shrink-0">
             <div className="bg-gray-50 px-2 lg:px-4 py-1 lg:py-2 rounded-lg border border-gray-200">
               <span className="text-xs lg:text-sm font-medium text-gray-700">
                 {filteredFeedbacks.length} feedback
@@ -364,7 +380,10 @@ const Feedbacks = () => {
               </span>
             </div>
             <button
-              className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-xs lg:text-sm"
+              className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-xs lg:text-sm"
+              style={{ backgroundColor: '#E9A319' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#A86523'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#E9A319'}
               onClick={toggleFilters}
               aria-label="Toggle filters"
             >
@@ -392,11 +411,21 @@ const Feedbacks = () => {
 
       {/* Filter Section */}
       {showFilters && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6">
-          <h2 className="text-base lg:text-lg font-semibold text-gray-900 mb-3 lg:mb-4">
-            Search & Filter
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4">
+        <div className="bg-white rounded-xl shadow-xl border p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6" style={{ borderColor: '#A86523' }}>
+          <div className="flex items-center justify-between mb-3 lg:mb-4">
+            <h2 className="text-base lg:text-lg font-semibold text-gray-900">Search & Filter</h2>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={clearFilters}
+                disabled={!hasActiveFilters()}
+                className="px-2 py-1.5 lg:px-3 lg:py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium text-xs lg:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Clear all filters"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-4">
             <div>
               <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">
                 Start Date
@@ -407,7 +436,7 @@ const Feedbacks = () => {
                 onChange={(e) =>
                   handleFilterChange("startDate", e.target.value)
                 }
-                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
+                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base focus:border-[#A86523] focus:ring-[#A86523]"
               />
             </div>
             <div>
@@ -418,7 +447,7 @@ const Feedbacks = () => {
                 type="date"
                 value={filters.endDate}
                 onChange={(e) => handleFilterChange("endDate", e.target.value)}
-                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
+                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base focus:border-[#A86523] focus:ring-[#A86523]"
               />
             </div>
             <div>
@@ -430,7 +459,7 @@ const Feedbacks = () => {
                 onChange={(e) =>
                   handleFilterChange("productName", e.target.value)
                 }
-                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
+                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base focus:border-[#A86523] focus:ring-[#A86523]"
               >
                 <option value="">
                   All Products ({uniqueProductNames.length})
@@ -451,7 +480,7 @@ const Feedbacks = () => {
                 onChange={(e) =>
                   handleFilterChange("ratingFilter", e.target.value)
                 }
-                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
+                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base focus:border-[#A86523] focus:ring-[#A86523]"
               >
                 <option value="">All Ratings</option>
                 <option value="1">1</option>
@@ -470,97 +499,29 @@ const Feedbacks = () => {
                 onChange={(e) =>
                   handleFilterChange("statusFilter", e.target.value)
                 }
-                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
+                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base focus:border-[#A86523] focus:ring-[#A86523]"
               >
                 <option value="">All Statuses</option>
                 <option value="active">Active</option>
                 <option value="deleted">Deleted</option>
               </select>
             </div>
-            <div>
-              <button
-                onClick={clearFilters}
-                disabled={!hasActiveFilters()}
-                className="w-full px-3 py-2 lg:px-4 lg:py-3 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium text-sm lg:text-base disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label="Clear all filters"
-              >
-                Clear Filters
-              </button>
-            </div>
           </div>
         </div>
       )}
 
-      {/* Statistics Section
-      {statistics && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 lg:p-8 mb-6 lg:mb-8">
-          <h2 className="text-lg lg:text-xl font-semibold text-gray-900 mb-4 lg:mb-6">
-            Feedback Statistics
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 lg:p-6 border border-blue-200">
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs lg:text-sm font-medium text-blue-700 mb-1">
-                    Total Feedbacks
-                  </p>
-                  <p className="text-2xl lg:text-3xl font-bold text-blue-900">
-                    {statistics.total_feedbacks}
-                  </p>
-                </div>
-                <div className="p-2 lg:p-3 bg-blue-200 rounded-xl flex-shrink-0">
-                  <svg
-                    className="w-5 h-5 lg:w-7 lg:h-7 text-blue-700"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl p-4 lg:p-6 border border-yellow-200">
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs lg:text-sm font-medium text-yellow-700 mb-1">
-                    Average Rating
-                  </p>
-                  <p className="text-2xl lg:text-3xl font-bold text-yellow-900">
-                    {statistics.average_rating?.toFixed(1)}/5
-                  </p>
-                </div>
-                <div className="p-2 lg:p-3 bg-yellow-200 rounded-xl flex-shrink-0">
-                  <svg
-                    className="w-5 h-5 lg:w-7 lg:h-7 text-yellow-700"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )} */}
-
       {/* Unified State: Loading / Empty / Error */}
       {isAuthLoading || loading || filteredFeedbacks.length === 0 || error ? (
         <div
-          className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"
+          className="bg-white rounded-xl shadow-xl border p-6"
+          style={{ borderColor: '#A86523' }}
           role="status"
         >
           <div className="flex flex-col items-center justify-center space-y-4 min-h-[180px]">
             {/* ── LOADING ── */}
             {isAuthLoading || loading ? (
               <>
-                <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                <div className="w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: '#FCEFCB', borderTopColor: '#E9A319' }}></div>
                 <p className="text-gray-600 font-medium">
                   Loading feedbacks...
                 </p>
@@ -593,7 +554,10 @@ const Feedbacks = () => {
 
                 <button
                   onClick={handleRetry}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow"
+                  className="px-4 py-2 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow"
+                  style={{ backgroundColor: '#E9A319' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#A86523'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#E9A319'}
                 >
                   Retry
                 </button>
@@ -612,18 +576,13 @@ const Feedbacks = () => {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                      d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
                     />
                   </svg>
                 </div>
 
                 <div className="text-center">
-                  <h3 className="text-base font-medium text-gray-900">
-                    No feedbacks found
-                  </h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Try adjusting your search or filter criteria
-                  </p>
+                  <h3 className="text-base font-medium text-gray-900">No feedbacks available</h3>
                 </div>
               </>
             )}
@@ -631,7 +590,7 @@ const Feedbacks = () => {
         </div>
       ) : (
         /* Feedbacks Table - Only when data exists */
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-xl border overflow-hidden" style={{ borderColor: '#A86523' }}>
           <div className="overflow-x-auto">
             <table className="w-full table-fixed min-w-[1200px]">
               {/* ---------- HEADER ---------- */}
@@ -705,8 +664,8 @@ const Feedbacks = () => {
                       <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm text-gray-900 whitespace-nowrap">
                         {feedback.order?.orderDate
                           ? new Date(
-                              feedback.order.orderDate
-                            ).toLocaleDateString()
+                            feedback.order.orderDate
+                          ).toLocaleDateString()
                           : "N/A"}
                       </td>
 
@@ -716,11 +675,10 @@ const Feedbacks = () => {
                           {[1, 2, 3, 4, 5].map((star) => (
                             <svg
                               key={star}
-                              className={`w-4 h-4 ${
-                                star <= (feedback.feedback?.rating || 0)
-                                  ? "text-yellow-400"
-                                  : "text-gray-300"
-                              }`}
+                              className={`w-4 h-4 ${star <= (feedback.feedback?.rating || 0)
+                                ? "text-yellow-400"
+                                : "text-gray-300"
+                                }`}
                               fill="currentColor"
                               viewBox="0 0 20 20"
                             >
@@ -734,11 +692,10 @@ const Feedbacks = () => {
                       <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm text-gray-900">
                         <div className="truncate">
                           {feedback.feedback?.content
-                            ? `${feedback.feedback.content.substring(0, 80)}${
-                                feedback.feedback.content.length > 80
-                                  ? "..."
-                                  : ""
-                              }`
+                            ? `${feedback.feedback.content.substring(0, 80)}${feedback.feedback.content.length > 80
+                              ? "..."
+                              : ""
+                            }`
                             : "N/A"}
                         </div>
                       </td>
@@ -746,11 +703,10 @@ const Feedbacks = () => {
                       {/* Status */}
                       <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize ${
-                            deleted
-                              ? "bg-red-100 text-red-800"
-                              : "bg-green-100 text-green-800"
-                          }`}
+                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize ${deleted
+                            ? "bg-red-100 text-red-800"
+                            : "bg-green-100 text-green-800"
+                            }`}
                         >
                           {deleted ? "deleted" : "active"}
                         </span>
@@ -762,7 +718,13 @@ const Feedbacks = () => {
                           {/* View Button */}
                           <button
                             onClick={() => handleShowDetails(feedback)}
-                            className="p-1.5 rounded-lg transition-all duration-200 border text-blue-600 hover:text-blue-800 hover:bg-blue-100 border-blue-200 hover:border-blue-300"
+                            className="p-1.5 rounded-lg transition-all duration-200 border border-[#A86523]"
+                            style={{
+                              color: '#A86523',
+                              backgroundColor: 'transparent'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FCEFCB'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                             aria-label={`View details for feedback ${feedback._id}`}
                             title="View Details"
                           >
@@ -792,14 +754,12 @@ const Feedbacks = () => {
                             onClick={() =>
                               toggleDeleteFeedback(feedback._id, deleted)
                             }
-                            className={`p-1.5 rounded-lg transition-all duration-200 border ${
-                              deleted
-                                ? "text-green-600 hover:text-green-800 hover:bg-green-100 border-green-200 hover:border-green-300"
-                                : "text-red-600 hover:text-red-800 hover:bg-red-100 border-red-200 hover:border-red-300"
-                            }`}
-                            aria-label={`${
-                              deleted ? "Restore" : "Delete"
-                            } feedback ${feedback._id}`}
+                            className={`p-1.5 rounded-lg transition-all duration-200 border ${deleted
+                              ? "text-green-600 hover:text-green-800 hover:bg-green-100 border-green-200 hover:border-green-300"
+                              : "text-red-600 hover:text-red-800 hover:bg-red-100 border-red-200 hover:border-red-300"
+                              }`}
+                            aria-label={`${deleted ? "Restore" : "Delete"
+                              } feedback ${feedback._id}`}
                             title={`${deleted ? "Restore" : "Delete"} Feedback`}
                           >
                             <svg
@@ -840,7 +800,7 @@ const Feedbacks = () => {
 
       {/* Pagination */}
       {filteredFeedbacks.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 lg:p-6 mt-4 lg:mt-6">
+        <div className="bg-white rounded-xl shadow-xl border p-4 lg:p-6 mt-4 lg:mt-6" style={{ borderColor: '#A86523' }}>
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-sm text-gray-700">
               Showing <span className="font-medium">{startIndex + 1}</span> to{" "}
@@ -865,11 +825,13 @@ const Feedbacks = () => {
                   (page) => (
                     <button
                       key={page}
-                      className={`px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-                        currentPage === page
-                          ? "bg-blue-600 text-white border border-blue-600"
-                          : "text-gray-500 bg-white border border-gray-300 hover:bg-gray-50 hover:text-gray-700"
-                      }`}
+                      className={`px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 border ${currentPage === page
+                        ? 'text-white border-[#A86523]'
+                        : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50 hover:text-gray-700'
+                        }`}
+                      style={currentPage === page ? { backgroundColor: '#E9A319' } : {}}
+                      onMouseEnter={(e) => currentPage === page && (e.currentTarget.style.backgroundColor = '#A86523')}
+                      onMouseLeave={(e) => currentPage === page && (e.currentTarget.style.backgroundColor = '#E9A319')}
                       onClick={() => handlePageChange(page)}
                       aria-label={`Page ${page}`}
                     >

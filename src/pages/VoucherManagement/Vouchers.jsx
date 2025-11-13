@@ -454,22 +454,22 @@ export default function Vouchers() {
                 /* ── NO VOUCHERS ── */
                 <>
                   <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center">
-                    <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg
+                      className="w-7 h-7 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         strokeWidth={2}
-                        d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                        d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
                       />
                     </svg>
                   </div>
                   <div className="text-center">
-                    <h3 className="text-base font-medium text-gray-900">No vouchers found</h3>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {vouchers.length === 0
-                        ? "Get started by creating your first voucher"
-                        : "Try adjusting your search or filter criteria"}
-                    </p>
+                    <h3 className="text-base font-medium text-gray-900">No vouchers available</h3>
                   </div>
                 </>
               )}
