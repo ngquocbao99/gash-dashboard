@@ -8,7 +8,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
 import { ToastContext } from "../../context/ToastContext";
 import { io } from "socket.io-client";
@@ -145,6 +145,7 @@ const Orders = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const socketRef = useRef(null);
 
   const orderStatusOptions = [
@@ -238,8 +239,8 @@ const Orders = () => {
       setOrders(
         Array.isArray(ordersData)
           ? ordersData.sort(
-              (a, b) => new Date(b.orderDate) - new Date(a.orderDate)
-            )
+            (a, b) => new Date(b.orderDate) - new Date(a.orderDate)
+          )
           : []
       );
     } catch (err) {
@@ -355,8 +356,7 @@ const Orders = () => {
           !allowedTransitions[currentStatus].includes(newStatus)
         ) {
           showToast(
-            `Invalid status transition: ${currentStatus} → ${newStatus}. Allowed: ${
-              allowedTransitions[currentStatus].join(", ") || "none"
+            `Invalid status transition: ${currentStatus} → ${newStatus}. Allowed: ${allowedTransitions[currentStatus].join(", ") || "none"
             }`,
             "error"
           );
@@ -497,6 +497,23 @@ const Orders = () => {
       fetchOrders();
     }
   }, [user, isAuthLoading, navigate, fetchOrders]);
+
+  // Handle URL query parameter for orderId
+  useEffect(() => {
+    if (orders.length > 0) {
+      const urlParams = new URLSearchParams(location.search);
+      const orderId = urlParams.get('orderId');
+      if (orderId) {
+        const order = orders.find(o => o._id === orderId);
+        if (order) {
+          handleViewOrderDetails(order);
+          // Clear the URL parameter
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, '', newUrl);
+        }
+      }
+    }
+  }, [orders, location.search]);
 
   useEffect(() => {
     if (!user?._id) return;
@@ -918,19 +935,18 @@ const Orders = () => {
                           </select>
                         ) : (
                           <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                              order.order_status === "pending"
-                                ? "bg-yellow-100 text-yellow-800"
-                                : order.order_status === "confirmed"
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${order.order_status === "pending"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : order.order_status === "confirmed"
                                 ? "bg-blue-100 text-blue-800"
                                 : order.order_status === "shipping"
-                                ? "bg-purple-100 text-purple-800"
-                                : order.order_status === "delivered"
-                                ? "bg-green-100 text-green-800"
-                                : order.order_status === "cancelled"
-                                ? "bg-red-100 text-red-800"
-                                : "bg-gray-100 text-gray-800"
-                            }`}
+                                  ? "bg-purple-100 text-purple-800"
+                                  : order.order_status === "delivered"
+                                    ? "bg-green-100 text-green-800"
+                                    : order.order_status === "cancelled"
+                                      ? "bg-red-100 text-red-800"
+                                      : "bg-gray-100 text-gray-800"
+                              }`}
                           >
                             {displayStatus(order.order_status)}
                           </span>
@@ -938,13 +954,12 @@ const Orders = () => {
                       </td>
                       <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 ${
-                            order.payment_method === "COD"
-                              ? "bg-orange-100 text-orange-800"
-                              : order.payment_method === "VNPAY"
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 ${order.payment_method === "COD"
+                            ? "bg-orange-100 text-orange-800"
+                            : order.payment_method === "VNPAY"
                               ? "bg-blue-100 text-blue-800"
                               : "bg-gray-100 text-gray-800"
-                          }`}
+                            }`}
                         >
                           {displayStatus(order.payment_method)}
                         </span>
@@ -968,13 +983,12 @@ const Orders = () => {
                           </select>
                         ) : (
                           <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                              order.pay_status === "paid"
-                                ? "bg-green-100 text-green-800"
-                                : order.pay_status === "unpaid"
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${order.pay_status === "paid"
+                              ? "bg-green-100 text-green-800"
+                              : order.pay_status === "unpaid"
                                 ? "bg-red-100 text-red-800"
                                 : "bg-gray-100 text-gray-800"
-                            }`}
+                              }`}
                           >
                             {displayStatus(order.pay_status)}
                           </span>
@@ -982,11 +996,10 @@ const Orders = () => {
                       </td>
                       <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                            order.cancelReason
-                              ? "bg-yellow-100 text-yellow-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${order.cancelReason
+                            ? "bg-yellow-100 text-yellow-800"
+                            : "bg-gray-100 text-gray-800"
+                            }`}
                         >
                           {displayStatus(order.cancelReason || "N/A")}
                         </span>
@@ -1116,38 +1129,36 @@ const Orders = () => {
                                     pay_status: order.pay_status,
                                   });
                                 }}
-                                className={`p-1.5 rounded-lg transition-all duration-200 border ${
-                                  (isOrderStatusUpdateAllowed(
-                                    order.order_status
-                                  ) &&
-                                    !shouldDisableUpdate(
-                                      order.payment_method,
-                                      order.order_status,
-                                      order.pay_status
-                                    )) ||
+                                className={`p-1.5 rounded-lg transition-all duration-200 border ${(isOrderStatusUpdateAllowed(
+                                  order.order_status
+                                ) &&
+                                  !shouldDisableUpdate(
+                                    order.payment_method,
+                                    order.order_status,
+                                    order.pay_status
+                                  )) ||
                                   isRefundStatusUpdateAllowed(
                                     order.payment_method,
                                     order.order_status,
                                     order.pay_status
                                   )
-                                    ? isRefundStatusUpdateAllowed(
-                                        order.payment_method,
-                                        order.order_status,
-                                        order.pay_status
-                                      )
-                                      ? "text-orange-600 hover:text-orange-800 hover:bg-orange-100 border-orange-200 hover:border-orange-300"
-                                      : "text-blue-600 hover:text-blue-800 hover:bg-blue-100 border-blue-200 hover:border-blue-300"
-                                    : "text-gray-400 cursor-not-allowed border-gray-200 bg-gray-50"
-                                }`}
-                                aria-label={`${
-                                  isRefundStatusUpdateAllowed(
+                                  ? isRefundStatusUpdateAllowed(
                                     order.payment_method,
                                     order.order_status,
                                     order.pay_status
                                   )
-                                    ? "Manage refund"
-                                    : "Edit order"
-                                } ${order._id}`}
+                                    ? "text-orange-600 hover:text-orange-800 hover:bg-orange-100 border-orange-200 hover:border-orange-300"
+                                    : "text-blue-600 hover:text-blue-800 hover:bg-blue-100 border-blue-200 hover:border-blue-300"
+                                  : "text-gray-400 cursor-not-allowed border-gray-200 bg-gray-50"
+                                  }`}
+                                aria-label={`${isRefundStatusUpdateAllowed(
+                                  order.payment_method,
+                                  order.order_status,
+                                  order.pay_status
+                                )
+                                  ? "Manage refund"
+                                  : "Edit order"
+                                  } ${order._id}`}
                                 disabled={shouldDisableUpdateButton(
                                   order.payment_method,
                                   order.order_status,
@@ -1161,16 +1172,16 @@ const Orders = () => {
                                   )
                                     ? "Manage Refund"
                                     : !isOrderStatusUpdateAllowed(
-                                        order.order_status
-                                      )
-                                    ? "Order status cannot be updated for cancelled or delivered orders"
-                                    : shouldDisableUpdate(
+                                      order.order_status
+                                    )
+                                      ? "Order status cannot be updated for cancelled or delivered orders"
+                                      : shouldDisableUpdate(
                                         order.payment_method,
                                         order.order_status,
                                         order.pay_status
                                       )
-                                    ? "This order is finalized and cannot be updated"
-                                    : "Edit Order"
+                                        ? "This order is finalized and cannot be updated"
+                                        : "Edit Order"
                                 }
                               >
                                 <svg
@@ -1203,34 +1214,34 @@ const Orders = () => {
                               {isOrderStatusUpdateAllowed(
                                 order.order_status
                               ) && (
-                                <button
-                                  onClick={() => {
-                                    setCancelOrderId(order._id);
-                                    setCancelModalOpen(true);
-                                    setCancelFormData({
-                                      cancelReason: "",
-                                      customReason: "",
-                                    });
-                                  }}
-                                  className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all duration-200 border border-red-200 hover:border-red-300"
-                                  aria-label={`Cancel order ${order._id}`}
-                                  title="Cancel Order"
-                                >
-                                  <svg
-                                    className="w-3 h-3 lg:w-4 lg:h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
+                                  <button
+                                    onClick={() => {
+                                      setCancelOrderId(order._id);
+                                      setCancelModalOpen(true);
+                                      setCancelFormData({
+                                        cancelReason: "",
+                                        customReason: "",
+                                      });
+                                    }}
+                                    className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all duration-200 border border-red-200 hover:border-red-300"
+                                    aria-label={`Cancel order ${order._id}`}
+                                    title="Cancel Order"
                                   >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-                                    />
-                                  </svg>
-                                </button>
-                              )}
+                                    <svg
+                                      className="w-3 h-3 lg:w-4 lg:h-4"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                      />
+                                    </svg>
+                                  </button>
+                                )}
                             </>
                           )}
                         </div>
@@ -1271,11 +1282,10 @@ const Orders = () => {
                   (page) => (
                     <button
                       key={page}
-                      className={`px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-                        currentPage === page
-                          ? "bg-blue-600 text-white border border-blue-600"
-                          : "text-gray-500 bg-white border border-gray-300 hover:bg-gray-50 hover:text-gray-700"
-                      }`}
+                      className={`px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${currentPage === page
+                        ? "bg-blue-600 text-white border border-blue-600"
+                        : "text-gray-500 bg-white border border-gray-300 hover:bg-gray-50 hover:text-gray-700"
+                        }`}
                       onClick={() => handlePageChange(page)}
                       aria-label={`Page ${page}`}
                     >
