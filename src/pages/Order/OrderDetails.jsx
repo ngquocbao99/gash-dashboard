@@ -373,10 +373,7 @@ const OrderDetails = ({ order, onClose, isOpen, autoOpenRefundModal = false }) =
                                 {isRefundStatusUpdateAllowed() && (
                                     <button
                                         onClick={handleRefundEditClick}
-                                        className="flex items-center space-x-2 px-3 py-1.5 sm:px-4 sm:py-2 text-white rounded-lg transition-all duration-200 font-medium text-xs sm:text-sm shadow-sm hover:shadow-md"
-                                        style={{ backgroundColor: '#E9A319' }}
-                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#A86523'}
-                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#E9A319'}
+                                        className="flex items-center space-x-2 px-3 py-1.5 sm:px-4 sm:py-2 text-white rounded-xl transition-all duration-300 font-medium text-xs sm:text-sm shadow-lg hover:shadow-xl bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] transform hover:scale-105"
                                         title="Process refund status and proof"
                                     >
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -388,10 +385,7 @@ const OrderDetails = ({ order, onClose, isOpen, autoOpenRefundModal = false }) =
                                 {isOrderStatusUpdateAllowed() && (
                                     <button
                                         onClick={handleEditClick}
-                                        className="flex items-center space-x-2 px-3 py-1.5 sm:px-4 sm:py-2 text-white rounded-lg transition-all duration-200 font-medium text-xs sm:text-sm shadow-sm hover:shadow-md"
-                                        style={{ backgroundColor: '#E9A319' }}
-                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#A86523'}
-                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#E9A319'}
+                                        className="flex items-center space-x-2 px-3 py-1.5 sm:px-4 sm:py-2 text-white rounded-xl transition-all duration-300 font-medium text-xs sm:text-sm shadow-lg hover:shadow-xl bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] transform hover:scale-105"
                                         title="Update order status"
                                     >
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -417,40 +411,18 @@ const OrderDetails = ({ order, onClose, isOpen, autoOpenRefundModal = false }) =
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 scrollbar-hide hover:scrollbar-show" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                    <style>{`
-                        .scrollbar-hide {
-                            scrollbar-width: none;
-                            -ms-overflow-style: none;
-                        }
-                        .scrollbar-hide::-webkit-scrollbar {
-                            display: none;
-                            width: 0;
-                            height: 0;
-                        }
-                        .scrollbar-hide:hover::-webkit-scrollbar,
-                        .scrollbar-hide:focus::-webkit-scrollbar,
-                        .scrollbar-hide:active::-webkit-scrollbar {
-                            display: block;
-                            width: 10px;
-                        }
-                        .scrollbar-hide:hover::-webkit-scrollbar-track,
-                        .scrollbar-hide:focus::-webkit-scrollbar-track,
-                        .scrollbar-hide:active::-webkit-scrollbar-track {
-                            background: transparent;
-                        }
-                        .scrollbar-hide:hover::-webkit-scrollbar-thumb,
-                        .scrollbar-hide:focus::-webkit-scrollbar-thumb,
-                        .scrollbar-hide:active::-webkit-scrollbar-thumb {
-                            background: #d1d5db;
-                            border-radius: 5px;
-                        }
-                        .scrollbar-hide:hover::-webkit-scrollbar-thumb:hover,
-                        .scrollbar-hide:focus::-webkit-scrollbar-thumb:hover,
-                        .scrollbar-hide:active::-webkit-scrollbar-thumb:hover {
-                            background: #9ca3af;
-                        }
-                    `}</style>
+                <style>{`
+                    .hide-scrollbar::-webkit-scrollbar {
+                        display: none;
+                    }
+                `}</style>
+                <div
+                    className="flex-1 overflow-y-auto hide-scrollbar p-4 sm:p-5 lg:p-6"
+                    style={{
+                        scrollbarWidth: 'none', /* Firefox */
+                        msOverflowStyle: 'none', /* IE and Edge */
+                    }}
+                >
                     <div className="space-y-3 sm:space-y-4">
                         {/* Order Status Overview */}
                         <div className="bg-gray-50 rounded-lg p-2.5 sm:p-3 border" style={{ borderColor: '#A86523' }}>
@@ -675,17 +647,24 @@ const OrderDetails = ({ order, onClose, isOpen, autoOpenRefundModal = false }) =
 
                             {loading ? (
                                 <div className="flex items-center justify-center py-12">
-                                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600"></div>
-                                    <span className="ml-3 text-gray-600 font-medium">Loading order details...</span>
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: '#FCEFCB', borderBottomColor: '#E9A319' }}></div>
+                                    <p className="ml-3 text-gray-600">Loading order details...</p>
                                 </div>
                             ) : error ? (
-                                <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-                                    <div className="flex items-center">
-                                        <svg className="h-6 w-6 text-red-400 mr-3" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                <div className="text-center py-12">
+                                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
-                                        <p className="text-red-800 font-medium">{error}</p>
                                     </div>
+                                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Error</h3>
+                                    <p className="text-gray-600 mb-4">{error}</p>
+                                    <button
+                                        onClick={fetchOrderDetails}
+                                        className="px-4 py-2 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-sm font-semibold bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] transform hover:scale-105"
+                                    >
+                                        Retry
+                                    </button>
                                 </div>
                             ) : orderDetails.length === 0 ? (
                                 <div className="text-center py-12">
