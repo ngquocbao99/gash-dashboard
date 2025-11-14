@@ -503,108 +503,108 @@ const Orders = () => {
     }
   }, [user, isAuthLoading, navigate, fetchOrders]);
 
-useEffect(() => {
-  if (!user?._id) return;
+  useEffect(() => {
+    if (!user?._id) return;
 
-  if (!socketRef.current) {
-    const token = localStorage.getItem("token");
-    socketRef.current = io(
-      import.meta.env.VITE_API_URL || "http://localhost:5000",
-      {
-        transports: ["websocket", "polling"],
-        auth: { token },
-        withCredentials: true,
-      }
-    );
-  }
-
-  const socket = socketRef.current;
-
-  // Connect and authenticate
-  socket.on("connect", () => {
-    console.log("✅ Dashboard Orders Socket connected:", socket.id);
-    // Emit user connection
-    socket.emit("userConnected", user._id);
-    // Also authenticate with token
-    const token = localStorage.getItem("token");
-    if (token) {
-      socket.emit("authenticate", token);
+    if (!socketRef.current) {
+      const token = localStorage.getItem("token");
+      socketRef.current = io(
+        import.meta.env.VITE_API_URL || "http://localhost:5000",
+        {
+          transports: ["websocket", "polling"],
+          auth: { token },
+          withCredentials: true,
+        }
+      );
     }
-  });
 
-  // Updated handler: receive full order object from backend
-  socket.on("orderUpdated", (payload) => {
-    const updatedOrder = payload.order || payload; // backend sends { userId, order }
+    const socket = socketRef.current;
 
-    console.log("📦 Order updated via Socket.IO in dashboard:", updatedOrder._id);
-
-    setOrders((prevOrders) => {
-      const existingIndex = prevOrders.findIndex((o) => o._id === updatedOrder._id);
-      
-      if (existingIndex !== -1) {
-        // Update existing order
-        const updated = [...prevOrders];
-        updated[existingIndex] = {
-          ...updated[existingIndex],
-          ...updatedOrder,
-        };
-        // Re-sort by orderDate
-        return updated.sort(
-          (a, b) => new Date(b.orderDate) - new Date(a.orderDate)
-        );
-      } else {
-        // New order - add to beginning
-        return [
-          updatedOrder,
-          ...prevOrders,
-        ].sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate));
+    // Connect and authenticate
+    socket.on("connect", () => {
+      console.log("✅ Dashboard Orders Socket connected:", socket.id);
+      // Emit user connection
+      socket.emit("userConnected", user._id);
+      // Also authenticate with token
+      const token = localStorage.getItem("token");
+      if (token) {
+        socket.emit("authenticate", token);
       }
     });
 
-    // Also update filteredOrders immediately so UI reflects change without re-filter
-    setFilteredOrders((prevFiltered) => {
-      const existingIndex = prevFiltered.findIndex((o) => o._id === updatedOrder._id);
-      
-      if (existingIndex !== -1) {
-        const updated = [...prevFiltered];
-        updated[existingIndex] = {
-          ...updated[existingIndex],
-          ...updatedOrder,
-        };
-        return updated.sort(
-          (a, b) => new Date(b.orderDate) - new Date(a.orderDate)
-        );
-      } else {
-        return [
-          updatedOrder,
-          ...prevFiltered,
-        ].sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate));
-      }
+    // Updated handler: receive full order object from backend
+    socket.on("orderUpdated", (payload) => {
+      const updatedOrder = payload.order || payload; // backend sends { userId, order }
+
+      console.log("📦 Order updated via Socket.IO in dashboard:", updatedOrder._id);
+
+      setOrders((prevOrders) => {
+        const existingIndex = prevOrders.findIndex((o) => o._id === updatedOrder._id);
+        
+        if (existingIndex !== -1) {
+          // Update existing order
+          const updated = [...prevOrders];
+          updated[existingIndex] = {
+            ...updated[existingIndex],
+            ...updatedOrder,
+          };
+          // Re-sort by orderDate
+          return updated.sort(
+            (a, b) => new Date(b.orderDate) - new Date(a.orderDate)
+          );
+        } else {
+          // New order - add to beginning
+          return [
+            updatedOrder,
+            ...prevOrders,
+          ].sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate));
+        }
+      });
+
+      // Also update filteredOrders immediately so UI reflects change without re-filter
+      setFilteredOrders((prevFiltered) => {
+        const existingIndex = prevFiltered.findIndex((o) => o._id === updatedOrder._id);
+        
+        if (existingIndex !== -1) {
+          const updated = [...prevFiltered];
+          updated[existingIndex] = {
+            ...updated[existingIndex],
+            ...updatedOrder,
+          };
+          return updated.sort(
+            (a, b) => new Date(b.orderDate) - new Date(a.orderDate)
+          );
+        } else {
+          return [
+            updatedOrder,
+            ...prevFiltered,
+          ].sort((a, b) => new Date(b.orderDate) - new Date(a.orderDate));
+        }
+      });
+
+      // Show toast notification for order updates
+      showToast(`Order ${updatedOrder._id.slice(-8)} status updated`, "success");
     });
 
-    // Show toast notification for order updates
-    showToast(`Order ${updatedOrder._id.slice(-8)} status updated`, "success");
-  });
+    socket.on("connect_error", (err) => {
+      console.error("❌ Dashboard Orders Socket connection error:", err.message);
+    });
 
-  socket.on("connect_error", (err) => {
-    console.error("❌ Dashboard Orders Socket connection error:", err.message);
-  });
+    socket.on("disconnect", (reason) => {
+      console.warn("⚠️ Dashboard Orders Socket disconnected:", reason);
+    });
 
-  socket.on("disconnect", (reason) => {
-    console.warn("⚠️ Dashboard Orders Socket disconnected:", reason);
-  });
-
-  return () => {
-    socket.off("connect");
-    socket.off("orderUpdated");
-    socket.off("connect_error");
-    socket.off("disconnect");
-    if (socket.connected) {
-      socket.disconnect();
-    }
-    socketRef.current = null;
-  };
-}, [user, showToast]);
+    return () => {
+      socket.off("connect");
+      socket.off("orderUpdated");
+      socket.off("connect_error");
+      socket.off("disconnect");
+      if (socket.connected) {
+        socket.disconnect();
+      }
+      socketRef.current = null;
+    };
+  }, [user, showToast]);
 
   const totalPages = Math.ceil(filteredOrders.length / rowsPerPage);
   const startIndex = (currentPage - 1) * rowsPerPage;
