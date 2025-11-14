@@ -140,6 +140,47 @@ const ProductDetailsModal = ({
         });
     }, [product?._id, productVariants, getVariantLabel, getVariantStatusPriority]);
 
+    // Calculate realtime product status based on variants
+    // Rule: If product has at least 1 variant (not discontinued) → status = "active"
+    //       If product has no variants:
+    //         - If product was previously active or inactive (had variants before) → status = "inactive"
+    //         - If product is pending (never had variants) → status = "pending"
+    //       If product is discontinued → status = "discontinued" (keep original)
+    const realtimeProductStatus = useMemo(() => {
+        // If product is discontinued, keep it as discontinued
+        if (product?.productStatus === 'discontinued') {
+            return 'discontinued';
+        }
+
+        // Count non-discontinued variants
+        const activeVariants = sortedVariants.filter(
+            variant => variant?.variantStatus !== 'discontinued'
+        );
+
+        // If at least 1 variant exists, status is "active"
+        if (activeVariants.length > 0) {
+            return 'active';
+        }
+
+        // If no variants exist, determine status based on current product status
+        const currentStatus = product?.productStatus?.toLowerCase();
+
+        // If product was active or inactive (had variants before), set to "inactive"
+        // This handles the case when the last variant is deleted
+        if (currentStatus === 'active' || currentStatus === 'inactive') {
+            return 'inactive';
+        }
+
+        // If product is pending (never had variants), keep as "pending"
+        if (currentStatus === 'pending') {
+            return 'pending';
+        }
+
+        // Default: if no variants and status is unknown, assume "inactive"
+        // (safer to assume it had variants before if status is unknown)
+        return 'inactive';
+    }, [product?.productStatus, sortedVariants]);
+
     const categoryInfo = getCategoryInfo ? getCategoryInfo(product?.categoryId) : { name: getCategoryName ? getCategoryName(product?.categoryId) : 'N/A', isDeleted: false };
     const categoryLabel = categoryInfo.name || (getCategoryName ? getCategoryName(product?.categoryId) : 'N/A');
 
@@ -147,6 +188,11 @@ const ProductDetailsModal = ({
 
     return (
         <>
+            <style>{`
+                .hide-scrollbar::-webkit-scrollbar {
+                    display: none;
+                }
+            `}</style>
             <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center z-50 p-4" onClick={onClose}>
                 <div
                     className="bg-white rounded-2xl shadow-2xl border-2 w-full max-w-6xl max-h-[90vh] flex flex-col transform transition-all duration-300"
@@ -161,13 +207,11 @@ const ProductDetailsModal = ({
                             Product Details
                         </h2>
                         <div className="flex items-center gap-2">
-                            {!viewOnly && (
+                            {!viewOnly && realtimeProductStatus !== 'discontinued' && (
                                 <button
                                     onClick={handleEditProduct}
-                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg shadow-sm transition-all duration-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2"
-                                    style={{ backgroundColor: '#E9A319', '--tw-ring-color': '#A86523' }}
-                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#A86523'}
-                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#E9A319'}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] focus:outline-none focus:ring-2 focus:ring-offset-2"
+                                    style={{ '--tw-ring-color': '#A86523' }}
                                     title="Edit Product"
                                 >
                                     <FaEdit className="w-4 h-4" />
@@ -187,11 +231,17 @@ const ProductDetailsModal = ({
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 min-h-0">
+                    <div
+                        className="flex-1 overflow-y-auto hide-scrollbar p-4 sm:p-5 lg:p-6 space-y-4 min-h-0"
+                        style={{
+                            scrollbarWidth: 'none', /* Firefox */
+                            msOverflowStyle: 'none', /* IE and Edge */
+                        }}
+                    >
                         {/* Overview + Images */}
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
-                                <h3 className="text-sm font-semibold text-gray-700 mb-3">Overview</h3>
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                            <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
+                                <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-1.5 sm:mb-2">Overview</h3>
                                 <dl className="space-y-3 text-sm text-gray-700">
                                     <div>
                                         <dt className="text-xs uppercase tracking-wide text-gray-500">Product Name</dt>
@@ -217,31 +267,33 @@ const ProductDetailsModal = ({
                                         <dt className="text-xs uppercase tracking-wide text-gray-500">Status</dt>
                                         <dd className="mt-1">
                                             <span
-                                                className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize ${product.productStatus === 'discontinued'
-                                                    ? 'bg-red-100 text-red-800'
-                                                    : product.productStatus === 'active'
-                                                        ? 'bg-green-100 text-green-800'
-                                                        : 'bg-gray-100 text-gray-800 border border-gray-200'
+                                                className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold capitalize shadow-sm ${realtimeProductStatus === 'discontinued'
+                                                    ? 'bg-red-600 text-white'
+                                                    : realtimeProductStatus === 'active'
+                                                        ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white'
+                                                        : realtimeProductStatus === 'inactive'
+                                                            ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white'
+                                                            : 'bg-gradient-to-r from-blue-400 to-cyan-500 text-white'
                                                     }`}
                                             >
-                                                {product.productStatus || 'N/A'}
+                                                {realtimeProductStatus || 'N/A'}
                                             </span>
                                         </dd>
                                     </div>
                                 </dl>
                             </div>
 
-                            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-sm font-semibold text-gray-700">Product Images</h3>
+                            <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
+                                <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+                                    <h3 className="text-sm sm:text-base font-semibold text-gray-900">Product Images</h3>
                                     <span className="text-xs text-gray-500">{product.productImageIds?.length || 0} image(s)</span>
                                 </div>
                                 {product.productImageIds && product.productImageIds.length > 0 ? (
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-2 gap-3">
                                         {product.productImageIds.map((img, idx) => (
                                             <div
                                                 key={idx}
-                                                className="relative border border-gray-200 rounded-lg overflow-hidden bg-gray-50 shadow-sm hover:shadow-md transition-all duration-200"
+                                                className="relative border border-gray-200 overflow-hidden bg-gray-50 shadow-sm hover:shadow-md transition-all duration-200"
                                             >
                                                 <img
                                                     src={img.imageUrl}
@@ -266,7 +318,7 @@ const ProductDetailsModal = ({
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="text-center py-10 bg-gray-50 border border-dashed border-gray-200 rounded-lg">
+                                    <div className="text-center py-10 bg-gray-50 border border-dashed border-gray-200">
                                         <svg className="w-10 h-10 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                         </svg>
@@ -276,29 +328,27 @@ const ProductDetailsModal = ({
                             </div>
                         </div>
 
-                        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
-                            <h3 className="text-sm font-semibold text-gray-700 mb-3">Description</h3>
+                        <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
+                            <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-1.5 sm:mb-2">Description</h3>
                             <div
-                                className="prose prose-sm max-w-none text-gray-700"
+                                className="prose prose-sm max-w-none text-gray-700 whitespace-normal break-words"
                                 dangerouslySetInnerHTML={{ __html: product.description || 'No description available' }}
                             />
                         </div>
 
-                        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
-                            <div className="flex items-center justify-between mb-4">
+                        <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
+                            <div className="flex items-center justify-between mb-1.5 sm:mb-2">
                                 <div>
-                                    <h3 className="text-sm font-semibold text-gray-700">Product Variants</h3>
+                                    <h3 className="text-sm sm:text-base font-semibold text-gray-900">Product Variants</h3>
                                     <p className="text-xs text-gray-500 mt-1">
                                         {productVariants[product?._id]?.length || 0} variant(s) available
                                     </p>
                                 </div>
-                                {!viewOnly && (
+                                {!viewOnly && realtimeProductStatus !== 'discontinued' && (
                                     <button
                                         onClick={() => setShowCreateVariant(true)}
-                                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg shadow-sm transition-all duration-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2"
-                                        style={{ backgroundColor: '#E9A319', '--tw-ring-color': '#A86523' }}
-                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#A86523'}
-                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#E9A319'}
+                                        className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] focus:outline-none focus:ring-2 focus:ring-offset-2"
+                                        style={{ '--tw-ring-color': '#A86523' }}
                                     >
                                         <FaPlus className="w-4 h-4" />
                                         <span>Add Variant</span>
@@ -314,15 +364,15 @@ const ProductDetailsModal = ({
                                     viewOnly={viewOnly}
                                 />
                             ) : product?._id && productVariants[product._id] && productVariants[product._id].length === 0 ? (
-                                <div className="text-center py-8 bg-gray-50 border border-gray-200 rounded-lg">
+                                <div className="text-center py-8 bg-gray-50 border border-gray-200">
                                     <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5 a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                                     </svg>
                                     <p className="text-gray-500">No variants available for this product</p>
                                 </div>
                             ) : (
-                                <div className="text-center py-8 bg-gray-50 border border-gray-200 rounded-lg">
-                                    <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+                                <div className="text-center py-8 bg-gray-50 border border-gray-200">
+                                    <div className="w-8 h-8 border-4 rounded-full animate-spin mx-auto mb-4" style={{ borderColor: '#FCEFCB', borderTopColor: '#E9A319' }}></div>
                                     <p className="text-gray-500">Loading variants...</p>
                                     <div className="mt-4 text-xs text-gray-400">
                                         <p>Product ID: {product?._id}</p>
@@ -332,19 +382,6 @@ const ProductDetailsModal = ({
                                 </div>
                             )}
                         </div>
-                    </div>
-
-                    <div
-                        className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 sm:gap-4 p-4 border-t shrink-0"
-                        style={{ borderColor: '#A86523' }}
-                    >
-                        <button
-                            onClick={onClose}
-                            className="px-5 py-2.5 text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2"
-                            style={{ '--tw-ring-color': '#A86523' }}
-                        >
-                            Close
-                        </button>
                     </div>
                 </div>
             </div>
