@@ -99,9 +99,9 @@ export default function Bills() {
     if (!matchesPaidStatus) return false;
 
     const matchesStatus =
-      statusFilter === "all" || order.order_status.toLowerCase() === statusFilter.toLowerCase();
+      statusFilter === "all" || (order.order_status && order.order_status.toLowerCase() === statusFilter.toLowerCase());
     const matchesPaymentMethod =
-      paymentMethodFilter === "all" || order.payment_method.toLowerCase() === paymentMethodFilter.toLowerCase();
+      paymentMethodFilter === "all" || (order.payment_method && order.payment_method.toLowerCase() === paymentMethodFilter.toLowerCase());
     const matchesSearch =
       searchTerm === "" ||
       order._id.includes(searchTerm) ||
@@ -282,8 +282,8 @@ export default function Bills() {
               >
                 <option value="all">All Statuses</option>
                 <option value="pending">Pending</option>
-                <option value="processing">Processing</option>
-                <option value="shipped">Shipped</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="shipping">Shipping</option>
                 <option value="delivered">Delivered</option>
                 <option value="cancelled">Cancelled</option>
               </select>
@@ -433,8 +433,8 @@ export default function Bills() {
                     <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
                       <div className="flex justify-center">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold capitalize shadow-sm ${order.order_status === 'delivered' ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white' :
-                          order.order_status === 'shipped' ? 'bg-gradient-to-r from-blue-400 to-cyan-500 text-white' :
-                            order.order_status === 'processing' ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-white' :
+                          order.order_status === 'shipping' ? 'bg-gradient-to-r from-blue-400 to-cyan-500 text-white' :
+                            order.order_status === 'confirmed' ? 'bg-gradient-to-r from-purple-400 to-indigo-500 text-white' :
                               order.order_status === 'pending' ? 'bg-gradient-to-r from-gray-400 to-gray-500 text-white' :
                                 'bg-red-600 text-white'
                           }`}>
