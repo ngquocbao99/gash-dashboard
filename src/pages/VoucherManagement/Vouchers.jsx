@@ -237,6 +237,25 @@ export default function Vouchers() {
   const totalPages = Math.ceil(filteredVouchers.length / rowsPerPage);
   const startIndex = (currentPage - 1) * rowsPerPage;
   const endIndex = startIndex + rowsPerPage;
+
+  // Calculate which pages to show (max 5 pages)
+  const getVisiblePages = () => {
+    const maxVisible = 5;
+    if (totalPages <= maxVisible) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+
+    let start = Math.max(1, currentPage - 2);
+    let end = Math.min(totalPages, start + maxVisible - 1);
+
+    if (end - start < maxVisible - 1) {
+      start = Math.max(1, end - maxVisible + 1);
+    }
+
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  };
+
+  const visiblePages = getVisiblePages();
   const currentVouchers = filteredVouchers.slice(startIndex, endIndex);
 
   // Handle page change
@@ -254,6 +273,15 @@ export default function Vouchers() {
   const handleNextPage = useCallback(() => {
     handlePageChange(currentPage + 1);
   }, [currentPage, handlePageChange]);
+
+  // Handle first/last page
+  const handleFirstPage = useCallback(() => {
+    handlePageChange(1);
+  }, [handlePageChange]);
+
+  const handleLastPage = useCallback(() => {
+    handlePageChange(totalPages);
+  }, [totalPages, handlePageChange]);
 
   // Check if any filters are active
   const hasActiveFilters = searchTerm ||
@@ -273,7 +301,7 @@ export default function Vouchers() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-2 sm:p-3 lg:p-4 xl:p-6">
+    <div className="min-h-screen p-2 sm:p-3 lg:p-4 xl:p-6">
       {/* Unified Voucher Modal */}
       <VoucherModal
         isOpen={showModal}
@@ -285,58 +313,49 @@ export default function Vouchers() {
 
       {/* Main Voucher Management UI */}
       {/* Header Section */}
-      <div className="bg-white rounded-xl shadow-xl border p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6" style={{ borderColor: '#A86523' }}>
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-2">Voucher Management</h1>
-            <p className="text-gray-600 text-sm sm:text-base lg:text-lg">Manage discount vouchers</p>
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4 mb-4 lg:mb-6 pt-2 lg:pt-3 pb-2 lg:pb-3">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-2 leading-tight">Voucher Management</h1>
+        </div>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 lg:gap-4 shrink-0">
+          <div className="bg-gradient-to-r from-yellow-400/20 via-amber-400/20 to-orange-400/20 backdrop-blur-md px-2 lg:px-4 py-1 lg:py-2 rounded-xl border-2 border-yellow-400/50 shadow-md">
+            <span className="text-xs lg:text-sm font-semibold text-gray-700">
+              {filteredVouchers.length} voucher{filteredVouchers.length !== 1 ? 's' : ''}
+            </span>
           </div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 lg:gap-4 shrink-0">
-            <div className="bg-gray-50 px-2 lg:px-4 py-1 lg:py-2 rounded-lg border border-gray-200">
-              <span className="text-xs lg:text-sm font-medium text-gray-700">
-                {filteredVouchers.length} voucher{filteredVouchers.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-            <button
-              className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-xs lg:text-sm"
-              style={{ backgroundColor: '#E9A319' }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#A86523'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#E9A319'}
-              onClick={toggleFilters}
-              aria-label="Toggle filters"
-            >
-              <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z" />
-              </svg>
-              <span className="font-medium hidden sm:inline">{showFilters ? 'Hide Filters' : 'Show Filters'}</span>
-              <span className="font-medium sm:hidden">Filters</span>
-            </button>
-            <button
-              className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-xs lg:text-sm"
-              style={{ backgroundColor: '#E9A319' }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#A86523'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#E9A319'}
-              onClick={handleCreate}
-            >
-              <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              <span className="font-medium">Add Voucher</span>
-            </button>
-          </div>
+          <button
+            className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-xs lg:text-sm font-semibold bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 transform hover:scale-105"
+            onClick={toggleFilters}
+            aria-label="Toggle filters"
+          >
+            <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z" />
+            </svg>
+            <span className="font-medium hidden sm:inline">{showFilters ? 'Hide Filters' : 'Show Filters'}</span>
+            <span className="font-medium sm:hidden">Filters</span>
+          </button>
+          <button
+            className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-xs lg:text-sm font-semibold bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] transform hover:scale-105"
+            onClick={handleCreate}
+          >
+            <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span className="font-medium">Add Voucher</span>
+          </button>
         </div>
       </div>
 
       {/* Filter Section */}
       {showFilters && (
-        <div className="bg-white rounded-xl shadow-xl border p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6" style={{ borderColor: '#A86523' }}>
+        <div className="backdrop-blur-xl rounded-xl border p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(251, 191, 36, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}>
           <div className="flex items-center justify-between mb-3 lg:mb-4">
-            <h2 className="text-base lg:text-lg font-semibold text-gray-900">Search & Filter</h2>
+            <h2 className="text-base lg:text-lg font-semibold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Search & Filter</h2>
             <div className="flex items-center gap-2">
               <button
                 onClick={clearFilters}
                 disabled={!hasActiveFilters}
-                className="px-2 py-1.5 lg:px-3 lg:py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium text-xs lg:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-2 py-1.5 lg:px-3 lg:py-2 text-gray-600 hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:via-pink-500 hover:to-rose-500 rounded-xl transition-all duration-300 border-2 border-gray-300/60 hover:border-transparent font-medium text-xs lg:text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-600 shadow-md hover:shadow-lg"
                 aria-label="Clear all filters"
               >
                 Clear
@@ -345,21 +364,21 @@ export default function Vouchers() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-4">
             <div>
-              <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Search by Code</label>
+              <label className="block text-xs lg:text-sm font-semibold text-gray-700 mb-2">Search by Code</label>
               <input
                 type="text"
                 placeholder="Enter voucher code..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value.toUpperCase())}
-                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base focus:border-[#A86523] focus:ring-[#A86523]"
+                className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
               />
             </div>
             <div>
-              <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Discount Type</label>
+              <label className="block text-xs lg:text-sm font-semibold text-gray-700 mb-2">Discount Type</label>
               <select
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
-                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base focus:border-[#A86523] focus:ring-[#A86523]"
+                className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
               >
                 <option value="all">All Types</option>
                 <option value="percentage">Percentage (%)</option>
@@ -367,11 +386,11 @@ export default function Vouchers() {
               </select>
             </div>
             <div>
-              <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Status</label>
+              <label className="block text-xs lg:text-sm font-semibold text-gray-700 mb-2">Status</label>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base focus:border-[#A86523] focus:ring-[#A86523]"
+                className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
               >
                 <option value="all">All Statuses</option>
                 <option value="ACTIVE">Active</option>
@@ -382,11 +401,11 @@ export default function Vouchers() {
               </select>
             </div>
             <div>
-              <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Sort By</label>
+              <label className="block text-xs lg:text-sm font-semibold text-gray-700 mb-2">Sort By</label>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base focus:border-[#A86523] focus:ring-[#A86523]"
+                className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
               >
                 <option value="code">Voucher Code</option>
                 <option value="startDate">Start Date</option>
@@ -396,11 +415,11 @@ export default function Vouchers() {
               </select>
             </div>
             <div>
-              <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Order</label>
+              <label className="block text-xs lg:text-sm font-semibold text-gray-700 mb-2">Order</label>
               <select
                 value={sortOrder}
                 onChange={(e) => setSortOrder(e.target.value)}
-                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base focus:border-[#A86523] focus:ring-[#A86523]"
+                className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
               >
                 <option value="asc">Ascending</option>
                 <option value="desc">Descending</option>
@@ -411,7 +430,7 @@ export default function Vouchers() {
       )}
 
       {/* Vouchers Table */}
-      <div className="bg-white rounded-xl shadow-xl border overflow-hidden" style={{ borderColor: '#A86523' }}>
+      <div className="backdrop-blur-xl rounded-xl border overflow-hidden" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(233, 163, 25, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}>
         {loading || filteredVouchers.length === 0 || error ? (
           <div className="p-6" role="status">
             <div className="flex flex-col items-center justify-center space-y-4 min-h-[180px]">
@@ -426,7 +445,7 @@ export default function Vouchers() {
               ) : error ? (
                 /* ── NETWORK ERROR ── */
                 <div className="flex flex-col items-center space-y-3">
-                  <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center">
+                  <div className="w-14 h-14 bg-gradient-to-br from-red-100 to-pink-100 rounded-full flex items-center justify-center shadow-lg">
                     <svg className="w-7 h-7 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
                         strokeLinecap="round"
@@ -437,15 +456,12 @@ export default function Vouchers() {
                     </svg>
                   </div>
                   <div className="text-center">
-                    <h3 className="text-base font-medium text-gray-900">Network Error</h3>
+                    <h3 className="text-base font-semibold text-gray-900">Network Error</h3>
                     <p className="text-sm text-gray-500 mt-1">{error}</p>
                   </div>
                   <button
                     onClick={fetchVouchers}
-                    className="px-4 py-2 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow"
-                    style={{ backgroundColor: '#E9A319' }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#A86523'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#E9A319'}
+                    className="px-4 py-2 text-white text-sm font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] transform hover:scale-105"
                   >
                     Retry
                   </button>
@@ -453,9 +469,9 @@ export default function Vouchers() {
               ) : (
                 /* ── NO VOUCHERS ── */
                 <>
-                  <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center">
+                  <div className="w-14 h-14 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center shadow-lg">
                     <svg
-                      className="w-7 h-7 text-gray-400"
+                      className="w-7 h-7 text-gray-500"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -469,7 +485,7 @@ export default function Vouchers() {
                     </svg>
                   </div>
                   <div className="text-center">
-                    <h3 className="text-base font-medium text-gray-900">No vouchers available</h3>
+                    <h3 className="text-base font-semibold text-gray-900">No vouchers available</h3>
                   </div>
                 </>
               )}
@@ -478,29 +494,29 @@ export default function Vouchers() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full table-fixed min-w-[900px]">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="backdrop-blur-sm border-b" style={{ borderColor: '#A86523' }}>
                 <tr>
-                  <th className="w-[4%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
+                  <th className="w-[4%] px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">
                     #
                   </th>
-                  <th className="w-[13%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Code</th>
-                  <th className="w-[8%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Type</th>
-                  <th className="w-[10%] px-2 lg:px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Discount</th>
-                  <th className="w-[8%] pl-2 lg:pl-4 pr-3 lg:pr-5 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Min Order</th>
-                  <th className="w-[8%] pl-3 lg:pl-5 pr-5 lg:pr-7 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Max Discount</th>
-                  <th className="w-[10%] pl-5 lg:pl-7 pr-2 lg:pr-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Start Date</th>
-                  <th className="w-[10%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">End Date</th>
-                  <th className="w-[10%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Usage</th>
-                  <th className="w-[9%] px-2 lg:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Status</th>
-                  <th className="w-[10%] px-2 lg:px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Actions</th>
+                  <th className="w-[13%] px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Code</th>
+                  <th className="w-[8%] px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Type</th>
+                  <th className="w-[10%] px-2 lg:px-4 py-3 text-right text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Discount</th>
+                  <th className="w-[8%] pl-2 lg:pl-4 pr-3 lg:pr-5 py-3 text-right text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Min Order</th>
+                  <th className="w-[8%] pl-3 lg:pl-5 pr-5 lg:pr-7 py-3 text-right text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Max Discount</th>
+                  <th className="w-[10%] pl-5 lg:pl-7 pr-2 lg:pr-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Start Date</th>
+                  <th className="w-[10%] px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">End Date</th>
+                  <th className="w-[10%] px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Usage</th>
+                  <th className="w-[9%] px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Status</th>
+                  <th className="w-[10%] px-2 lg:px-4 py-3 text-center text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white">
+              <tbody>
                 {currentVouchers.map((v, index) => {
                   const status = getVoucherStatus(v);
                   const formattedStatus = formatStatus(status);
                   return (
-                    <tr key={v.id || v._id} className={`hover:bg-gray-50 transition-colors duration-150 ${v.isDeleted ? 'opacity-60' : ''}`}>
+                    <tr key={v.id || v._id} className={`hover:bg-gradient-to-r hover:from-yellow-50/50 hover:via-amber-50/50 hover:to-orange-50/50 transition-all duration-300 border-b-2 border-gray-200/40 ${v.isDeleted ? 'opacity-60' : ''}`}>
                       <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm text-gray-900">
                         {startIndex + index + 1}
                       </td>
@@ -550,15 +566,15 @@ export default function Vouchers() {
                         </div>
                       </td>
                       <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize ${status === 'ACTIVE'
-                          ? 'bg-green-100 text-green-800'
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold capitalize shadow-sm ${status === 'ACTIVE'
+                          ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white'
                           : status === 'UPCOMING'
-                            ? 'bg-blue-100 text-blue-800'
+                            ? 'bg-gradient-to-r from-blue-400 to-cyan-500 text-white'
                             : status === 'EXPIRED'
-                              ? 'bg-red-100 text-red-800'
+                              ? 'bg-red-600 text-white'
                               : status === 'USED UP'
-                                ? 'bg-orange-300 text-orange-800'
-                                : 'bg-gray-100 text-gray-800'
+                                ? 'bg-gradient-to-r from-orange-400 to-amber-500 text-white'
+                                : 'bg-gradient-to-r from-gray-400 to-gray-500 text-white'
                           }`}>
                           {formattedStatus}
                         </span>
@@ -566,16 +582,10 @@ export default function Vouchers() {
                       <td className="px-2 lg:px-4 py-3">
                         <div className="flex justify-center items-center space-x-1">
                           <button
-                            className={`p-1.5 rounded-lg transition-all duration-200 border ${v.isDeleted
-                              ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
-                              : 'border-[#A86523]'
+                            className={`p-1.5 rounded-xl transition-all duration-300 border-2 shadow-md hover:shadow-lg transform hover:scale-110 ${v.isDeleted
+                              ? 'text-gray-400 bg-gray-50/80 border-gray-300/60 cursor-not-allowed'
+                              : 'border-yellow-400/60 bg-gradient-to-br from-yellow-100/80 via-amber-100/80 to-orange-100/80 hover:from-yellow-200 hover:via-amber-200 hover:to-orange-200 text-amber-700 hover:text-amber-800 backdrop-blur-sm'
                               }`}
-                            style={!v.isDeleted ? {
-                              color: '#A86523',
-                              backgroundColor: 'transparent'
-                            } : {}}
-                            onMouseEnter={(e) => !v.isDeleted && (e.currentTarget.style.backgroundColor = '#FCEFCB')}
-                            onMouseLeave={(e) => !v.isDeleted && (e.currentTarget.style.backgroundColor = 'transparent')}
                             onClick={() => handleEdit(v)}
                             disabled={v.isDeleted}
                             aria-label={`Edit voucher ${v.code}`}
@@ -586,9 +596,9 @@ export default function Vouchers() {
                             </svg>
                           </button>
                           <button
-                            className={`p-1.5 rounded-lg transition-all duration-200 border ${v.isDeleted
-                              ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
-                              : 'text-red-600 hover:text-red-800 hover:bg-red-100 border-red-200 hover:border-red-300'
+                            className={`p-1.5 rounded-xl transition-all duration-300 border-2 shadow-md hover:shadow-lg transform hover:scale-110 ${v.isDeleted
+                              ? 'text-gray-400 bg-gray-50/80 border-gray-300/60 cursor-not-allowed'
+                              : 'text-white bg-red-600 hover:bg-red-700 border-red-600 hover:border-red-700'
                               }`}
                             onClick={() => handleDeleteClick(v)}
                             disabled={v.isDeleted}
@@ -612,47 +622,90 @@ export default function Vouchers() {
 
       {/* Pagination */}
       {filteredVouchers.length > 0 && (
-        <div className="bg-white rounded-xl shadow-xl border p-4 lg:p-6 mt-4 lg:mt-6" style={{ borderColor: '#A86523' }}>
+        <div className="backdrop-blur-xl rounded-xl border p-4 lg:p-6 mt-4 lg:mt-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(251, 191, 36, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}>
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-sm text-gray-700">
-              Showing <span className="font-medium">{startIndex + 1}</span> to <span className="font-medium">{Math.min(endIndex, filteredVouchers.length)}</span> of <span className="font-medium">{filteredVouchers.length}</span> vouchers
+            <div className="text-sm font-medium text-gray-700">
+              Showing <span className="font-bold text-gray-900">{startIndex + 1}</span> to <span className="font-bold text-gray-900">{Math.min(endIndex, filteredVouchers.length)}</span> of <span className="font-bold text-gray-900">{filteredVouchers.length}</span> vouchers
             </div>
             <div className="flex items-center space-x-2">
               <button
+                onClick={handleFirstPage}
+                disabled={currentPage === 1}
+                className="px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-amber-50 hover:text-gray-800 hover:border-amber-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-gray-600 disabled:hover:border-gray-300 transition-all duration-200"
+                aria-label="First page"
+                title="First page"
+              >
+                First
+              </button>
+              <button
                 onClick={handlePreviousPage}
                 disabled={currentPage === 1}
-                className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                className="px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-amber-50 hover:text-gray-800 hover:border-amber-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-gray-600 disabled:hover:border-gray-300 transition-all duration-200"
                 aria-label="Previous page"
               >
                 Previous
               </button>
 
               <div className="flex items-center space-x-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                {totalPages > 5 && visiblePages[0] > 1 && (
+                  <>
+                    <button
+                      className="px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-amber-50 hover:text-gray-800 hover:border-amber-300 transition-all duration-200"
+                      onClick={() => handlePageChange(1)}
+                      aria-label="Page 1"
+                    >
+                      1
+                    </button>
+                    {visiblePages[0] > 2 && (
+                      <span className="px-2 text-gray-500">...</span>
+                    )}
+                  </>
+                )}
+                {visiblePages.map(page => (
                   <button
                     key={page}
-                    className={`px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 border ${currentPage === page
-                      ? 'text-white border-[#A86523]'
-                      : 'text-gray-500 bg-white border-gray-300 hover:bg-gray-50 hover:text-gray-700'
+                    className={`px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${currentPage === page
+                      ? 'text-white border-transparent bg-gradient-to-r from-[#E9A319] via-[#A86523] to-[#8B4E1A] hover:from-[#A86523] hover:via-[#8B4E1A] hover:to-[#6B3D14]'
+                      : 'text-gray-600 bg-white border border-gray-300 hover:bg-amber-50 hover:text-gray-800 hover:border-amber-300'
                       }`}
-                    style={currentPage === page ? { backgroundColor: '#E9A319' } : {}}
-                    onMouseEnter={(e) => currentPage === page && (e.currentTarget.style.backgroundColor = '#A86523')}
-                    onMouseLeave={(e) => currentPage === page && (e.currentTarget.style.backgroundColor = '#E9A319')}
                     onClick={() => handlePageChange(page)}
                     aria-label={`Page ${page}`}
                   >
                     {page}
                   </button>
                 ))}
+                {totalPages > 5 && visiblePages[visiblePages.length - 1] < totalPages && (
+                  <>
+                    {visiblePages[visiblePages.length - 1] < totalPages - 1 && (
+                      <span className="px-2 text-gray-500">...</span>
+                    )}
+                    <button
+                      className="px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-amber-50 hover:text-gray-800 hover:border-amber-300 transition-all duration-200"
+                      onClick={() => handlePageChange(totalPages)}
+                      aria-label={`Page ${totalPages}`}
+                    >
+                      {totalPages}
+                    </button>
+                  </>
+                )}
               </div>
 
               <button
                 onClick={handleNextPage}
                 disabled={currentPage === totalPages}
-                className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                className="px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-amber-50 hover:text-gray-800 hover:border-amber-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-gray-600 disabled:hover:border-gray-300 transition-all duration-200"
                 aria-label="Next page"
               >
                 Next
+              </button>
+              <button
+                onClick={handleLastPage}
+                disabled={currentPage === totalPages}
+                className="px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-amber-50 hover:text-gray-800 hover:border-amber-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-gray-600 disabled:hover:border-gray-300 transition-all duration-200"
+                aria-label="Last page"
+                title="Last page"
+              >
+                Last
               </button>
             </div>
           </div>
