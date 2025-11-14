@@ -25,6 +25,7 @@ const Api = {
             formData.append("image", file);
             return axiosClient.post("/upload", formData, {
                 headers: { "Content-Type": "multipart/form-data" },
+                timeout: 60000, // 60 seconds for image upload
             });
         },
         multiple: (files) => {
@@ -34,6 +35,7 @@ const Api = {
             });
             return axiosClient.post("/upload/multiple", formData, {
                 headers: { "Content-Type": "multipart/form-data" },
+                timeout: 120000, // 120 seconds for multiple images upload
             });
         },
     },

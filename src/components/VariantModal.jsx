@@ -211,7 +211,7 @@ const VariantModal = ({
 
         // Validate form
         if (!validateForm()) {
-            showToast('Please fix the validation errors before submitting', 'error');
+            showToast('Please check the input fields again', 'error');
             setLoading(false);
             return;
         }
@@ -272,7 +272,7 @@ const VariantModal = ({
                 const response = await Api.newVariants.update(variant._id, updateData);
                 console.log('Variant update response:', response);
 
-                showToast("Variant updated successfully!", "success");
+                showToast("Product variant edited successfully", "success");
 
                 // Notify parent
                 if (onVariantUpdated) {
@@ -312,7 +312,9 @@ const VariantModal = ({
                 const response = await Api.newVariants.create(variantData);
                 console.log('Variant creation response:', response);
 
-                showToast("Variant created successfully!", "success");
+                // Check if variant was updated (duplicate) or created (new)
+                const message = response.data?.message || response.message || "Product variant added successfully";
+                showToast(message, "success");
 
                 // Reset form
                 setVariantForm({
@@ -342,10 +344,30 @@ const VariantModal = ({
             console.error("Error response:", err.response);
             console.error("Error response data:", err.response?.data);
 
-            const errorMessage = err.response?.data?.message ||
+            let errorMessage = err.response?.data?.message ||
                 err.response?.data?.error ||
                 err.message ||
                 `Failed to ${isEditMode ? 'update' : 'create'} variant`;
+
+            // Extract the actual error message if wrapped
+            if (errorMessage.includes('Failed to create product variant:') ||
+                errorMessage.includes('Failed to update product variant:')) {
+                errorMessage = errorMessage.replace(/^Failed to (create|update) product variant: /, '');
+            }
+
+            // Note: Backend now automatically updates existing variant instead of throwing error
+            // This error handling is kept for backward compatibility or other edge cases
+            if (errorMessage.includes('Variant with this product, color, and size already exists') ||
+                errorMessage.includes('already exists')) {
+                // This should not happen anymore as backend updates existing variant
+                // But keep for safety
+                setValidationErrors(prev => ({
+                    ...prev,
+                    productColorId: 'A variant with this color and size combination already exists for this product',
+                    productSizeId: 'A variant with this color and size combination already exists for this product'
+                }));
+                errorMessage = 'A variant with this color and size combination already exists for this product. Please choose a different combination.';
+            }
 
             setError(errorMessage);
             showToast(errorMessage, "error");
@@ -428,16 +450,16 @@ const VariantModal = ({
                                     value={variantForm.productColorId}
                                     onChange={(e) => handleFieldChange("productColorId", e.target.value)}
                                     disabled={isEditMode}
-                                    className={`w-full px-4 py-2.5 border rounded-lg transition-all duration-200 text-sm lg:text-base ${isEditMode
+                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 transition-all duration-200 text-sm lg:text-base ${isEditMode
                                         ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-300'
                                         : validationErrors.productColorId
-                                            ? 'border-red-400 focus:border-red-500 focus:ring-red-500 bg-white'
-                                            : 'border-gray-300 hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523] bg-white'
+                                            ? 'border-red-400 bg-white focus:ring-red-500 focus:border-red-500'
+                                            : 'border-gray-300 bg-white hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
                                         }`}
                                     required
                                 >
                                     <option value="">Select Color</option>
-                                    {colors?.map((color) => (
+                                    {colors?.filter(color => color.isDeleted !== true).map((color) => (
                                         <option key={color._id} value={color._id}>
                                             {color.color_name}
                                         </option>
@@ -457,16 +479,16 @@ const VariantModal = ({
                                     value={variantForm.productSizeId}
                                     onChange={(e) => handleFieldChange("productSizeId", e.target.value)}
                                     disabled={isEditMode}
-                                    className={`w-full px-4 py-2.5 border rounded-lg transition-all duration-200 text-sm lg:text-base ${isEditMode
+                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 transition-all duration-200 text-sm lg:text-base ${isEditMode
                                         ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-300'
                                         : validationErrors.productSizeId
-                                            ? 'border-red-400 focus:border-red-500 focus:ring-red-500 bg-white'
-                                            : 'border-gray-300 hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523] bg-white'
+                                            ? 'border-red-400 bg-white focus:ring-red-500 focus:border-red-500'
+                                            : 'border-gray-300 bg-white hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
                                         }`}
                                     required
                                 >
                                     <option value="">Select Size</option>
-                                    {sizes?.map((size) => (
+                                    {sizes?.filter(size => size.isDeleted !== true).map((size) => (
                                         <option key={size._id} value={size._id}>
                                             {size.size_name}
                                         </option>
@@ -490,9 +512,9 @@ const VariantModal = ({
                                     min="0"
                                     value={variantForm.variantPrice}
                                     onChange={(e) => handleFieldChange("variantPrice", e.target.value)}
-                                    className={`w-full px-4 py-2.5 border rounded-lg transition-all duration-200 focus:ring-2 bg-white text-sm lg:text-base ${validationErrors.variantPrice
-                                        ? 'border-red-400 focus:border-red-500 focus:ring-red-500'
-                                        : 'border-gray-300 hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
+                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base ${validationErrors.variantPrice
+                                        ? 'border-red-400 bg-white focus:ring-red-500 focus:border-red-500'
+                                        : 'border-gray-300 bg-white hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
                                         }`}
                                     placeholder="Enter price"
                                     required
@@ -512,9 +534,9 @@ const VariantModal = ({
                                     min="0"
                                     value={variantForm.stockQuantity}
                                     onChange={(e) => handleFieldChange("stockQuantity", e.target.value)}
-                                    className={`w-full px-4 py-2.5 border rounded-lg transition-all duration-200 focus:ring-2 bg-white text-sm lg:text-base ${validationErrors.stockQuantity
-                                        ? 'border-red-400 focus:border-red-500 focus:ring-red-500'
-                                        : 'border-gray-300 hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
+                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base ${validationErrors.stockQuantity
+                                        ? 'border-red-400 bg-white focus:ring-red-500 focus:border-red-500'
+                                        : 'border-gray-300 bg-white hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
                                         }`}
                                     placeholder="Enter stock quantity"
                                     required
@@ -523,21 +545,6 @@ const VariantModal = ({
                                     <p className="mt-1.5 text-sm text-red-600">{validationErrors.stockQuantity}</p>
                                 )}
                             </div>
-                        </div>
-
-                        <div>
-                            <label htmlFor="variantStatus" className="block text-sm font-semibold text-gray-700 mb-2">
-                                Status
-                            </label>
-                            <select
-                                id="variantStatus"
-                                value={variantForm.variantStatus}
-                                onChange={(e) => handleVariantFieldChange("variantStatus", e.target.value)}
-                                className="w-full px-4 py-2.5 border rounded-lg transition-all duration-200 bg-white text-sm lg:text-base border-gray-300 hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]"
-                            >
-                                <option value="active">Active</option>
-                                <option value="inactive">Inactive</option>
-                            </select>
                         </div>
 
                         <div>
@@ -608,7 +615,7 @@ const VariantModal = ({
                     <button
                         type="button"
                         onClick={handleClose}
-                        className="px-5 py-2.5 text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-offset-2"
+                        className="px-5 py-2.5 text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-all duration-200 font-medium text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-offset-2"
                         style={{ '--tw-ring-color': '#A86523' }}
                         disabled={loading}
                     >
@@ -617,23 +624,19 @@ const VariantModal = ({
                     <button
                         type="button"
                         onClick={handleSubmit}
-                        className="px-6 py-2.5 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:hover:shadow-md"
-                        style={{ backgroundColor: '#E9A319', '--tw-ring-color': '#A86523' }}
-                        onMouseEnter={(e) => {
-                            if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = '#A86523';
-                        }}
-                        onMouseLeave={(e) => {
-                            if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = '#E9A319';
-                        }}
                         disabled={loading}
+                        className="px-6 py-2.5 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:hover:shadow-md bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] disabled:hover:from-[#E9A319] disabled:hover:to-[#A86523]"
+                        style={{
+                            '--tw-ring-color': '#A86523'
+                        }}
                     >
                         {loading ? (
                             <div className="flex items-center justify-center space-x-2">
                                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                                <span>{isEditMode ? 'Updating...' : 'Creating...'}</span>
+                                <span>Processing...</span>
                             </div>
                         ) : (
-                            isEditMode ? 'Update Variant' : 'Create Variant'
+                            isEditMode ? 'Edit' : 'Add'
                         )}
                     </button>
                 </div>

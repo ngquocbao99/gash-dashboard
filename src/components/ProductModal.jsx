@@ -17,11 +17,13 @@ const ProductModal = ({
     const { showToast } = useContext(ToastContext);
     const isEditMode = !!product;
 
+    const [localLoading, setLocalLoading] = useState(false);
+
     const [formData, setFormData] = useState({
         productName: '',
         categoryId: '',
         description: '',
-        productStatus: 'active',
+        productStatus: 'pending', // Default to 'pending' - will be set to 'active' when variant is added
         productImageIds: []
     });
     const [newImages, setNewImages] = useState([]);
@@ -98,7 +100,7 @@ const ProductModal = ({
                 productName: '',
                 categoryId: '',
                 description: '',
-                productStatus: 'active',
+                productStatus: 'pending', // Default to 'pending' - will be set to 'active' when variant is added
                 productImageIds: []
             });
             setNewImages([]);
@@ -221,28 +223,138 @@ const ProductModal = ({
         });
     }, [validateField]);
 
-    // Upload helper (single image)
-    const uploadSingleImage = useCallback(async (file) => {
+    // Upload helper (single image) with retry mechanism
+    const uploadSingleImage = useCallback(async (file, retries = 2) => {
         if (!file) return '';
-        try {
-            const response = await Api.upload.image(file);
 
-            // Try different possible response structures
-            const imageUrl = response.data?.url ||
-                response.data?.data?.url ||
-                response.data?.imageUrl ||
-                response.data?.data?.imageUrl ||
-                response.data;
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                if (attempt > 0) {
+                    // Wait before retry with exponential backoff
+                    const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+                    console.log(`Retrying upload (attempt ${attempt + 1}/${retries + 1}) after ${delay}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
 
-            if (!imageUrl) {
+                const response = await Api.upload.image(file);
+                console.log('Upload response:', response);
+
+                // Backend returns: { success: true, url: '...', filename: '...' }
+                // axiosClient returns full response object, so URL is at response.data.url
+                const imageUrl = response.data?.url;
+
+                if (!imageUrl) {
+                    console.error('No image URL found in response:', response);
+                    if (attempt === retries) {
+                        console.error('Response structure:', {
+                            data: response.data,
+                            status: response.status,
+                            statusText: response.statusText
+                        });
+                        return '';
+                    }
+                    continue; // Retry
+                }
+
+                return imageUrl;
+            } catch (err) {
+                const isLastAttempt = attempt === retries;
+                console.error(`Upload error (attempt ${attempt + 1}/${retries + 1}):`, err);
+
+                if (isLastAttempt) {
+                    console.error('Upload error details:', {
+                        message: err.message,
+                        response: err.response?.data,
+                        status: err.response?.status,
+                        statusText: err.response?.statusText,
+                        code: err.code
+                    });
+                    return '';
+                }
+
+                // If it's a network error, retry
+                if (err.code === 'ECONNABORTED' || err.code === 'ERR_NETWORK' || !err.response) {
+                    console.warn('Network error detected, will retry...');
+                    continue;
+                }
+
+                // If it's a server error (5xx), retry
+                if (err.response?.status >= 500) {
+                    console.warn('Server error detected, will retry...');
+                    continue;
+                }
+
+                // For other errors (4xx), don't retry
                 return '';
             }
-
-            return imageUrl;
-        } catch (err) {
-            return '';
         }
+
+        return '';
     }, []);
+
+    const uploadMultipleImages = useCallback(async (files) => {
+        if (!files || files.length === 0) return [];
+
+        // Try multiple upload first
+        try {
+            console.log('Starting upload multiple images:', files.length, 'files');
+            const response = await Api.upload.multiple(files);
+            console.log('Upload multiple response:', response);
+            console.log('Response data:', response.data);
+            console.log('Response data.files:', response.data?.files);
+
+            // Backend returns: { success: true, files: [{ url: '...', filename: '...' }, ...] }
+            // axiosClient returns full response object, so files are at response.data.files
+            const uploadedFiles = response.data?.files || [];
+
+            if (uploadedFiles && uploadedFiles.length > 0) {
+                // Extract URLs from the files array
+                const imageUrls = uploadedFiles.map(file => file.url).filter(url => url);
+                console.log('Extracted image URLs:', imageUrls);
+                console.log('Total URLs extracted:', imageUrls.length);
+
+                if (imageUrls.length === files.length) {
+                    return imageUrls;
+                } else {
+                    console.warn(`Uploaded ${imageUrls.length} out of ${files.length} images via multiple API, falling back to single upload`);
+                }
+            } else {
+                console.warn('No files found in multiple upload response, falling back to single upload');
+            }
+        } catch (err) {
+            console.warn('Upload multiple error, falling back to single upload:', err);
+            console.warn('Upload error details:', {
+                message: err.message,
+                response: err.response?.data,
+                status: err.response?.status,
+                statusText: err.response?.statusText
+            });
+        }
+
+        // Fallback: Upload files one by one with retry
+        console.log('Falling back to single image upload');
+        const uploadedUrls = [];
+        const failedFiles = [];
+
+        for (let i = 0; i < files.length; i++) {
+            console.log(`Uploading image ${i + 1}/${files.length}...`);
+            const url = await uploadSingleImage(files[i], 2); // 2 retries
+            if (url) {
+                uploadedUrls.push(url);
+                console.log(`✓ Successfully uploaded image ${i + 1}/${files.length}`);
+            } else {
+                failedFiles.push(i + 1);
+                console.error(`✗ Failed to upload image ${i + 1}/${files.length} after retries`);
+            }
+        }
+
+        console.log(`Successfully uploaded ${uploadedUrls.length} out of ${files.length} images`);
+        if (failedFiles.length > 0) {
+            console.warn(`Failed images: ${failedFiles.join(', ')}`);
+        }
+
+        return uploadedUrls;
+    }, [uploadSingleImage]);
 
     // Handle new image file selection
     const handleNewImageFilesChange = useCallback((e) => {
@@ -308,10 +420,14 @@ const ProductModal = ({
     const handleSubmit = useCallback(async (e) => {
         if (e) e.preventDefault();
 
+        // Set loading immediately
+        setLocalLoading(true);
+
         // Validate form - this will set validationErrors
         if (!validateForm()) {
             // Show generic message since error messages are already displayed under each field
             showToast('Please check the input fields again', 'error');
+            setLocalLoading(false);
             return;
         }
 
@@ -321,15 +437,19 @@ const ProductModal = ({
                 let updatedImageData = [...(formData.productImageIds || [])];
 
                 if (newImages.length > 0) {
-                    const uploadedImageUrls = await Promise.all(
-                        newImages.map(file => uploadSingleImage(file))
-                    );
+                    const uploadedImageUrls = await uploadMultipleImages(newImages);
 
-                    // Validate that all images were uploaded successfully
-                    const failedUploads = uploadedImageUrls.filter(url => !url || url === '');
-                    if (failedUploads.length > 0) {
-                        showToast('Some images failed to upload. Please try again.', 'error');
+                    // Validate that at least some images were uploaded successfully
+                    if (uploadedImageUrls.length === 0) {
+                        console.error('All images failed to upload');
+                        showToast('All images failed to upload. Please try again.', 'error');
                         return;
+                    }
+
+                    if (uploadedImageUrls.length !== newImages.length) {
+                        const failedCount = newImages.length - uploadedImageUrls.length;
+                        console.warn(`Some images failed to upload: ${failedCount} out of ${newImages.length} failed`);
+                        showToast(`${uploadedImageUrls.length} out of ${newImages.length} images uploaded successfully. ${failedCount} image(s) failed.`, 'warning');
                     }
 
                     // Add new images to the array
@@ -353,15 +473,19 @@ const ProductModal = ({
                 });
             } else {
                 // Create mode: Upload all images
-                const uploadedImageUrls = await Promise.all(
-                    newImages.map(file => uploadSingleImage(file))
-                );
+                const uploadedImageUrls = await uploadMultipleImages(newImages);
 
-                // Validate that all images were uploaded successfully
-                const failedUploads = uploadedImageUrls.filter(url => !url || url === '');
-                if (failedUploads.length > 0) {
-                    showToast('Some images failed to upload. Please try again.', 'error');
+                // Validate that at least some images were uploaded successfully
+                if (uploadedImageUrls.length === 0) {
+                    console.error('All images failed to upload');
+                    showToast('All images failed to upload. Please try again.', 'error');
                     return;
+                }
+
+                if (uploadedImageUrls.length !== newImages.length) {
+                    const failedCount = newImages.length - uploadedImageUrls.length;
+                    console.warn(`Some images failed to upload: ${failedCount} out of ${newImages.length} failed`);
+                    showToast(`${uploadedImageUrls.length} out of ${newImages.length} images uploaded successfully. ${failedCount} image(s) failed.`, 'warning');
                 }
 
                 // Prepare image data with isMain flag
@@ -382,13 +506,14 @@ const ProductModal = ({
                 productName: '',
                 categoryId: '',
                 description: '',
-                productStatus: 'active',
+                productStatus: 'pending', // Default to 'pending' - will be set to 'active' when variant is added
                 productImageIds: []
             });
             setNewImages([]);
             setNewImagePreviews([]);
             setMainImageIndex(0);
             setValidationErrors({});
+            setLocalLoading(false);
         } catch (err) {
             console.error(`${isEditMode ? 'Edit' : 'Add'} product error:`, err);
 
@@ -502,8 +627,10 @@ const ProductModal = ({
             } else {
                 showToast(errorMessage, "error");
             }
+        } finally {
+            setLocalLoading(false);
         }
-    }, [formData, newImages, mainImageIndex, uploadSingleImage, onSubmit, validateForm, showToast, isEditMode]);
+    }, [formData, newImages, mainImageIndex, uploadMultipleImages, onSubmit, validateForm, showToast, isEditMode]);
 
     // Reset form when modal closes
     const handleClose = useCallback(() => {
@@ -534,8 +661,6 @@ const ProductModal = ({
             newIndex: index
         }))
     ] : [];
-
-    const hasNoVariants = isEditMode && product?.productVariantIds?.length === 0;
 
     return (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
@@ -675,32 +800,6 @@ const ProductModal = ({
                             )}
                         </div>
 
-                        {/* Status - Only in edit mode */}
-                        {isEditMode && (
-                            <div>
-                                <label htmlFor="edit-status" className="block text-sm font-semibold text-gray-700 mb-2">
-                                    Status
-                                </label>
-                                <select
-                                    id="edit-status"
-                                    value={formData.productStatus}
-                                    onChange={(e) => handleFieldChange('productStatus', e.target.value)}
-                                    className={`w-full px-4 py-2.5 border rounded-lg transition-all duration-200 bg-white ${hasNoVariants
-                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-300'
-                                        : 'border-gray-300 hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
-                                        }`}
-                                    disabled={hasNoVariants}
-                                    title={hasNoVariants ? 'Status is disabled because the product has no variants' : ''}
-                                >
-                                    <option value="active">Active</option>
-                                    <option value="inactive">Inactive</option>
-                                </select>
-                                {hasNoVariants && (
-                                    <p className="mt-1 text-sm text-gray-500">Add a variant to enable status changes</p>
-                                )}
-                            </div>
-                        )}
-
                         {/* Image Management */}
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -772,28 +871,25 @@ const ProductModal = ({
                                                                 removeExistingImage(index);
                                                             }
                                                         }}
-                                                        className="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                                                        className="w-7 h-7 bg-red-600 text-white rounded-full flex items-center justify-center text-sm font-bold hover:bg-red-700 shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-110"
+                                                        title="Remove image"
                                                     >
                                                         ×
                                                     </button>
                                                     <button
                                                         type="button"
                                                         onClick={() => setMainImageIndex(index)}
-                                                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${mainImageIndex === index
+                                                        className={`w-7 h-7 rounded-full flex items-center justify-center text-xs shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-110 ${mainImageIndex === index
                                                             ? 'bg-yellow-500 text-white'
-                                                            : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                                                            : 'bg-white/90 text-gray-600 hover:bg-white hover:text-yellow-500 border border-gray-300'
                                                             }`}
+                                                        title={mainImageIndex === index ? "Main image" : "Set as main image"}
                                                     >
                                                         <FaStar />
                                                     </button>
                                                 </div>
-                                                {mainImageIndex === index && (
-                                                    <div className="absolute bottom-2 left-2 bg-yellow-500 text-white text-xs px-2 py-1 rounded">
-                                                        Main
-                                                    </div>
-                                                )}
                                                 {img.isNew && (
-                                                    <div className="absolute bottom-2 right-2 bg-green-500 text-white text-xs px-2 py-1 rounded">
+                                                    <div className="absolute bottom-2 right-2 bg-green-500 text-white text-xs font-semibold px-2.5 py-1 rounded-md shadow-md">
                                                         New
                                                     </div>
                                                 )}
@@ -816,26 +912,23 @@ const ProductModal = ({
                                                     <button
                                                         type="button"
                                                         onClick={() => removeNewImage(index)}
-                                                        className="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                                                        className="w-7 h-7 bg-red-600 text-white rounded-full flex items-center justify-center text-sm font-bold hover:bg-red-700 shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-110"
+                                                        title="Remove image"
                                                     >
                                                         ×
                                                     </button>
                                                     <button
                                                         type="button"
                                                         onClick={() => setMainImageIndex(index)}
-                                                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${mainImageIndex === index
+                                                        className={`w-7 h-7 rounded-full flex items-center justify-center text-xs shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-110 ${mainImageIndex === index
                                                             ? 'bg-yellow-500 text-white'
-                                                            : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                                                            : 'bg-white/90 text-gray-600 hover:bg-white hover:text-yellow-500 border border-gray-300'
                                                             }`}
+                                                        title={mainImageIndex === index ? "Main image" : "Set as main image"}
                                                     >
                                                         <FaStar />
                                                     </button>
                                                 </div>
-                                                {mainImageIndex === index && (
-                                                    <div className="absolute bottom-2 left-2 bg-yellow-500 text-white text-xs px-2 py-1 rounded">
-                                                        Main
-                                                    </div>
-                                                )}
                                             </div>
                                         ))
                                     )}
@@ -860,26 +953,22 @@ const ProductModal = ({
                     <button
                         type="button"
                         onClick={handleClose}
-                        className="px-5 py-2.5 text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-offset-2"
+                        className="px-5 py-2.5 text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-all duration-200 font-medium text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-offset-2"
                         style={{ '--tw-ring-color': '#A86523' }}
-                        disabled={loading}
+                        disabled={localLoading}
                     >
                         Cancel
                     </button>
                     <button
                         type="button"
                         onClick={handleSubmit}
-                        className="px-6 py-2.5 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:hover:shadow-md"
-                        style={{ backgroundColor: '#E9A319', '--tw-ring-color': '#A86523' }}
-                        onMouseEnter={(e) => {
-                            if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = '#A86523';
+                        disabled={localLoading}
+                        className="px-6 py-2.5 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:hover:shadow-md bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] disabled:hover:from-[#E9A319] disabled:hover:to-[#A86523]"
+                        style={{
+                            '--tw-ring-color': '#A86523'
                         }}
-                        onMouseLeave={(e) => {
-                            if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = '#E9A319';
-                        }}
-                        disabled={loading}
                     >
-                        {loading ? (
+                        {localLoading ? (
                             <div className="flex items-center justify-center space-x-2">
                                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
                                 <span>Processing...</span>
