@@ -60,7 +60,9 @@ const LiveStreamDetails = () => {
                     createdAt: livestreamData.createdAt,
                     updatedAt: livestreamData.updatedAt,
                     peakViewers: livestreamData.peakViewers || 0,
+                    peakViewersAt: livestreamData.peakViewersAt || null,
                     minViewers: livestreamData.minViewers || 0,
+                    minViewersAt: livestreamData.minViewersAt || null,
                     currentViewers: livestreamData.currentViewers || 0,
                     duration: livestreamData.duration // Duration in milliseconds (null if still live)
                 });
@@ -311,6 +313,16 @@ const LiveStreamDetails = () => {
                                 <p className="text-sm sm:text-base font-semibold text-gray-900">{viewerStats.peak} viewers</p>
                             </div>
 
+                            {livestream.peakViewersAt && (
+                                <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
+                                    <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
+                                        <Schedule className="w-3 h-3 sm:w-4 sm:h-4" />
+                                        <span className="text-xs font-medium">Peak At</span>
+                                    </div>
+                                    <p className="text-xs sm:text-sm font-semibold text-gray-900">{formatDate(livestream.peakViewersAt)}</p>
+                                </div>
+                            )}
+
                             <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
                                 <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
                                     <TrendingDown className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -318,6 +330,16 @@ const LiveStreamDetails = () => {
                                 </div>
                                 <p className="text-sm sm:text-base font-semibold text-gray-900">{viewerStats.min} viewers</p>
                             </div>
+
+                            {livestream.minViewersAt && (
+                                <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
+                                    <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
+                                        <Schedule className="w-3 h-3 sm:w-4 sm:h-4" />
+                                        <span className="text-xs font-medium">Min At</span>
+                                    </div>
+                                    <p className="text-xs sm:text-sm font-semibold text-gray-900">{formatDate(livestream.minViewersAt)}</p>
+                                </div>
+                            )}
 
                             <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
                                 <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
