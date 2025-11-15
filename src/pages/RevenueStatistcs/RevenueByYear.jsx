@@ -30,9 +30,14 @@ ChartJS.register(
 const RevenueByYear = ({ user }) => {
     // Data states
     const [revenueByYear, setRevenueByYear] = useState([]);
+    const [filteredRevenueByYear, setFilteredRevenueByYear] = useState([]);
     const [yearSummary, setYearSummary] = useState(null);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+
+    // Filter states
+    const [showFilter, setShowFilter] = useState(true);
+    const [selectedYears, setSelectedYears] = useState([]); // Will be set to 3 most recent years
 
     // Fetch revenue by year data
     const fetchRevenueByYear = useCallback(async () => {
@@ -87,10 +92,44 @@ const RevenueByYear = ({ user }) => {
         }
     }, [user, fetchRevenueByYear]);
 
+    // Update filtered data when revenueByYear or selectedYears change
+    useEffect(() => {
+        if (!revenueByYear || revenueByYear.length === 0) {
+            setFilteredRevenueByYear([]);
+            return;
+        }
+
+        // Auto-select 3 most recent years if not set
+        let yearsToFilter = selectedYears;
+        if (selectedYears.length === 0) {
+            const currentYear = new Date().getFullYear();
+            const threeMostRecentYears = [currentYear, currentYear - 1, currentYear - 2];
+            setSelectedYears(threeMostRecentYears);
+            yearsToFilter = threeMostRecentYears;
+        }
+
+        // Filter data based on selected years
+        // Ensure type matching (convert both to numbers for comparison)
+        const filtered = revenueByYear.filter(yearData => {
+            const year = typeof yearData.year === 'string' ? parseInt(yearData.year, 10) : yearData.year;
+            return yearsToFilter.some(selectedYear =>
+                (typeof selectedYear === 'string' ? parseInt(selectedYear, 10) : selectedYear) === year
+            );
+        });
+
+        setFilteredRevenueByYear(filtered);
+    }, [revenueByYear, selectedYears]);
+
     // Format currency - memoized for performance
     const formatCurrency = useCallback((value) => {
-        if (!value || value === 0) return '0 ₫';
-        return new Intl.NumberFormat('vi-VN').format(value) + ' ₫';
+        if (!value || value === 0) return '0 đ';
+        return new Intl.NumberFormat('vi-VN').format(value) + ' đ';
+    }, []);
+
+    // Replace VND with đ in formatted strings
+    const replaceVND = useCallback((str) => {
+        if (!str || typeof str !== 'string') return str || '';
+        return str.replace(/VND/gi, 'đ').replace(/ ₫/g, ' đ').trim();
     }, []);
 
     // Pre-defined gradient colors - memoized for performance
@@ -149,9 +188,62 @@ const RevenueByYear = ({ user }) => {
         };
     }, [GRADIENT_COLORS]);
 
+    // Get default years (3 most recent)
+    const getDefaultYears = useCallback(() => {
+        const currentYear = new Date().getFullYear();
+        return [currentYear, currentYear - 1, currentYear - 2];
+    }, []);
+
+    // Check if any filters are active
+    const hasActiveFilters = useCallback(() => {
+        const defaultYears = getDefaultYears().sort((a, b) => b - a);
+        const currentYears = [...selectedYears].sort((a, b) => b - a);
+
+        // Check if selectedYears is different from default (3 most recent years)
+        if (currentYears.length !== defaultYears.length) {
+            return true;
+        }
+
+        // Check if years are different
+        return !currentYears.every((year, index) => year === defaultYears[index]);
+    }, [selectedYears, getDefaultYears]);
+
+    // Clear all filters
+    const clearFilters = useCallback(() => {
+        const defaultYears = getDefaultYears();
+        setSelectedYears(defaultYears);
+    }, [getDefaultYears]);
+
+    // Filter functions
+    const handleYearToggle = (year) => {
+        if (selectedYears.includes(year)) {
+            // Only allow removal if we have more than 3 years selected
+            if (selectedYears.length > 3) {
+                setSelectedYears(selectedYears.filter(y => y !== year));
+            }
+        } else {
+            // Only allow addition if we haven't reached the limit
+            if (selectedYears.length < 10) {
+                setSelectedYears([...selectedYears, year]);
+            }
+        }
+    };
+
+    const getAvailableYears = () => {
+        // Always return 10 most recent years
+        const currentYear = new Date().getFullYear();
+        const years = [];
+
+        for (let i = 0; i < 10; i++) {
+            years.push(currentYear - i);
+        }
+
+        return years;
+    };
+
     // Chart data - optimized with stable dependencies
     const yearChartData = useMemo(() => {
-        if (revenueByYear.length === 0) {
+        if (filteredRevenueByYear.length === 0) {
             return {
                 labels: [],
                 datasets: [{
@@ -164,9 +256,11 @@ const RevenueByYear = ({ user }) => {
             };
         }
 
-        const labels = revenueByYear.map(item => item.year);
-        const data = revenueByYear.map(item => item.totalRevenue);
-        const colors = generateColors(revenueByYear.length);
+        // Sort by year to ensure consistent ordering
+        const sortedData = [...filteredRevenueByYear].sort((a, b) => a.year - b.year);
+        const labels = sortedData.map(item => item.year);
+        const data = sortedData.map(item => item.totalRevenue);
+        const colors = generateColors(sortedData.length);
 
         return {
             labels,
@@ -198,7 +292,7 @@ const RevenueByYear = ({ user }) => {
                 pointHoverBorderWidth: 3
             }]
         };
-    }, [revenueByYear, generateColors]);
+    }, [filteredRevenueByYear, generateColors]);
 
     // Chart options - Beautiful and modern - memoized for performance
     const revenueOverTimeChartOptions = useMemo(() => ({
@@ -252,7 +346,9 @@ const RevenueByYear = ({ user }) => {
                     },
                     label: function (context) {
                         const dataIndex = context.dataIndex;
-                        const item = revenueByYear[dataIndex];
+                        // Get sorted data to match chart data order
+                        const sortedData = [...filteredRevenueByYear].sort((a, b) => a.year - b.year);
+                        const item = sortedData[dataIndex];
                         const change = item?.comparedToPreviousYear || '-';
 
                         return [
@@ -269,7 +365,7 @@ const RevenueByYear = ({ user }) => {
                 beginAtZero: true,
                 title: {
                     display: true,
-                    text: 'Revenue (₫)',
+                    text: 'Revenue (đ)',
                     color: '#374151',
                     font: { size: 14, weight: '700', family: 'Inter, system-ui, sans-serif' },
                     padding: { top: 30, bottom: 30 }
@@ -287,11 +383,11 @@ const RevenueByYear = ({ user }) => {
                     padding: 15,
                     callback: function (value) {
                         if (value >= 1000000) {
-                            return (value / 1000000).toFixed(1) + 'M ₫';
+                            return (value / 1000000).toFixed(1) + 'M đ';
                         } else if (value >= 1000) {
-                            return (value / 1000).toFixed(0) + 'K ₫';
+                            return (value / 1000).toFixed(0) + 'K đ';
                         }
-                        return value + ' ₫';
+                        return value + ' đ';
                     }
                 }
             },
@@ -347,40 +443,49 @@ const RevenueByYear = ({ user }) => {
             animationDuration: 200
         },
         responsiveAnimationDuration: 0
-    }), [formatCurrency, revenueByYear]);
+    }), [formatCurrency, filteredRevenueByYear]);
 
     // Loading state
     if (loading) {
         return (
-            <Loading
-                type="page"
-                size="large"
-                message="Loading Revenue by Year"
-                subMessage="Please wait while we fetch your data..."
-                className="min-h-96"
-            />
+            <div className="backdrop-blur-xl rounded-xl border p-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(233, 163, 25, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }} role="status" aria-live="polite">
+                <div className="flex flex-col items-center justify-center space-y-4 min-h-[180px]">
+                    <div className="w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: '#FCEFCB', borderTopColor: '#E9A319' }}></div>
+                    <p className="text-gray-600 font-medium">
+                        Loading Revenue by Year...
+                    </p>
+                </div>
+            </div>
         );
     }
 
     // Error state
     if (error) {
         return (
-            <div className="bg-gradient-to-r from-red-50 to-red-100 border-2 border-red-200 rounded-2xl p-8 shadow-lg" role="alert" aria-live="true">
-                <div className="flex items-center space-x-4">
-                    <div className="w-16 h-16 bg-gradient-to-br from-red-400 to-red-600 rounded-2xl flex items-center justify-center shadow-lg">
-                        <span className="text-white text-2xl">⚠</span>
+            <div className="backdrop-blur-xl rounded-xl border p-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(233, 163, 25, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }} role="status">
+                <div className="flex flex-col items-center justify-center space-y-4 min-h-[180px]">
+                    <div className="flex flex-col items-center space-y-3">
+                        <div className="w-14 h-14 bg-gradient-to-br from-red-100 to-pink-100 rounded-full flex items-center justify-center shadow-lg">
+                            <svg className="w-7 h-7 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                                />
+                            </svg>
+                        </div>
+                        <div className="text-center">
+                            <h3 className="text-base font-semibold text-gray-900">Network Error</h3>
+                            <p className="text-sm text-gray-500 mt-1">{error}</p>
+                        </div>
+                        <button
+                            onClick={fetchRevenueByYear}
+                            className="px-4 py-2 text-white text-sm font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] transform hover:scale-105"
+                        >
+                            Retry
+                        </button>
                     </div>
-                    <div className="flex-1">
-                        <h3 className="text-xl font-bold text-red-800 mb-2">Error Loading Revenue by Year</h3>
-                        <p className="text-red-700 font-medium">{error}</p>
-                    </div>
-                    <button
-                        className="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
-                        onClick={fetchRevenueByYear}
-                        aria-label="Retry loading revenue by year"
-                    >
-                        🔄 Retry
-                    </button>
                 </div>
             </div>
         );
@@ -389,123 +494,226 @@ const RevenueByYear = ({ user }) => {
     return (
         <div className="space-y-6">
             {/* Header Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 mb-4">
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 lg:gap-3">
-                    <div className="flex-1 min-w-0">
-                        <h1 className="text-lg font-semibold text-gray-900 mb-1">Revenue by Year</h1>
-                        <p className="text-gray-600 text-sm">Yearly revenue performance overview</p>
-                    </div>
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4 mb-4 lg:mb-6 pt-2 lg:pt-3 pb-2 lg:pb-3">
+                <div className="flex-1 min-w-0">
+                    <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-2 leading-tight">Revenue by Year</h1>
+                    <p className="text-gray-600 text-sm sm:text-base lg:text-lg">Yearly revenue performance overview</p>
+                </div>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 lg:gap-4 shrink-0">
+                    <button
+                        className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-xs lg:text-sm font-semibold bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 transform hover:scale-105"
+                        onClick={() => setShowFilter(!showFilter)}
+                        aria-label="Toggle filters"
+                    >
+                        <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z" />
+                        </svg>
+                        <span className="font-medium hidden sm:inline">{showFilter ? 'Hide Filters' : 'Show Filters'}</span>
+                        <span className="font-medium sm:hidden">Filters</span>
+                    </button>
                 </div>
             </div>
 
-            {/* Summary Cards */}
-            {yearSummary && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
-                    {/* Current Year Revenue */}
-                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
-                        <div className="flex flex-col items-center text-center space-y-2">
-                            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                                <FaChartLine className="text-sm text-white" />
-                            </div>
-                            <div>
-                                <p className="text-gray-600 text-xs font-medium mb-1">Current Year</p>
-                                <p className="text-sm font-bold text-gray-800 truncate">
-                                    {yearSummary.currentYearRevenueFormatted || '0'}
-                                </p>
-                            </div>
+            {/* Filter Section */}
+            {showFilter && (
+                <div className="backdrop-blur-xl rounded-xl border p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(251, 191, 36, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}>
+                    {/* Header with Selected Years */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                        <h2 className="text-base lg:text-lg font-semibold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Search & Filter</h2>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={clearFilters}
+                                disabled={!hasActiveFilters()}
+                                className="px-2 py-1.5 lg:px-3 lg:py-2 text-gray-600 hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:via-pink-500 hover:to-rose-500 rounded-xl transition-all duration-300 border-2 border-gray-300/60 hover:border-transparent font-medium text-xs lg:text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-600 shadow-md hover:shadow-lg"
+                                aria-label="Clear all filters"
+                            >
+                                Clear
+                            </button>
                         </div>
                     </div>
 
-                    {/* Average Yearly Revenue */}
-                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
-                        <div className="flex flex-col items-center text-center space-y-2">
-                            <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
-                                <FaChartLine className="text-sm text-white" />
-                            </div>
-                            <div>
-                                <p className="text-gray-600 text-xs font-medium mb-1">Average Yearly</p>
-                                <p className="text-sm font-bold text-gray-800 truncate">
-                                    {yearSummary.averageYearlyRevenueFormatted || '0'}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Best Year */}
-                    {yearSummary.bestYear && (
-                        <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
-                            <div className="flex flex-col items-center text-center space-y-2">
-                                <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
-                                    <FaTrophy className="text-sm text-white" />
-                                </div>
-                                <div>
-                                    <p className="text-gray-600 text-xs font-medium mb-1">Best Year</p>
-                                    <p className="text-xs font-bold text-gray-800 truncate">
-                                        {yearSummary.bestYear}
-                                    </p>
-                                </div>
-                            </div>
+                    {/* Quick Selection Buttons - Compact */}
+                    {getAvailableYears().length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-3">
+                            <button
+                                onClick={clearFilters}
+                                className="px-2 py-1 text-gray-600 hover:text-white hover:bg-gradient-to-r hover:from-amber-500 hover:via-yellow-500 hover:to-orange-500 rounded-lg transition-all duration-300 border border-gray-300/60 hover:border-transparent font-medium text-xs shadow-sm hover:shadow-md"
+                            >
+                                3 Years
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const availableYears = getAvailableYears();
+                                    setSelectedYears(availableYears.slice(0, Math.min(5, availableYears.length)));
+                                }}
+                                className="px-2 py-1 text-gray-600 hover:text-white hover:bg-gradient-to-r hover:from-amber-500 hover:via-yellow-500 hover:to-orange-500 rounded-lg transition-all duration-300 border border-gray-300/60 hover:border-transparent font-medium text-xs shadow-sm hover:shadow-md"
+                            >
+                                5 Years
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const availableYears = getAvailableYears();
+                                    setSelectedYears(availableYears.slice(0, Math.min(7, availableYears.length)));
+                                }}
+                                className="px-2 py-1 text-gray-600 hover:text-white hover:bg-gradient-to-r hover:from-amber-500 hover:via-yellow-500 hover:to-orange-500 rounded-lg transition-all duration-300 border border-gray-300/60 hover:border-transparent font-medium text-xs shadow-sm hover:shadow-md"
+                            >
+                                7 Years
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const availableYears = getAvailableYears();
+                                    setSelectedYears(availableYears);
+                                }}
+                                className="px-2 py-1 text-gray-600 hover:text-white hover:bg-gradient-to-r hover:from-amber-500 hover:via-yellow-500 hover:to-orange-500 rounded-lg transition-all duration-300 border border-gray-300/60 hover:border-transparent font-medium text-xs shadow-sm hover:shadow-md"
+                            >
+                                All 10
+                            </button>
                         </div>
                     )}
 
-                    {/* vs Last Year */}
-                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
-                        <div className="flex flex-col items-center text-center space-y-2">
-                            <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
-                                <FaArrowUp className="text-sm text-white" />
-                            </div>
-                            <div>
-                                <p className="text-gray-600 text-xs font-medium mb-1">vs Last Year</p>
-                                <p className={`text-sm font-bold ${yearSummary.changeVsLastYear?.startsWith('+')
-                                    ? 'text-green-600'
-                                    : yearSummary.changeVsLastYear?.startsWith('-')
-                                        ? 'text-red-600'
-                                        : 'text-gray-800'
-                                    } truncate`}>
-                                    {yearSummary.changeVsLastYear || '-'}
-                                </p>
-                            </div>
+                    {/* Year Selection Grid - Compact */}
+                    {getAvailableYears().length > 0 ? (
+                        <div className="grid grid-cols-5 sm:grid-cols-5 md:grid-cols-5 lg:grid-cols-10 gap-2">
+                            {getAvailableYears().map(year => (
+                                <label key={year} className="flex items-center justify-center space-x-1.5 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-all duration-300 border-2 border-gray-300/60 hover:border-amber-400/60 shadow-sm hover:shadow-md">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedYears.includes(year)}
+                                        onChange={() => handleYearToggle(year)}
+                                        disabled={!selectedYears.includes(year) && selectedYears.length >= 10}
+                                        className="w-3.5 h-3.5 text-amber-600 border-gray-300 rounded focus:ring-amber-500 disabled:opacity-50"
+                                    />
+                                    <span className={`text-xs font-semibold ${selectedYears.includes(year) ? 'text-amber-600' : 'text-gray-700'}`}>
+                                        {year}
+                                    </span>
+                                </label>
+                            ))}
                         </div>
-                    </div>
-
-
-                    {/* Trend Status */}
-                    {yearSummary.trend && (
-                        <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
-                            <div className="flex flex-col items-center text-center space-y-1">
-                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${yearSummary.trend.status === 'increasing' ? 'bg-green-500' :
-                                    yearSummary.trend.status === 'decreasing' ? 'bg-red-500' : 'bg-gray-500'
-                                    }`}>
-                                    {yearSummary.trend.status === 'increasing' ? (
-                                        <FaArrowUp className="text-sm text-white" />
-                                    ) : yearSummary.trend.status === 'decreasing' ? (
-                                        <FaArrowDown className="text-sm text-white" />
-                                    ) : (
-                                        <FaChartLine className="text-sm text-white" />
-                                    )}
-                                </div>
-                                <div>
-                                    <p className="text-gray-600 text-xs font-medium mb-1">Trend</p>
-                                    <p className="text-xs font-bold text-gray-800 truncate">
-                                        {yearSummary.trend.description}
-                                    </p>
-                                    <p className={`text-xs ${yearSummary.trend.changePercentage?.startsWith('+')
-                                        ? 'text-green-600'
-                                        : yearSummary.trend.changePercentage?.startsWith('-')
-                                            ? 'text-red-600'
-                                            : 'text-gray-500'
-                                        } truncate`}>
-                                        {yearSummary.trend.changePercentage || '-'} vs {yearSummary.trend.comparedTo || 'previous period'}
-                                    </p>
-                                </div>
+                    ) : (
+                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <div className="flex items-center">
+                                <svg className="w-4 h-4 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                </svg>
+                                <p className="text-xs text-yellow-800">
+                                    <strong>No data available:</strong> Please wait for data to load.
+                                </p>
                             </div>
                         </div>
                     )}
                 </div>
             )}
 
+            {/* Summary Cards */}
+            {yearSummary && (
+                <div className="backdrop-blur-xl rounded-xl border p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(251, 191, 36, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                        {/* Current Year Revenue */}
+                        <div className="bg-white rounded-xl p-3 shadow-lg border hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center" style={{ borderColor: '#A86523' }}>
+                            <div className="flex flex-col items-center text-center space-y-2">
+                                <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                                    <FaChartLine className="text-sm text-white" />
+                                </div>
+                                <div>
+                                    <p className="text-gray-600 text-xs font-medium mb-1">Current Year</p>
+                                    <p className="text-sm font-bold text-gray-800 truncate">
+                                        {replaceVND(yearSummary.currentYearRevenueFormatted) || '0'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Average Yearly Revenue */}
+                        <div className="bg-white rounded-xl p-3 shadow-lg border hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center" style={{ borderColor: '#A86523' }}>
+                            <div className="flex flex-col items-center text-center space-y-2">
+                                <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                                    <FaChartLine className="text-sm text-white" />
+                                </div>
+                                <div>
+                                    <p className="text-gray-600 text-xs font-medium mb-1">Average Yearly</p>
+                                    <p className="text-sm font-bold text-gray-800 truncate">
+                                        {replaceVND(yearSummary.averageYearlyRevenueFormatted) || '0'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Best Year */}
+                        {yearSummary.bestYear && (
+                            <div className="bg-white rounded-xl p-3 shadow-lg border hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center" style={{ borderColor: '#A86523' }}>
+                                <div className="flex flex-col items-center text-center space-y-2">
+                                    <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                                        <FaTrophy className="text-sm text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-600 text-xs font-medium mb-1">Best Year</p>
+                                        <p className="text-xs font-bold text-gray-800 truncate">
+                                            {replaceVND(yearSummary.bestYear)}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* vs Last Year */}
+                        <div className="bg-white rounded-xl p-3 shadow-lg border hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center" style={{ borderColor: '#A86523' }}>
+                            <div className="flex flex-col items-center text-center space-y-2">
+                                <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                                    <FaArrowUp className="text-sm text-white" />
+                                </div>
+                                <div>
+                                    <p className="text-gray-600 text-xs font-medium mb-1">vs Last Year</p>
+                                    <p className={`text-sm font-bold ${yearSummary.changeVsLastYear?.startsWith('+')
+                                        ? 'text-green-600'
+                                        : yearSummary.changeVsLastYear?.startsWith('-')
+                                            ? 'text-red-600'
+                                            : 'text-gray-800'
+                                        } truncate`}>
+                                        {replaceVND(yearSummary.changeVsLastYear) || '-'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+
+                        {/* Trend Status */}
+                        {yearSummary.trend && (
+                            <div className="bg-white rounded-xl p-3 shadow-lg border hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center" style={{ borderColor: '#A86523' }}>
+                                <div className="flex flex-col items-center text-center space-y-1">
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${yearSummary.trend.status === 'increasing' ? 'bg-green-500' :
+                                        yearSummary.trend.status === 'decreasing' ? 'bg-red-500' : 'bg-gray-500'
+                                        }`}>
+                                        {yearSummary.trend.status === 'increasing' ? (
+                                            <FaArrowUp className="text-sm text-white" />
+                                        ) : yearSummary.trend.status === 'decreasing' ? (
+                                            <FaArrowDown className="text-sm text-white" />
+                                        ) : (
+                                            <FaChartLine className="text-sm text-white" />
+                                        )}
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-600 text-xs font-medium mb-1">Trend</p>
+                                        <p className="text-xs font-bold text-gray-800 truncate">
+                                            {replaceVND(yearSummary.trend.description)}
+                                        </p>
+                                        <p className={`text-xs ${yearSummary.trend.changePercentage?.startsWith('+')
+                                            ? 'text-green-600'
+                                            : yearSummary.trend.changePercentage?.startsWith('-')
+                                                ? 'text-red-600'
+                                                : 'text-gray-500'
+                                            } truncate`}>
+                                            {replaceVND(yearSummary.trend.changePercentage) || '-'} vs {replaceVND(yearSummary.trend.comparedTo) || 'previous period'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Revenue by Year Content */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-sm border overflow-hidden" style={{ borderColor: '#A86523' }}>
                 <div className="p-3 sm:p-4 lg:p-6 border-b border-gray-200">
                     <h3 className="text-base lg:text-lg font-semibold text-gray-900">Chart & Data</h3>
                     <p className="text-gray-600 text-sm lg:text-base">Visual representation and detailed data</p>
@@ -515,8 +723,9 @@ const RevenueByYear = ({ user }) => {
                 <div className="p-3 sm:p-4 lg:p-6">
                     <div className="h-[28rem] bg-gradient-to-br from-gray-50 via-white to-gray-100 rounded-xl p-4 lg:p-6 shadow-inner border border-gray-200">
                         <div className="h-full">
-                            {yearChartData.labels.length > 0 ? (
+                            {yearChartData && yearChartData.labels && yearChartData.labels.length > 0 ? (
                                 <Bar
+                                    key={`chart-${selectedYears.join('-')}-${filteredRevenueByYear.length}`}
                                     data={yearChartData}
                                     options={{
                                         ...revenueOverTimeChartOptions,

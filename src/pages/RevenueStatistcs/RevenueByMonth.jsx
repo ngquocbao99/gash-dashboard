@@ -37,7 +37,7 @@ const RevenueByMonth = ({ user }) => {
     const [loading, setLoading] = useState(false);
 
     // Filter states
-    const [showFilter, setShowFilter] = useState(false);
+    const [showFilter, setShowFilter] = useState(true);
     const [selectedYears, setSelectedYears] = useState([]); // Will be set to 2 most recent years
 
     // Fetch revenue by month data
@@ -123,8 +123,14 @@ const RevenueByMonth = ({ user }) => {
 
     // Format currency - memoized for performance
     const formatCurrency = useCallback((value) => {
-        if (!value || value === 0) return '0 ₫';
-        return new Intl.NumberFormat('vi-VN').format(value) + ' ₫';
+        if (!value || value === 0) return '0 đ';
+        return new Intl.NumberFormat('vi-VN').format(value) + ' đ';
+    }, []);
+
+    // Replace VND with đ in formatted strings
+    const replaceVND = useCallback((str) => {
+        if (!str || typeof str !== 'string') return str || '';
+        return str.replace(/VND/gi, 'đ').replace(/ ₫/g, ' đ').trim();
     }, []);
 
     // Pre-defined gradient colors - memoized for performance
@@ -331,7 +337,7 @@ const RevenueByMonth = ({ user }) => {
                 hover: 'rgba(59, 130, 246, 0.2)'
             };
 
-        return {
+            return {
                 label: `${year}`,
                 data,
                 backgroundColor: safeColor.bg,
@@ -452,7 +458,7 @@ const RevenueByMonth = ({ user }) => {
                 beginAtZero: true,
                 title: {
                     display: true,
-                    text: 'Revenue (₫)',
+                    text: 'Revenue (đ)',
                     color: '#374151',
                     font: { size: 14, weight: '700', family: 'Inter, system-ui, sans-serif' },
                     padding: { top: 30, bottom: 30 }
@@ -470,11 +476,11 @@ const RevenueByMonth = ({ user }) => {
                     padding: 15,
                     callback: function (value) {
                         if (value >= 1000000) {
-                            return (value / 1000000).toFixed(1) + 'M ₫';
+                            return (value / 1000000).toFixed(1) + 'M đ';
                         } else if (value >= 1000) {
-                            return (value / 1000).toFixed(0) + 'K ₫';
+                            return (value / 1000).toFixed(0) + 'K đ';
                         }
-                        return value + ' ₫';
+                        return value + ' đ';
                     }
                 }
             },
@@ -552,42 +558,31 @@ const RevenueByMonth = ({ user }) => {
         responsiveAnimationDuration: 0
     }), [formatCurrency, monthChartData.labels, filteredRevenueByMonth]);
 
-    // Loading state
-    if (loading) {
-        return (
-            <Loading
-                type="page"
-                size="large"
-                message="Loading Revenue by Month"
-                subMessage="Please wait while we fetch your data..."
-                className="min-h-96"
-            />
-        );
-    }
+    // Get default years (2 most recent)
+    const getDefaultYears = useCallback(() => {
+        const currentYear = new Date().getFullYear();
+        return [currentYear, currentYear - 1];
+    }, []);
 
-    // Error state
-    if (error) {
-        return (
-            <div className="bg-gradient-to-r from-red-50 to-red-100 border-2 border-red-200 rounded-2xl p-8 shadow-lg" role="alert" aria-live="true">
-                <div className="flex items-center space-x-4">
-                    <div className="w-16 h-16 bg-gradient-to-br from-red-400 to-red-600 rounded-2xl flex items-center justify-center shadow-lg">
-                        <span className="text-white text-2xl">⚠</span>
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="text-xl font-bold text-red-800 mb-2">Error Loading Revenue by Month</h3>
-                        <p className="text-red-700 font-medium">{error}</p>
-                    </div>
-                    <button
-                        className="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
-                        onClick={fetchRevenueByMonth}
-                        aria-label="Retry loading revenue by month"
-                    >
-                        🔄 Retry
-                    </button>
-                </div>
-            </div>
-        );
-    }
+    // Check if any filters are active
+    const hasActiveFilters = useCallback(() => {
+        const defaultYears = getDefaultYears().sort((a, b) => b - a);
+        const currentYears = [...selectedYears].sort((a, b) => b - a);
+
+        // Check if selectedYears is different from default (2 most recent years)
+        if (currentYears.length !== defaultYears.length) {
+            return true;
+        }
+
+        // Check if years are different
+        return !currentYears.every((year, index) => year === defaultYears[index]);
+    }, [selectedYears, getDefaultYears]);
+
+    // Clear all filters
+    const clearFilters = useCallback(() => {
+        const defaultYears = getDefaultYears();
+        setSelectedYears(defaultYears);
+    }, [getDefaultYears]);
 
     // Filter functions
     const handleYearToggle = (year) => {
@@ -616,17 +611,63 @@ const RevenueByMonth = ({ user }) => {
         return years;
     };
 
+    // Loading state
+    if (loading) {
+        return (
+            <div className="backdrop-blur-xl rounded-xl border p-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(233, 163, 25, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }} role="status" aria-live="polite">
+                <div className="flex flex-col items-center justify-center space-y-4 min-h-[180px]">
+                    <div className="w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: '#FCEFCB', borderTopColor: '#E9A319' }}></div>
+                    <p className="text-gray-600 font-medium">
+                        Loading Revenue by Month...
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // Error state
+    if (error) {
+        return (
+            <div className="backdrop-blur-xl rounded-xl border p-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(233, 163, 25, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }} role="status">
+                <div className="flex flex-col items-center justify-center space-y-4 min-h-[180px]">
+                    <div className="flex flex-col items-center space-y-3">
+                        <div className="w-14 h-14 bg-gradient-to-br from-red-100 to-pink-100 rounded-full flex items-center justify-center shadow-lg">
+                            <svg className="w-7 h-7 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                                />
+                            </svg>
+                        </div>
+                        <div className="text-center">
+                            <h3 className="text-base font-semibold text-gray-900">Network Error</h3>
+                            <p className="text-sm text-gray-500 mt-1">{error}</p>
+                        </div>
+                        <button
+                            onClick={fetchRevenueByMonth}
+                            className="px-4 py-2 text-white text-sm font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] transform hover:scale-105"
+                        >
+                            Retry
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
             {/* Header Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 mb-4">
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 lg:gap-3">
-                    <div className="flex-1 min-w-0">
-                        <h1 className="text-lg font-semibold text-gray-900 mb-1">Revenue by Month</h1>
-                        <p className="text-gray-600 text-sm">Monthly revenue performance comparison by year</p>
-                    </div>
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4 mb-4 lg:mb-6 pt-2 lg:pt-3 pb-2 lg:pb-3">
+                <div className="flex-1 min-w-0">
+                    <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-2 leading-tight">Revenue by Month</h1>
+                    <p className="text-gray-600 text-sm sm:text-base lg:text-lg">Monthly revenue performance comparison by year</p>
+                </div>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 lg:gap-4 shrink-0">
                     <button
-                        className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-xs lg:text-sm"
+                        className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-xs lg:text-sm font-semibold bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 transform hover:scale-105"
                         onClick={() => setShowFilter(!showFilter)}
                         aria-label="Toggle filters"
                     >
@@ -641,119 +682,89 @@ const RevenueByMonth = ({ user }) => {
 
             {/* Filter Section */}
             {showFilter && (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6">
-                    <h2 className="text-base lg:text-lg font-semibold text-gray-900 mb-3 lg:mb-4">Select Years to Compare</h2>
-                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <div className="flex items-center">
-                            <svg className="w-4 h-4 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <p className="text-sm text-blue-800">
-                                <strong>Info:</strong> Select minimum 2 years, maximum 10 years for comparison.
-                                Showing 10 most recent years (2016-2025). Default: 2 most recent years selected.
-                            </p>
+                <div className="backdrop-blur-xl rounded-xl border p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(251, 191, 36, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}>
+                    {/* Header with Selected Years */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                        <h2 className="text-base lg:text-lg font-semibold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Search & Filter</h2>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={clearFilters}
+                                disabled={!hasActiveFilters()}
+                                className="px-2 py-1.5 lg:px-3 lg:py-2 text-gray-600 hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:via-pink-500 hover:to-rose-500 rounded-xl transition-all duration-300 border-2 border-gray-300/60 hover:border-transparent font-medium text-xs lg:text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-600 shadow-md hover:shadow-lg"
+                                aria-label="Clear all filters"
+                            >
+                                Clear
+                            </button>
                         </div>
                     </div>
 
-                    {/* API Warning - Hidden since we always show 10 years */}
-                    {false && getAvailableYears().length > 0 && getAvailableYears().length < 2 && (
-                        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <div className="flex items-center">
-                                <svg className="w-4 h-4 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                </svg>
-                                <p className="text-sm text-yellow-800">
-                                    <strong>Info:</strong> API returned {getAvailableYears().length} year(s) of data.
-                                    {getAvailableYears().length === 1 ? ' Showing single year data.' : ' At least 2 years are recommended for comparison.'}
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Year Selection Grid */}
-                    {getAvailableYears().length > 0 ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 mb-4">
-                            {getAvailableYears().map(year => (
-                                <label key={year} className="flex items-center space-x-2 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition-colors border border-gray-200 hover:border-blue-300">
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedYears.includes(year)}
-                                        onChange={() => handleYearToggle(year)}
-                                        disabled={!selectedYears.includes(year) && selectedYears.length >= 10}
-                                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50"
-                                    />
-                                    <span className={`text-sm font-medium ${selectedYears.includes(year) ? 'text-blue-600 font-semibold' : 'text-gray-700'}`}>
-                                        {year}
-                                    </span>
-                                </label>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
-                            <div className="flex items-center">
-                                <svg className="w-4 h-4 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                </svg>
-                                <p className="text-sm text-yellow-800">
-                                    <strong>No data available:</strong> Please wait for data to load or try refreshing the page.
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Quick Selection Buttons */}
+                    {/* Quick Selection Buttons - Compact */}
                     {getAvailableYears().length > 0 && (
-                        <div className="flex flex-wrap gap-2 mb-4">
+                        <div className="flex flex-wrap gap-1.5 mb-3">
                             <button
-                                onClick={() => {
-                                    const availableYears = getAvailableYears();
-                                    setSelectedYears(availableYears.slice(0, 2));
-                                }}
-                                className="px-3 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium text-sm"
+                                onClick={clearFilters}
+                                className="px-2 py-1 text-gray-600 hover:text-white hover:bg-gradient-to-r hover:from-amber-500 hover:via-yellow-500 hover:to-orange-500 rounded-lg transition-all duration-300 border border-gray-300/60 hover:border-transparent font-medium text-xs shadow-sm hover:shadow-md"
                             >
-                                Reset to 2 Years
+                                2 Years
                             </button>
                             <button
                                 onClick={() => {
                                     const availableYears = getAvailableYears();
                                     setSelectedYears(availableYears.slice(0, Math.min(3, availableYears.length)));
                                 }}
-                                className="px-3 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium text-sm"
+                                className="px-2 py-1 text-gray-600 hover:text-white hover:bg-gradient-to-r hover:from-amber-500 hover:via-yellow-500 hover:to-orange-500 rounded-lg transition-all duration-300 border border-gray-300/60 hover:border-transparent font-medium text-xs shadow-sm hover:shadow-md"
                             >
-                                Select 3 Years
+                                3 Years
                             </button>
                             <button
                                 onClick={() => {
                                     const availableYears = getAvailableYears();
                                     setSelectedYears(availableYears.slice(0, Math.min(5, availableYears.length)));
                                 }}
-                                className="px-3 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium text-sm"
+                                className="px-2 py-1 text-gray-600 hover:text-white hover:bg-gradient-to-r hover:from-amber-500 hover:via-yellow-500 hover:to-orange-500 rounded-lg transition-all duration-300 border border-gray-300/60 hover:border-transparent font-medium text-xs shadow-sm hover:shadow-md"
                             >
-                                Select 5 Years
+                                5 Years
                             </button>
                             <button
                                 onClick={() => {
                                     const availableYears = getAvailableYears();
                                     setSelectedYears(availableYears);
                                 }}
-                                className="px-3 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium text-sm"
+                                className="px-2 py-1 text-gray-600 hover:text-white hover:bg-gradient-to-r hover:from-amber-500 hover:via-yellow-500 hover:to-orange-500 rounded-lg transition-all duration-300 border border-gray-300/60 hover:border-transparent font-medium text-xs shadow-sm hover:shadow-md"
                             >
-                                Select All 10 Years
+                                All 10
                             </button>
                         </div>
                     )}
 
-                    {/* Selected Years Display */}
-                    {selectedYears.length > 0 && (
-                        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    {/* Year Selection Grid - Compact */}
+                    {getAvailableYears().length > 0 ? (
+                        <div className="grid grid-cols-5 sm:grid-cols-5 md:grid-cols-5 lg:grid-cols-10 gap-2">
+                            {getAvailableYears().map(year => (
+                                <label key={year} className="flex items-center justify-center space-x-1.5 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-all duration-300 border-2 border-gray-300/60 hover:border-amber-400/60 shadow-sm hover:shadow-md">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedYears.includes(year)}
+                                        onChange={() => handleYearToggle(year)}
+                                        disabled={!selectedYears.includes(year) && selectedYears.length >= 10}
+                                        className="w-3.5 h-3.5 text-amber-600 border-gray-300 rounded focus:ring-amber-500 disabled:opacity-50"
+                                    />
+                                    <span className={`text-xs font-semibold ${selectedYears.includes(year) ? 'text-amber-600' : 'text-gray-700'}`}>
+                                        {year}
+                                    </span>
+                                </label>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                             <div className="flex items-center">
-                                <svg className="w-4 h-4 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                <svg className="w-4 h-4 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
                                 </svg>
-                                <p className="text-sm text-green-800">
-                                    <strong>Selected Years:</strong> {selectedYears.sort((a, b) => b - a).join(', ')}
+                                <p className="text-xs text-yellow-800">
+                                    <strong>No data available:</strong> Please wait for data to load.
                                 </p>
-                    </div>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -761,133 +772,133 @@ const RevenueByMonth = ({ user }) => {
 
             {/* Summary Cards */}
             {monthSummary && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
-                    {/* 1. Current Month Revenue */}
-                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
-                        <div className="flex flex-col items-center text-center space-y-2">
-                            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                                <FaChartLine className="text-sm text-white" />
-                            </div>
-                            <div>
-                                <p className="text-gray-600 text-xs font-medium mb-1">Current Month</p>
-                                <p className="text-sm font-bold text-gray-800 truncate">
-                                    {monthSummary.currentMonthRevenueFormatted || '0'}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* 2. Average Monthly Revenue */}
-                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
-                        <div className="flex flex-col items-center text-center space-y-2">
-                            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
-                                <FaTrophy className="text-sm text-white" />
-                            </div>
-                            <div>
-                                <p className="text-gray-600 text-xs font-medium mb-1">Average Monthly</p>
-                                <p className="text-sm font-bold text-gray-800 truncate">
-                                    {monthSummary.averageMonthlyRevenueFormatted || '0'}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* 3. Best Month in Period */}
-                    {monthSummary.bestMonth && (
-                        <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
+                <div className="backdrop-blur-xl rounded-xl border p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(251, 191, 36, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
+                        {/* 1. Current Month Revenue */}
+                        <div className="bg-white rounded-xl p-3 shadow-lg border hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center" style={{ borderColor: '#A86523' }}>
                             <div className="flex flex-col items-center text-center space-y-2">
-                                <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center">
+                                <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                                    <FaChartLine className="text-sm text-white" />
+                                </div>
+                                <div>
+                                    <p className="text-gray-600 text-xs font-medium mb-1">Current Month</p>
+                                    <p className="text-sm font-bold text-gray-800 truncate">
+                                        {replaceVND(monthSummary.currentMonthRevenueFormatted) || '0'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 2. Average Monthly Revenue */}
+                        <div className="bg-white rounded-xl p-3 shadow-lg border hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center" style={{ borderColor: '#A86523' }}>
+                            <div className="flex flex-col items-center text-center space-y-2">
+                                <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
                                     <FaTrophy className="text-sm text-white" />
                                 </div>
                                 <div>
-                                    <p className="text-gray-600 text-xs font-medium mb-1">Best Month</p>
-                                    <p className="text-xs font-bold text-gray-800 truncate">
-                                        {monthSummary.bestMonth}
+                                    <p className="text-gray-600 text-xs font-medium mb-1">Average Monthly</p>
+                                    <p className="text-sm font-bold text-gray-800 truncate">
+                                        {replaceVND(monthSummary.averageMonthlyRevenueFormatted) || '0'}
                                     </p>
                                 </div>
                             </div>
                         </div>
-                    )}
 
-                    {/* 4. vs Last Month */}
-                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
-                        <div className="flex flex-col items-center text-center space-y-2">
-                            <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
-                                <FaArrowUp className="text-sm text-white" />
+                        {/* 3. Best Month in Period */}
+                        {monthSummary.bestMonth && (
+                            <div className="bg-white rounded-xl p-3 shadow-lg border hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center" style={{ borderColor: '#A86523' }}>
+                                <div className="flex flex-col items-center text-center space-y-2">
+                                    <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center">
+                                        <FaTrophy className="text-sm text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-600 text-xs font-medium mb-1">Best Month</p>
+                                        <p className="text-xs font-bold text-gray-800 truncate">
+                                            {replaceVND(monthSummary.bestMonth)}
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-gray-600 text-xs font-medium mb-1">vs Last Month</p>
-                                <p className={`text-sm font-bold ${monthSummary.changeVsLastMonth?.startsWith('+')
-                                    ? 'text-green-600'
-                                    : monthSummary.changeVsLastMonth?.startsWith('-')
-                                        ? 'text-red-600'
-                                        : 'text-gray-800'
-                                    } truncate`}>
-                                    {monthSummary.changeVsLastMonth || '-'}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                        )}
 
-                    {/* 5. vs Same Period Last Year */}
-                    <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
-                        <div className="flex flex-col items-center text-center space-y-2">
-                            <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
-                                <FaChartLine className="text-sm text-white" />
-                            </div>
-                            <div>
-                                <p className="text-gray-600 text-xs font-medium mb-1">vs Last Year</p>
-                                <p className={`text-sm font-bold ${monthSummary.changeVsSamePeriodLastYear?.startsWith('+')
-                                    ? 'text-green-600'
-                                    : monthSummary.changeVsSamePeriodLastYear?.startsWith('-')
-                                        ? 'text-red-600'
-                                        : 'text-gray-800'
-                                    } truncate`}>
-                                    {monthSummary.changeVsSamePeriodLastYear || '-'}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* 6. Trend Status */}
-                    {monthSummary.trend && (
-                        <div className="bg-white rounded-xl p-3 shadow-lg border border-gray-200 hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center">
-                            <div className="flex flex-col items-center text-center space-y-1">
-                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${monthSummary.trend.status === 'increasing' ? 'bg-green-500' :
-                                    monthSummary.trend.status === 'decreasing' ? 'bg-red-500' : 'bg-gray-500'
-                                    }`}>
-                                    {monthSummary.trend.status === 'increasing' ? (
-                                        <FaArrowUp className="text-sm text-white" />
-                                    ) : monthSummary.trend.status === 'decreasing' ? (
-                                        <FaArrowDown className="text-sm text-white" />
-                                    ) : (
-                                        <FaChartLine className="text-sm text-white" />
-                                    )}
+                        {/* 4. vs Last Month */}
+                        <div className="bg-white rounded-xl p-3 shadow-lg border hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center" style={{ borderColor: '#A86523' }}>
+                            <div className="flex flex-col items-center text-center space-y-2">
+                                <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                                    <FaArrowUp className="text-sm text-white" />
                                 </div>
                                 <div>
-                                    <p className="text-gray-600 text-xs font-medium mb-1">Trend</p>
-                                    <p className="text-xs font-bold text-gray-800 truncate">
-                                        {monthSummary.trend.description}
-                                    </p>
-                                    <p className={`text-xs ${monthSummary.trend.changePercentage?.startsWith('+')
+                                    <p className="text-gray-600 text-xs font-medium mb-1">vs Last Month</p>
+                                    <p className={`text-sm font-bold ${monthSummary.changeVsLastMonth?.startsWith('+')
                                         ? 'text-green-600'
-                                        : monthSummary.trend.changePercentage?.startsWith('-')
+                                        : monthSummary.changeVsLastMonth?.startsWith('-')
                                             ? 'text-red-600'
-                                            : 'text-gray-500'
+                                            : 'text-gray-800'
                                         } truncate`}>
-                                        {monthSummary.trend.changePercentage || '-'} vs {monthSummary.trend.comparedTo || 'previous period'}
+                                        {monthSummary.changeVsLastMonth || '-'}
                                     </p>
                                 </div>
                             </div>
                         </div>
-                    )}
+
+                        {/* 5. vs Same Period Last Year */}
+                        <div className="bg-white rounded-xl p-3 shadow-lg border hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center" style={{ borderColor: '#A86523' }}>
+                            <div className="flex flex-col items-center text-center space-y-2">
+                                <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                                    <FaChartLine className="text-sm text-white" />
+                                </div>
+                                <div>
+                                    <p className="text-gray-600 text-xs font-medium mb-1">vs Last Year</p>
+                                    <p className={`text-sm font-bold ${monthSummary.changeVsSamePeriodLastYear?.startsWith('+')
+                                        ? 'text-green-600'
+                                        : monthSummary.changeVsSamePeriodLastYear?.startsWith('-')
+                                            ? 'text-red-600'
+                                            : 'text-gray-800'
+                                        } truncate`}>
+                                        {monthSummary.changeVsSamePeriodLastYear || '-'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 6. Trend Status */}
+                        {monthSummary.trend && (
+                            <div className="bg-white rounded-xl p-3 shadow-lg border hover:shadow-xl transition-all duration-300 h-24 flex flex-col justify-center" style={{ borderColor: '#A86523' }}>
+                                <div className="flex flex-col items-center text-center space-y-1">
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${monthSummary.trend.status === 'increasing' ? 'bg-green-500' :
+                                        monthSummary.trend.status === 'decreasing' ? 'bg-red-500' : 'bg-gray-500'
+                                        }`}>
+                                        {monthSummary.trend.status === 'increasing' ? (
+                                            <FaArrowUp className="text-sm text-white" />
+                                        ) : monthSummary.trend.status === 'decreasing' ? (
+                                            <FaArrowDown className="text-sm text-white" />
+                                        ) : (
+                                            <FaChartLine className="text-sm text-white" />
+                                        )}
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-600 text-xs font-medium mb-1">Trend</p>
+                                        <p className="text-xs font-bold text-gray-800 truncate">
+                                            {monthSummary.trend.description}
+                                        </p>
+                                        <p className={`text-xs ${monthSummary.trend.changePercentage?.startsWith('+')
+                                            ? 'text-green-600'
+                                            : monthSummary.trend.changePercentage?.startsWith('-')
+                                                ? 'text-red-600'
+                                                : 'text-gray-500'
+                                            } truncate`}>
+                                            {monthSummary.trend.changePercentage || '-'} vs {monthSummary.trend.comparedTo || 'previous period'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 
-
-
             {/* Revenue by Month Content */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-sm border overflow-hidden" style={{ borderColor: '#A86523' }}>
                 <div className="p-3 sm:p-4 lg:p-6 border-b border-gray-200">
                     <h3 className="text-base lg:text-lg font-semibold text-gray-900">Chart & Data</h3>
                     <p className="text-gray-600 text-sm lg:text-base">Visual representation and detailed data</p>
