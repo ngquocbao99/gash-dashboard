@@ -205,6 +205,8 @@ const Api = {
         update: (orderId, data) => axiosClient.put(`/orders/admin/update/${orderId}`, data).then(response => response.data),
         // Cancel order
         cancel: (orderId) => axiosClient.patch(`/orders/${orderId}/cancel`, {}).then(response => response.data),
+        // Debug: Generate random orders (only when ENABLE_DEBUG_ORDERS=true)
+        generateDebugOrders: (count) => axiosClient.post("/orders/debug/generate-orders", { count }).then(response => response.data),
     },
 
     // ==== Feedback ====

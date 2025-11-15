@@ -3,6 +3,7 @@ import CancelOrderModal from "./CancelOrderModal"; // Adjust path as needed
 import OrderDetails from "./OrderDetails";
 import UpdateOrderStatusModal from "../../components/UpdateOrderStatusModal";
 import UploadRefundProofModal from "../../components/UploadRefundProofModal";
+import DebugOrderModal from "../../components/DebugOrderModal";
 import React, {
   useState,
   useEffect,
@@ -96,6 +97,7 @@ const Orders = () => {
   const [selectedOrderForRefund, setSelectedOrderForRefund] = useState(null);
   const [uploadingRefundProof, setUploadingRefundProof] = useState(false);
   const [refundError, setRefundError] = useState("");
+  const [showDebugOrderModal, setShowDebugOrderModal] = useState(false);
 
 
   const [filters, setFilters] = useState({
@@ -937,6 +939,30 @@ const Orders = () => {
               {filteredOrders.length !== 1 ? "s" : ""}
             </span>
           </div>
+          {(user?.role === "admin" || user?.role === "manager") && (
+            <button
+              className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-xs lg:text-sm font-semibold bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 transform hover:scale-105"
+              onClick={() => setShowDebugOrderModal(true)}
+              aria-label="Generate debug orders"
+              title="Generate random orders for testing (Debug feature)"
+            >
+              <svg
+                className="w-3 h-3 lg:w-4 lg:h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                />
+              </svg>
+              <span className="font-medium hidden sm:inline">Debug Orders</span>
+              <span className="font-medium sm:hidden">Debug</span>
+            </button>
+          )}
           <button
             className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-xs lg:text-sm font-semibold bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 transform hover:scale-105"
             onClick={toggleFilters}
@@ -1630,6 +1656,16 @@ const Orders = () => {
         onImageClick={(imageUrl, alt) => {
           setModalImageUrl(imageUrl);
           setShowRefundProofModal(true);
+        }}
+      />
+
+      {/* Debug Order Modal */}
+      <DebugOrderModal
+        isOpen={showDebugOrderModal}
+        onClose={() => setShowDebugOrderModal(false)}
+        onOrdersGenerated={() => {
+          fetchOrders();
+          setShowDebugOrderModal(false);
         }}
       />
     </div>
