@@ -552,6 +552,18 @@ const LiveStreamManagement = () => {
         setCurrentPage(1);
     }, [statusFilter, itemsPerPage]);
 
+    // Check if any filters are active
+    const hasActiveFilters = useCallback(() => {
+        return searchTerm || statusFilter !== 'all';
+    }, [searchTerm, statusFilter]);
+
+    // Clear all filters
+    const clearFilters = useCallback(() => {
+        setSearchTerm('');
+        setStatusFilter('all');
+        setCurrentPage(1);
+    }, []);
+
     // Pagination calculations
     const totalPages = Math.ceil(totalItems / itemsPerPage);
 
@@ -855,96 +867,71 @@ const LiveStreamManagement = () => {
     const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
 
     return (
-        <div className="min-h-screen bg-gray-50 p-2 sm:p-3 lg:p-4 xl:p-6">
+        <div className="min-h-screen p-2 sm:p-3 lg:p-4 xl:p-6">
+
             {/* Header Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6">
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4">
-                    <div className="flex-1 min-w-0">
-                        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-2">Livestream Management</h1>
-                        <p className="text-gray-600 text-sm sm:text-base lg:text-lg">Manage and start livestreams</p>
-                    </div>
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 lg:gap-4 shrink-0">
-                        {totalItems > 0 && (
-                            <div className="bg-gray-50 px-2 lg:px-4 py-1 lg:py-2 rounded-lg border border-gray-200">
-                                <span className="text-xs lg:text-sm font-medium text-gray-700">
-                                    {totalItems} livestream{totalItems !== 1 ? 's' : ''}
-                                </span>
-                            </div>
-                        )}
-                        {!currentLivestream && isAdminOrManager && (
-                            <button
-                                onClick={() => setShowStartForm(true)}
-                                className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-xs lg:text-sm"
-                            >
-                                <LiveTv className="w-3 h-3 lg:w-4 lg:h-4" />
-                                <span className="font-medium">Start Live</span>
-                            </button>
-                        )}
-                    </div>
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4 mb-4 lg:mb-6 pt-2 lg:pt-3 pb-2 lg:pb-3">
+                <div className="flex-1 min-w-0">
+                    <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-2 leading-tight">Livestream Management</h1>
+                    <p className="text-gray-600 text-sm sm:text-base lg:text-lg">Manage and start livestreams</p>
+                </div>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 lg:gap-4 shrink-0">
+                    {totalItems > 0 && (
+                        <div className="bg-gradient-to-r from-yellow-400/20 via-amber-400/20 to-orange-400/20 backdrop-blur-md px-2 lg:px-4 py-1 lg:py-2 rounded-xl border-2 border-yellow-400/50 shadow-md">
+                            <span className="text-xs lg:text-sm font-semibold text-gray-700">
+                                {totalItems} livestream{totalItems !== 1 ? 's' : ''}
+                            </span>
+                        </div>
+                    )}
+                    {!currentLivestream && isAdminOrManager && (
+                        <button
+                            onClick={() => setShowStartForm(true)}
+                            className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-xs lg:text-sm font-semibold bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] transform hover:scale-105"
+                        >
+                            <LiveTv className="w-3 h-3 lg:w-4 lg:h-4" />
+                            <span className="font-medium">Start Live</span>
+                        </button>
+                    )}
                 </div>
             </div>
 
             {/* Search and Filter Controls */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6">
-                <h2 className="text-base lg:text-lg font-semibold text-gray-900 mb-3 lg:mb-4">Search & Filter</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+            <div className="backdrop-blur-xl rounded-xl border p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(251, 191, 36, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}>
+                <div className="flex items-center justify-between mb-3 lg:mb-4">
+                    <h2 className="text-base lg:text-lg font-semibold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Search & Filter</h2>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={clearFilters}
+                            disabled={!hasActiveFilters()}
+                            className="px-2 py-1.5 lg:px-3 lg:py-2 text-gray-600 hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:via-pink-500 hover:to-rose-500 rounded-xl transition-all duration-300 border-2 border-gray-300/60 hover:border-transparent font-medium text-xs lg:text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-600 shadow-md hover:shadow-lg"
+                            aria-label="Clear all filters"
+                        >
+                            Clear
+                        </button>
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-4">
                     <div>
                         <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Search Livestream</label>
-                        <div className="relative">
-                            <input
-                                type="text"
-                                placeholder="Search by title, description..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base pr-10"
-                            />
-                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
-                            </div>
-                        </div>
+                        <input
+                            type="text"
+                            placeholder="Search by title, description..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
+                        />
                     </div>
                     <div>
                         <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Status</label>
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
-                            className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
+                            className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
                         >
                             <option value="all">All Statuses</option>
                             <option value="live">Live</option>
                             <option value="ended">Ended</option>
                         </select>
-                    </div>
-                    <div>
-                        <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Items per Page</label>
-                        <select
-                            value={itemsPerPage}
-                            onChange={(e) => {
-                                setItemsPerPage(Number(e.target.value));
-                                setCurrentPage(1);
-                            }}
-                            className="w-full px-3 py-2 lg:px-4 lg:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white text-sm lg:text-base"
-                        >
-                            <option value={5}>5</option>
-                            <option value={10}>10</option>
-                            <option value={20}>20</option>
-                            <option value={50}>50</option>
-                        </select>
-                    </div>
-                    <div className="flex items-end">
-                        <button
-                            onClick={() => {
-                                setSearchTerm('');
-                                setStatusFilter('all');
-                                setCurrentPage(1);
-                            }}
-                            disabled={!searchTerm && statusFilter === 'all'}
-                            className="w-full px-3 py-2 lg:px-4 lg:py-3 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 border border-gray-300 hover:border-gray-400 font-medium text-sm lg:text-base disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            Clear Filters
-                        </button>
                     </div>
                 </div>
             </div>

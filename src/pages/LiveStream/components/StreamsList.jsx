@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Api from '../../../common/SummaryAPI';
-import { Visibility } from '@mui/icons-material';
 
 const StreamsList = ({
     title,
@@ -110,121 +109,152 @@ const StreamsList = ({
     }, [loadAllLivestreams, currentPage, itemsPerPage, searchTerm, statusFilter]);
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-4 lg:mb-6">
-            <div className="border-b border-gray-200 p-3 sm:p-4 lg:p-6">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                    <h2 className="text-base lg:text-lg font-semibold text-gray-900">{title}</h2>
-                    <div className="text-xs lg:text-sm text-gray-500">
-                        Total: {pagination?.totalItems || 0} streams
-                        {searchTerm && <span className="ml-2 text-blue-600">(filtered by "{searchTerm}")</span>}
-                        {statusFilter !== 'all' && <span className="ml-2 text-blue-600">(status: {statusFilter === 'live' ? 'Live' : 'Ended'})</span>}
-                    </div>
-                </div>
-            </div>
-
+        <div className="backdrop-blur-xl rounded-xl border overflow-hidden mb-4 lg:mb-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(233, 163, 25, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}>
             {isLoading ? (
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-4 lg:mb-6" role="status" aria-live="polite">
-                    <div className="flex flex-col items-center justify-center space-y-4">
-                        <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                <div className="backdrop-blur-xl rounded-xl border p-6 mb-4 lg:mb-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(233, 163, 25, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }} role="status" aria-live="polite">
+                    <div className="flex flex-col items-center justify-center space-y-4 min-h-[180px]">
+                        <div className="w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: '#FCEFCB', borderTopColor: '#E9A319' }}></div>
                         <p className="text-gray-600 font-medium">Loading livestreams...</p>
                     </div>
                 </div>
-            ) : (
-                <>
-                    <div className="divide-y divide-gray-200">
-                        {streams.length > 0 ? (
-                            streams.map((stream, index) => (
-                                <div key={stream._id || index} className="p-3 sm:p-4 hover:bg-gray-50 transition-colors duration-150">
-                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="text-xs lg:text-sm font-medium text-gray-900 mb-1">{stream.title || 'Untitled Stream'}</h3>
-                                            <p className="text-xs lg:text-sm text-gray-600 mb-2">{stream.description || 'No description'}</p>
-                                            <div className="flex items-center gap-3 lg:gap-4 flex-wrap text-xs text-gray-500">
-                                                <span className={`px-2 py-1 rounded-full text-xs ${stream.status === 'live' ? 'bg-red-100 text-red-800' :
-                                                    stream.status === 'ended' ? 'bg-gray-100 text-gray-800' :
-                                                        'bg-yellow-100 text-yellow-800'
-                                                    }`}>
-                                                    {stream.status || 'unknown'}
-                                                </span>
-                                                {/* {stream.roomName && <span>Room: {stream.roomName}</span>} */}
-                                                {stream.hostId && (
-                                                    <span>Host: {stream.hostId?.name || stream.hostId || 'Unknown'}</span>
-                                                )}
-                                                <span>Viewers: {stream.currentViewers || 0}</span>
-                                                {stream.peakViewers > 0 && <span>Peak: {stream.peakViewers}</span>}
-                                            </div>
-                                        </div>
-                                        <div className="flex flex-col items-end gap-2">
-                                            <div className="text-sm text-gray-500 text-right">
-                                                <div>Started: {stream.startTime ? new Date(stream.startTime).toLocaleString() : 'N/A'}</div>
-                                                {stream.endTime && (
-                                                    <div>Ended: {new Date(stream.endTime).toLocaleString()}</div>
-                                                )}
-                                            </div>
-                                            <button
-                                                onClick={() => navigate(`/livestream/details/${stream._id}`)}
-                                                className="flex items-center gap-1 px-3 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                                            >
-                                                <Visibility className="w-3 h-3" />
-                                                View Details
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))
-                        ) : (
-                            <div className="p-4 text-center text-gray-500">
-                                {emptyMessage}
-                            </div>
-                        )}
-                    </div>
+            ) : streams.length > 0 ? (
+                <div className="overflow-x-auto">
+                    <table className="w-full table-fixed min-w-[900px]">
+                        {/* ---------- HEADER ---------- */}
+                        <thead className="backdrop-blur-sm border-b" style={{ borderColor: '#A86523' }}>
+                            <tr>
+                                <th className="w-[5%] px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">
+                                    #
+                                </th>
+                                <th className="w-[18%] px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">
+                                    Title
+                                </th>
+                                <th className="w-[20%] px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">
+                                    Description
+                                </th>
+                                <th className="w-[8%] px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">
+                                    Status
+                                </th>
+                                <th className="w-[10%] px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">
+                                    Host
+                                </th>
+                                <th className="w-[8%] px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">
+                                    Viewers
+                                </th>
+                                <th className="w-[11%] px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">
+                                    Start Time
+                                </th>
+                                <th className="w-[11%] px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">
+                                    End Time
+                                </th>
+                                <th className="w-[9%] px-2 lg:px-4 py-3 text-center text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
 
-                    {/* Pagination */}
-                    {pagination?.totalPages > 1 && (
-                        <div className="px-6 py-4 border-t bg-gray-50">
-                            <div className="flex items-center justify-between">
-                                <div className="text-sm text-gray-700">
-                                    Showing {((currentPage || 1) - 1) * (itemsPerPage || 10) + 1} to {Math.min((currentPage || 1) * (itemsPerPage || 10), pagination?.totalItems || 0)} of {pagination?.totalItems || 0} results
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <button
-                                        onClick={() => handlePageChange((currentPage || 1) - 1)}
-                                        disabled={(currentPage || 1) <= 1}
-                                        className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        <tbody>
+                            {streams.map((stream, index) => {
+                                const startIndex = ((currentPage || 1) - 1) * (itemsPerPage || 10);
+                                const itemNumber = startIndex + index + 1;
+                                return (
+                                    <tr
+                                        key={stream._id || index}
+                                        className="hover:bg-gradient-to-r hover:from-yellow-50/50 hover:via-amber-50/50 hover:to-orange-50/50 transition-all duration-300 border-b-2 border-gray-200/40"
                                     >
-                                        Previous
-                                    </button>
+                                        {/* # */}
+                                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap text-xs lg:text-sm text-gray-900">
+                                            {itemNumber}
+                                        </td>
 
-                                    <div className="flex items-center space-x-1">
-                                        {Array.from({ length: Math.min(5, pagination?.totalPages || 1) }, (_, i) => {
-                                            const pageNum = Math.max(1, Math.min((pagination?.totalPages || 1) - 4, (currentPage || 1) - 2)) + i;
-                                            return (
+                                        {/* Title */}
+                                        <td className="px-2 lg:px-4 py-3">
+                                            <div className="text-xs lg:text-sm font-medium text-gray-900 truncate">
+                                                {stream.title || 'Untitled Stream'}
+                                            </div>
+                                        </td>
+
+                                        {/* Description */}
+                                        <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm text-gray-900">
+                                            <div className="truncate">
+                                                {stream.description || 'No description'}
+                                            </div>
+                                        </td>
+
+                                        {/* Status */}
+                                        <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
+                                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${stream.status === 'live' ? 'bg-red-100 text-red-800' :
+                                                stream.status === 'ended' ? 'bg-gray-100 text-gray-800' :
+                                                    'bg-yellow-100 text-yellow-800'
+                                                }`}>
+                                                {stream.status || 'unknown'}
+                                            </span>
+                                        </td>
+
+                                        {/* Host */}
+                                        <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm text-gray-900">
+                                            {stream.hostId?.name || stream.hostId || 'Unknown'}
+                                        </td>
+
+                                        {/* Viewers */}
+                                        <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm text-gray-900">
+                                            {stream.currentViewers || 0}
+                                            {stream.peakViewers > 0 && (
+                                                <span className="text-gray-500 ml-1">(Peak: {stream.peakViewers})</span>
+                                            )}
+                                        </td>
+
+                                        {/* Start Time */}
+                                        <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm text-gray-900">
+                                            {stream.startTime ? new Date(stream.startTime).toLocaleString() : 'N/A'}
+                                        </td>
+
+                                        {/* End Time */}
+                                        <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm text-gray-900">
+                                            {stream.endTime ? new Date(stream.endTime).toLocaleString() : 'N/A'}
+                                        </td>
+
+                                        {/* Actions */}
+                                        <td className="px-2 lg:px-4 py-3">
+                                            <div className="flex justify-center items-center">
                                                 <button
-                                                    key={pageNum}
-                                                    onClick={() => handlePageChange(pageNum)}
-                                                    className={`px-3 py-1 text-sm border rounded-md ${pageNum === (currentPage || 1)
-                                                        ? 'bg-blue-600 text-white border-blue-600'
-                                                        : 'border-gray-300 hover:bg-gray-50'
-                                                        }`}
+                                                    onClick={() => navigate(`/livestream/details/${stream._id}`)}
+                                                    className="p-1.5 rounded-xl transition-all duration-300 border-2 shadow-md hover:shadow-lg transform hover:scale-110 border-yellow-400/60 bg-gradient-to-br from-yellow-100/80 via-amber-100/80 to-orange-100/80 hover:from-yellow-200 hover:via-amber-200 hover:to-orange-200 text-amber-700 hover:text-amber-800 backdrop-blur-sm"
+                                                    aria-label={`View details for livestream ${stream._id}`}
+                                                    title="View Details"
                                                 >
-                                                    {pageNum}
+                                                    <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                    </svg>
                                                 </button>
-                                            );
-                                        })}
-                                    </div>
-
-                                    <button
-                                        onClick={() => handlePageChange((currentPage || 1) + 1)}
-                                        disabled={(currentPage || 1) >= (pagination?.totalPages || 1)}
-                                        className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        Next
-                                    </button>
-                                </div>
-                            </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            ) : (
+                <div className="p-6 text-center">
+                    <div className="flex flex-col items-center space-y-3">
+                        <div className="w-14 h-14 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center shadow-lg">
+                            <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                                />
+                            </svg>
                         </div>
-                    )}
-                </>
+                        <div className="text-center">
+                            <h3 className="text-base font-medium text-gray-900">No livestreams found</h3>
+                            <p className="text-sm text-gray-500 mt-1">{emptyMessage}</p>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

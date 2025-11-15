@@ -33,7 +33,7 @@ import RevenueStatistics from "./pages/RevenueStatistcs/RevenueStatistics.jsx";
 import OrderStatistics from "./pages/OrderStatistics/OrderStatistics.jsx";
 import CustomerStatistics from "./pages/CustomerStatistics/CustomerStatistics.jsx";
 import ProductStatistics from "./pages/ProductStatistics/ProductStatistics.jsx";
-import LiveStream from "./pages/LiveStream/LiveStream.jsx";
+import LiveStreamManagement from "./pages/LiveStream/LiveStreamManagement.jsx";
 import LiveStreamDashboard from "./pages/LiveStream/LiveStreamDashboard.jsx";
 import LiveStreamDetails from "./pages/LiveStream/LiveStreamDetails.jsx";
 
@@ -223,7 +223,7 @@ const App = () => {
                 path="/livestream"
                 element={
                   <ProtectedRoute>
-                    <LiveStream />
+                    <LiveStreamManagement />
                   </ProtectedRoute>
                 }
               />
