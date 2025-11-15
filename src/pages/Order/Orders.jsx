@@ -1320,106 +1320,28 @@ const Orders = () => {
                             </button>
                             <button
                               onClick={() => handleOpenUpdateModal(order)}
-                              className={`p-1.5 rounded-lg transition-all duration-200 border ${(isOrderStatusUpdateAllowed(
-                                order.order_status,
+                              disabled={shouldDisableUpdateButton(
                                 order.payment_method,
-                                order.pay_status
-                              ) &&
-                                !shouldDisableUpdate(
-                                  order.payment_method,
-                                  order.order_status,
-                                  order.pay_status
-                                )) ||
-                                isRefundStatusUpdateAllowed(
+                                order.order_status,
+                                order.pay_status,
+                                order.refund_status
+                              )}
+                              className={`p-1.5 rounded-xl transition-all duration-300 border-2 shadow-md hover:shadow-lg transform hover:scale-110 ${shouldDisableUpdateButton(
+                                order.payment_method,
+                                order.order_status,
+                                order.pay_status,
+                                order.refund_status
+                              )
+                                ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
+                                : isRefundStatusUpdateAllowed(
                                   order.payment_method,
                                   order.order_status,
                                   order.pay_status,
                                   order.refund_status
                                 )
-                                ? isRefundStatusUpdateAllowed(
-                                  order.payment_method,
-                                  order.order_status,
-                                  order.pay_status,
-                                  order.refund_status
-                                )
-                                  ? "text-orange-600 hover:text-orange-800 hover:bg-orange-100 border-orange-200 hover:border-orange-300"
-                                  : "border-[#A86523]"
-                                : "text-gray-400 cursor-not-allowed border-gray-200 bg-gray-50"
+                                  ? 'border-orange-400/60 bg-gradient-to-br from-orange-100/80 via-amber-100/80 to-yellow-100/80 hover:from-orange-200 hover:via-amber-200 hover:to-yellow-200 text-orange-700 hover:text-orange-800 backdrop-blur-sm'
+                                  : 'border-yellow-400/60 bg-gradient-to-br from-yellow-100/80 via-amber-100/80 to-orange-100/80 hover:from-yellow-200 hover:via-amber-200 hover:to-orange-200 text-amber-700 hover:text-amber-800 backdrop-blur-sm'
                                 }`}
-                              style={((isOrderStatusUpdateAllowed(
-                                order.order_status,
-                                order.payment_method,
-                                order.pay_status
-                              ) &&
-                                !shouldDisableUpdate(
-                                  order.payment_method,
-                                  order.order_status,
-                                  order.pay_status
-                                )) ||
-                                isRefundStatusUpdateAllowed(
-                                  order.payment_method,
-                                  order.order_status,
-                                  order.pay_status,
-                                  order.refund_status
-                                )) && !isRefundStatusUpdateAllowed(
-                                  order.payment_method,
-                                  order.order_status,
-                                  order.pay_status,
-                                  order.refund_status
-                                ) ? {
-                                color: '#A86523',
-                                backgroundColor: 'transparent'
-                              } : {}}
-                              onMouseEnter={(e) => {
-                                if (((isOrderStatusUpdateAllowed(
-                                  order.order_status,
-                                  order.payment_method,
-                                  order.pay_status
-                                ) &&
-                                  !shouldDisableUpdate(
-                                    order.payment_method,
-                                    order.order_status,
-                                    order.pay_status
-                                  )) ||
-                                  isRefundStatusUpdateAllowed(
-                                    order.payment_method,
-                                    order.order_status,
-                                    order.pay_status,
-                                    order.refund_status
-                                  )) && !isRefundStatusUpdateAllowed(
-                                    order.payment_method,
-                                    order.order_status,
-                                    order.pay_status,
-                                    order.refund_status
-                                  )) {
-                                  e.currentTarget.style.backgroundColor = '#FCEFCB';
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (((isOrderStatusUpdateAllowed(
-                                  order.order_status,
-                                  order.payment_method,
-                                  order.pay_status
-                                ) &&
-                                  !shouldDisableUpdate(
-                                    order.payment_method,
-                                    order.order_status,
-                                    order.pay_status
-                                  )) ||
-                                  isRefundStatusUpdateAllowed(
-                                    order.payment_method,
-                                    order.order_status,
-                                    order.pay_status,
-                                    order.refund_status
-                                  )) && !isRefundStatusUpdateAllowed(
-                                    order.payment_method,
-                                    order.order_status,
-                                    order.pay_status,
-                                    order.refund_status
-                                  )) {
-                                  e.currentTarget.style.backgroundColor = 'transparent';
-                                }
-                              }}
                               aria-label={`${isRefundStatusUpdateAllowed(
                                 order.payment_method,
                                 order.order_status,
@@ -1429,12 +1351,6 @@ const Orders = () => {
                                 ? "Process refund"
                                 : "Edit order"
                                 } ${order._id}`}
-                              disabled={shouldDisableUpdateButton(
-                                order.payment_method,
-                                order.order_status,
-                                order.pay_status,
-                                order.refund_status
-                              )}
                               title={
                                 isRefundStatusUpdateAllowed(
                                   order.payment_method,
@@ -1497,9 +1413,9 @@ const Orders = () => {
                                 });
                               }}
                               disabled={order.order_status !== "pending"}
-                              className={`p-1.5 rounded-lg transition-all duration-200 border ${order.order_status === "pending"
-                                ? "text-red-600 hover:text-red-800 hover:bg-red-100 border-red-200 hover:border-red-300"
-                                : "text-gray-400 cursor-not-allowed border-gray-200 bg-gray-50"
+                              className={`p-1.5 rounded-xl transition-all duration-300 border-2 shadow-md hover:shadow-lg transform hover:scale-110 ${order.order_status === "pending"
+                                ? 'text-white bg-red-600 hover:bg-red-700 border-red-600 hover:border-red-700'
+                                : 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
                                 }`}
                               aria-label={`Cancel order ${order._id}`}
                               title={order.order_status === "pending" ? "Cancel Order" : "Cancel only available for pending orders"}

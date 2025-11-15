@@ -59,6 +59,8 @@ const Api = {
         search: (params = {}) => axiosClient.get("/accounts/search", { params }).then(response => response.data),
         // Get single account by ID (Admin or self)
         getById: (userId) => axiosClient.get(`/accounts/${userId}`).then(response => response.data),
+        // Get account order statistics (Admin, manager, or self)
+        getOrderStatistics: (userId) => axiosClient.get(`/accounts/${userId}/order-statistics`).then(response => response.data),
         // Create a new account (Admin only)
         create: (data) => axiosClient.post("/accounts", data).then(response => response.data),
         // Update an account (Admin or self)
@@ -195,6 +197,8 @@ const Api = {
         search: (params = {}) => axiosClient.get("/orders/search", { params }).then(response => response.data),
         // Get order details by ID
         getDetails: (orderId) => axiosClient.get(`/orders/get-order-by-id/${orderId}`).then(response => response.data),
+        // Get orders by user/account ID
+        getUserOrders: (accId) => axiosClient.get(`/orders/user/${accId}`).then(response => response.data),
         // Update order (status, payment, refund) - Admin endpoint
         update: (orderId, data) => axiosClient.put(`/orders/admin/update/${orderId}`, data).then(response => response.data),
         // Cancel order
