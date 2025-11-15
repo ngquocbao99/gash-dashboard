@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import Api from '../../common/SummaryAPI';
 import { useToast } from '../../hooks/useToast';
-import { LiveTv, Videocam, VideocamOff, VolumeUp, VolumeOff, People, TrendingUp, TrendingDown, Schedule, Flag, Dashboard, Fingerprint, Comment } from '@mui/icons-material';
+import { LiveTv, Videocam, VideocamOff, VolumeUp, VolumeOff, People, TrendingUp, TrendingDown, Schedule, Flag, Dashboard, Fingerprint, Comment, Inventory2 } from '@mui/icons-material';
 import Loading from '../../components/Loading';
 import { format } from 'date-fns';
 
@@ -278,13 +278,13 @@ const LiveStreamDetails = () => {
 
                         {/* Details Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3">
-                            <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
+                            {/* <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
                                 <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
                                     <Fingerprint className="w-3 h-3 sm:w-4 sm:h-4" />
                                     <span className="text-xs font-medium">Stream ID</span>
                                 </div>
                                 <p className="text-xs sm:text-sm font-semibold text-gray-900 break-all">{livestream._id}</p>
-                            </div>
+                            </div> */}
 
                             <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
                                 <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
@@ -362,6 +362,16 @@ const LiveStreamDetails = () => {
                                     </p>
                                 </div>
                             )}
+
+                            <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
+                                <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
+                                    <Inventory2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                                    <span className="text-xs font-medium">Products</span>
+                                </div>
+                                <p className="text-sm sm:text-base font-semibold text-gray-900">
+                                    {products?.length || 0} total
+                                </p>
+                            </div>
 
                             <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
                                 <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
