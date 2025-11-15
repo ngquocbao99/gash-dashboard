@@ -100,7 +100,7 @@ const CommentInput = ({ onSendComment, isSending }) => {
                 <button
                     type="submit"
                     disabled={!commentText.trim() || isSending}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white p-2 rounded-lg transition-colors"
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:bg-gray-300 text-white p-2 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg disabled:shadow-none"
                 >
                     {isSending ? (
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -198,7 +198,7 @@ const CommentItem = ({ comment, currentUserId, hostId, onHideComment, onPinComme
                     </p>
                     {isDeleted && comment.deletedBy && (
                         <p className="text-xs text-gray-400 mt-1">
-                            Deleted by: {typeof comment.deletedBy === 'object' 
+                            Deleted by: {typeof comment.deletedBy === 'object'
                                 ? (comment.deletedBy.name || comment.deletedBy.username || 'Unknown')
                                 : 'Unknown'}
                             {typeof comment.deletedBy === 'object' && comment.deletedBy.role && (
@@ -222,7 +222,7 @@ const CommentItem = ({ comment, currentUserId, hostId, onHideComment, onPinComme
                                     {canPin && (
                                         <button
                                             onClick={handlePinComment}
-                                            className="w-full px-3 py-1.5 text-left text-xs text-yellow-600 hover:bg-yellow-50 flex items-center gap-1.5"
+                                            className="w-full px-3 py-1.5 text-left text-xs text-yellow-600 hover:bg-gradient-to-r hover:from-yellow-50 hover:to-amber-50 flex items-center gap-1.5 transition-all duration-200"
                                         >
                                             <PushPin className="w-3.5 h-3.5" />
                                             Pin
@@ -231,7 +231,7 @@ const CommentItem = ({ comment, currentUserId, hostId, onHideComment, onPinComme
                                     {canUnpin && (
                                         <button
                                             onClick={handleUnpinComment}
-                                            className="w-full px-3 py-1.5 text-left text-xs text-yellow-600 hover:bg-yellow-50 flex items-center gap-1.5"
+                                            className="w-full px-3 py-1.5 text-left text-xs text-yellow-600 hover:bg-gradient-to-r hover:from-yellow-50 hover:to-amber-50 flex items-center gap-1.5 transition-all duration-200"
                                         >
                                             <PushPin className="w-3.5 h-3.5" />
                                             Unpin
@@ -240,7 +240,7 @@ const CommentItem = ({ comment, currentUserId, hostId, onHideComment, onPinComme
                                     {canDelete && onHideComment && (
                                         <button
                                             onClick={handleDeleteClick}
-                                            className="w-full px-3 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 flex items-center gap-1.5"
+                                            className="w-full px-3 py-1.5 text-left text-xs text-red-600 hover:bg-gradient-to-r hover:from-red-50 hover:to-rose-50 flex items-center gap-1.5 transition-all duration-200"
                                         >
                                             <Close className="w-3.5 h-3.5" />
                                             Delete
@@ -328,7 +328,7 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
             const response = await Api.livestream.hideComment(commentId);
 
             if (response?.success) {
-                showToast('Comment deleted successfully!', 'success');
+                showToast('Comment deleted successfully', 'success');
             } else {
                 const errorMsg = response?.message || 'Unable to delete comment';
                 setError(errorMsg);
@@ -348,7 +348,7 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
             const response = await Api.livestream.pinComment(commentId, liveId);
 
             if (response?.success || response?.data?.success) {
-                showToast('Comment pinned successfully!', 'success');
+                showToast('Comment pinned successfully', 'success');
             } else {
                 const errorMsg = response?.message || response?.data?.message || 'Unable to pin comment';
                 setError(errorMsg);
@@ -368,7 +368,7 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
             const response = await Api.livestream.unpinComment(commentId, liveId);
 
             if (response?.success || response?.data?.success) {
-                showToast('Comment unpinned successfully!', 'success');
+                showToast('Comment unpinned successfully', 'success');
             } else {
                 const errorMsg = response?.message || response?.data?.message || 'Unable to unpin comment';
                 setError(errorMsg);
@@ -518,8 +518,8 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
     if (!isAdmin || !isVisible) return null;
 
     return (
-        <div className="bg-white rounded-lg shadow-md border border-gray-200 flex flex-col h-[calc(100vh-160px)] max-h-[800px] w-full max-w-full">
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-3 flex items-center justify-between border-b-2 border-blue-700 rounded-t-lg">
+        <div className="bg-white rounded-lg shadow-md border border-gray-200 flex flex-col h-[calc(100vh-120px)] max-h-[900px] w-full max-w-full">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-1.5 flex items-center justify-between border-b-2 border-blue-700 rounded-t-lg flex-shrink-0">
                 <div className="flex items-center gap-2">
                     <Chat className="w-4 h-4 text-white" />
                     <h3 className="text-white font-bold text-sm">Comments & Chat</h3>

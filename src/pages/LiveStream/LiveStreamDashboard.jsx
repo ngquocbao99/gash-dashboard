@@ -172,15 +172,15 @@ const LiveStreamDashboard = () => {
             if (!prev) {
                 return prev;
             }
-            
+
             // Only update currentViewers from socket
             // Peak and min come from backend via periodic sync
             const currentCount = typeof count === 'number' ? count : 0;
-            
+
             if (prev.currentViewers === currentCount) {
                 return prev;
             }
-            
+
             return {
                 ...prev,
                 currentViewers: currentCount
@@ -292,7 +292,7 @@ const LiveStreamDashboard = () => {
         };
     }, [isLive, currentLivestream?._id, handleViewerCountUpdate]);
 
-        
+
 
     // Periodic sync for viewer count (fallback and peak/min tracking) - more frequent for faster updates
     useEffect(() => {
@@ -312,57 +312,57 @@ const LiveStreamDashboard = () => {
                         // Backend returns: { success: true, data: { livestream: {...} } }
                         const currentStream = response.data?.livestream;
 
-                                                                                                     if (currentStream && (currentStream._id === livestreamId || currentStream.livestreamId === parseInt(livestreamId))) {
-                               const newViewers = currentStream.currentViewers ?? 0;
-                               const backendPeak = currentStream.peakViewers ?? 0;
-                               const backendMin = currentStream.minViewers ?? 0;
+                        if (currentStream && (currentStream._id === livestreamId || currentStream.livestreamId === parseInt(livestreamId))) {
+                            const newViewers = currentStream.currentViewers ?? 0;
+                            const backendPeak = currentStream.peakViewers ?? 0;
+                            const backendMin = currentStream.minViewers ?? 0;
 
-                               // Get peak/min from backend (backend calculates real-time)
-                               setCurrentLivestream(prev => {
-                                   if (!prev) return prev;
-                                   
-                                   // Check if any value changed
-                                   const hasChanges = 
-                                       prev.currentViewers !== newViewers ||
-                                       prev.peakViewers !== backendPeak ||
-                                       prev.minViewers !== backendMin;
+                            // Get peak/min from backend (backend calculates real-time)
+                            setCurrentLivestream(prev => {
+                                if (!prev) return prev;
 
-                                   if (!hasChanges) {
-                                       return prev;
-                                   }
+                                // Check if any value changed
+                                const hasChanges =
+                                    prev.currentViewers !== newViewers ||
+                                    prev.peakViewers !== backendPeak ||
+                                    prev.minViewers !== backendMin;
 
-                                   return {
-                                       ...prev,
-                                       currentViewers: newViewers,
-                                       peakViewers: backendPeak,
-                                       minViewers: backendMin
-                                   };
-                               });
-                           }
-                     }
-                 } catch (error) {
-                     console.error('Error syncing viewer count:', error);
-                 } finally {
-                     ongoingCallsRef.current.updateViewerCount = false;
-                 }
-             } catch (error) {
-                 console.error('Error in syncViewerCount:', error);
-             }
-         };
+                                if (!hasChanges) {
+                                    return prev;
+                                }
 
-         // Initial sync
-         syncViewerCount();
+                                return {
+                                    ...prev,
+                                    currentViewers: newViewers,
+                                    peakViewers: backendPeak,
+                                    minViewers: backendMin
+                                };
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error syncing viewer count:', error);
+                } finally {
+                    ongoingCallsRef.current.updateViewerCount = false;
+                }
+            } catch (error) {
+                console.error('Error in syncViewerCount:', error);
+            }
+        };
 
-         // Sync every 5 seconds for faster updates (was 30 seconds)
-         const interval = setInterval(syncViewerCount, 5000);
+        // Initial sync
+        syncViewerCount();
 
-         return () => {
-             clearInterval(interval);
-             // Reset flag on unmount (eslint warning is safe - ref is stable)
-             // eslint-disable-next-line react-hooks/exhaustive-deps
-             ongoingCallsRef.current.updateViewerCount = false;
-         };
-     }, [isLive, currentLivestream, livestreamId]);
+        // Sync every 5 seconds for faster updates (was 30 seconds)
+        const interval = setInterval(syncViewerCount, 5000);
+
+        return () => {
+            clearInterval(interval);
+            // Reset flag on unmount (eslint warning is safe - ref is stable)
+            // eslint-disable-next-line react-hooks/exhaustive-deps
+            ongoingCallsRef.current.updateViewerCount = false;
+        };
+    }, [isLive, currentLivestream, livestreamId]);
 
     // Cleanup on unmount - CRITICAL for preventing reconnect loops
     useEffect(() => {
@@ -1706,7 +1706,7 @@ const LiveStreamDashboard = () => {
             if (response.success) {
                 setIsLive(false);
                 isLiveRef.current = false;
-                showToast('Livestream stopped successfully!', 'success');
+                showToast('Livestream ended successfully', 'success');
 
                 // Update current livestream status
                 setCurrentLivestream(prev => prev ? { ...prev, status: 'ended' } : null);
@@ -1929,7 +1929,7 @@ const LiveStreamDashboard = () => {
                         <div className="flex items-center gap-3">
                             {/* Quick Stats - Compact */}
                             {currentLivestream && (
-                                <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                                <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 shadow-md">
                                     <div className="text-center">
                                         <div className="text-xs text-gray-500 font-medium">Min</div>
                                         <div className="text-base font-bold text-gray-900">{currentLivestream.minViewers || 0}</div>
@@ -1948,20 +1948,34 @@ const LiveStreamDashboard = () => {
                             )}
 
                             {/* Connection Status - Compact */}
-                            <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${connectionState === 'connected' ? 'bg-green-500 animate-pulse' :
-                                    connectionState === 'connecting' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
-                                    }`}></div>
-                                <span className="text-xs font-semibold text-gray-700">{connectionState === 'connected' ? 'Connected' :
-                                    connectionState === 'connecting' ? 'Connecting' : 'Disconnected'}</span>
+                            <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 shadow-md">
+                                <div className="flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+                                    </svg>
+                                    <span className="text-xs font-semibold text-gray-700">Connection</span>
+                                </div>
+                                <div className="h-6 w-px bg-gray-300"></div>
+                                <div className="flex items-center gap-2">
+                                    <div className={`w-2 h-2 rounded-full ${connectionState === 'connected' ? 'bg-green-500 animate-pulse' :
+                                        connectionState === 'connecting' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
+                                        }`}></div>
+                                    <span className="text-xs font-semibold text-gray-700">{connectionState === 'connected' ? 'Connected' :
+                                        connectionState === 'connecting' ? 'Connecting' : 'Disconnected'}</span>
+                                </div>
+                                <div className="h-6 w-px bg-gray-300"></div>
+                                <div className="flex items-center gap-2">
+                                    <div className={`w-2 h-2 rounded-full ${isPublishing ? 'bg-green-600' : 'bg-gray-400'}`}></div>
+                                    <span className="text-xs font-semibold text-gray-700">{isPublishing ? 'Publishing' : 'Not Publishing'}</span>
+                                </div>
                             </div>
 
                             {/* Status Badge */}
-                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold ${isLive
-                                ? 'bg-red-100 text-red-800 border border-red-300'
-                                : 'bg-gray-100 text-gray-700 border border-gray-300'
+                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold shadow-md ${isLive
+                                ? 'bg-gradient-to-r from-red-400 to-red-600 text-white border border-red-500'
+                                : 'bg-gradient-to-r from-gray-400 to-gray-600 text-white border border-gray-500'
                                 }`}>
-                                <div className={`w-2 h-2 rounded-full ${isLive ? 'bg-red-600 animate-pulse' : 'bg-gray-500'}`}></div>
+                                <div className={`w-2 h-2 rounded-full ${isLive ? 'bg-white animate-pulse' : 'bg-white'}`}></div>
                                 <span>{isLive ? 'LIVE' : 'Offline'}</span>
                             </div>
 
@@ -1969,7 +1983,7 @@ const LiveStreamDashboard = () => {
                             <button
                                 onClick={handleEndLivestream}
                                 disabled={isLoading || !isLive}
-                                className="flex items-center gap-2 px-4 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all font-semibold text-sm shadow-md hover:shadow-lg"
+                                className="flex items-center gap-2 px-4 py-1.5 text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed transition-all font-semibold text-sm shadow-md hover:shadow-lg bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 transform hover:scale-105 disabled:transform-none"
                             >
                                 <Stop className="w-4 h-4" />
                                 {isLoading ? 'Stopping...' : 'End Stream'}
@@ -1983,57 +1997,57 @@ const LiveStreamDashboard = () => {
             <div className="max-w-[1920px] mx-auto p-4">
                 <div className="grid grid-cols-12 gap-4">
                     {/* Left Sidebar - Connection Info & Quick Stats */}
-                    <div className="col-span-12 lg:col-span-2 space-y-4">
+                    <div className="col-span-12 lg:col-span-2 space-y-4 flex flex-col h-[calc(100vh-120px)] max-h-[900px]">
                         {/* Livestream Info Card */}
                         {currentLivestream && (
-                            <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4">
-                                <h3 className="text-xs font-bold text-gray-900 mb-3 uppercase tracking-wide flex items-center gap-2">
+                            <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-3 flex-shrink-0">
+                                <h3 className="text-xs font-bold text-gray-900 mb-2 uppercase tracking-wide flex items-center gap-2">
                                     <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                     </svg>
                                     Livestream Info
                                 </h3>
-                                <div className="space-y-2.5">
+                                <div className="space-y-2">
 
                                     {currentLivestream.description && (
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-xs text-gray-600 font-semibold">Description</span>
-                                            <div className="text-xs text-gray-700 line-clamp-3">
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-[10px] text-gray-600 font-semibold">Description</span>
+                                            <div className="text-xs text-gray-700 line-clamp-2">
                                                 {currentLivestream.description}
                                             </div>
                                         </div>
                                     )}
-                                    <div className="pt-2 border-t border-gray-200">
-                                        <div className="text-xs text-gray-600 font-semibold mb-1">Duration</div>
-                                        <div className={`text-sm font-bold font-mono ${isLive ? 'text-green-600' : 'text-gray-700'}`}>
+                                    <div className="pt-1.5 border-t border-gray-200">
+                                        <div className="text-[10px] text-gray-600 font-semibold mb-0.5">Duration</div>
+                                        <div className={`text-xs font-bold font-mono ${isLive ? 'text-green-600' : 'text-gray-700'}`}>
                                             {liveDuration}
                                         </div>
                                         {isLive && (
                                             <div className="flex items-center gap-1 mt-0.5">
                                                 <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
-                                                <span className="text-[10px] text-red-600 font-semibold">LIVE</span>
+                                                <span className="text-[9px] text-red-600 font-semibold">LIVE</span>
                                             </div>
                                         )}
                                     </div>
                                     {currentLivestream.startTime && (
-                                        <div className="pt-2 border-t border-gray-200">
-                                            <div className="text-xs text-gray-600 font-semibold mb-1">Started</div>
+                                        <div className="pt-1.5 border-t border-gray-200">
+                                            <div className="text-[10px] text-gray-600 font-semibold mb-0.5">Started</div>
                                             <div className="text-xs text-gray-900">
                                                 {formatDateTime(currentLivestream.startTime)}
                                             </div>
                                         </div>
                                     )}
-                                    {currentLivestream.endTime && (
-                                        <div className="pt-2 border-t border-gray-200">
-                                            <div className="text-xs text-gray-600 font-semibold mb-1">Ended</div>
+                                    {/* {currentLivestream.endTime && (
+                                        <div className="pt-1.5 border-t border-gray-200">
+                                            <div className="text-[10px] text-gray-600 font-semibold mb-0.5">Ended</div>
                                             <div className="text-xs text-gray-900">
                                                 {formatDateTime(currentLivestream.endTime)}
                                             </div>
                                         </div>
-                                    )}
+                                    )} */}
                                     {currentLivestream.hostId && (
-                                        <div className="pt-2 border-t border-gray-200">
-                                            <div className="text-xs text-gray-600 font-semibold mb-1">Host</div>
+                                        <div className="pt-1.5 border-t border-gray-200">
+                                            <div className="text-[10px] text-gray-600 font-semibold mb-0.5">Host</div>
                                             <div className="text-xs text-gray-900 truncate">
                                                 {currentLivestream.hostId?.name || currentLivestream.hostId?.username || 'Unknown'}
                                             </div>
@@ -2043,84 +2057,49 @@ const LiveStreamDashboard = () => {
                             </div>
                         )}
 
-                        {/* Connection Status Card */}
-                        <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4">
-                            <h3 className="text-xs font-bold text-gray-900 mb-3 uppercase tracking-wide flex items-center gap-2">
-                                <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
-                                </svg>
-                                Connection
-                            </h3>
-                            <div className="space-y-2.5">
-                                <div className="flex flex-col gap-1">
-                                    <span className="text-xs text-gray-600 font-semibold">Status</span>
-                                    <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs font-bold ${connectionState === 'connected'
-                                        ? 'bg-green-100 text-green-800'
-                                        : connectionState === 'connecting'
-                                            ? 'bg-yellow-100 text-yellow-800'
-                                            : 'bg-red-100 text-red-800'
-                                        }`}>
-                                        <div className={`w-2 h-2 rounded-full ${connectionState === 'connected' ? 'bg-green-600' :
-                                            connectionState === 'connecting' ? 'bg-yellow-600' : 'bg-red-600'
-                                            }`}></div>
-                                        {connectionState === 'connected' ? 'Connected' :
-                                            connectionState === 'connecting' ? 'Connecting' : 'Disconnected'}
-                                    </div>
+                        {/* Engagement Card */}
+                        {currentLivestream && (
+                            <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-3 flex-1 min-h-0 flex flex-col">
+                                <h3 className="text-xs font-bold text-gray-900 mb-2 uppercase tracking-wide flex items-center gap-2 flex-shrink-0">
+                                    <svg className="w-4 h-4 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                    </svg>
+                                    Engagement
+                                </h3>
+                                <div className="flex-1 min-h-0 overflow-hidden">
+                                    <LiveStreamReactions liveId={currentLivestream._id} />
                                 </div>
-                                <div className="flex flex-col gap-1">
-                                    <span className="text-xs text-gray-600 font-semibold">Publishing</span>
-                                    <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs font-bold ${isPublishing
-                                        ? 'bg-green-100 text-green-800'
-                                        : 'bg-gray-100 text-gray-700'
-                                        }`}>
-                                        <div className={`w-2 h-2 rounded-full ${isPublishing ? 'bg-green-600' : 'bg-gray-400'}`}></div>
-                                        {isPublishing ? 'Active' : 'Inactive'}
-                                    </div>
-                                </div>
-                                {currentLivestream?.roomName && (
-                                    <div className="pt-2 border-t border-gray-200">
-                                        <div className="text-xs text-gray-600 font-semibold mb-1">Room</div>
-                                        <div className="font-mono text-xs text-gray-900 bg-gray-50 px-2 py-1 rounded border border-gray-200 truncate">
-                                            {currentLivestream.roomName}
-                                        </div>
-                                    </div>
-                                )}
-                                {currentLivestream?._id && (
-                                    <div className="pt-2 border-t border-gray-200">
-                                        <div className="text-xs text-gray-600 font-semibold mb-1">Stream ID</div>
-                                        <div className="font-mono text-xs text-gray-900 bg-gray-50 px-2 py-1 rounded border border-gray-200">
-                                            {currentLivestream._id.slice(-8)}
-                                        </div>
-                                    </div>
-                                )}
                             </div>
-                        </div>
+                        )}
+
                     </div>
 
                     {/* Center - Video Preview (Main Focus) */}
-                    <div className={`col-span-12 ${showComments ? 'lg:col-span-5' : 'lg:col-span-10'}`}>
-                        <VideoPreview
-                            localVideoRef={localVideoRef}
-                            isVideoPlaying={isVideoPlaying}
-                            isAudioPlaying={isAudioPlaying}
-                            videoDimensions={videoDimensions}
-                            isFullscreen={isFullscreen}
-                            onToggleFullscreen={toggleFullscreen}
-                            onToggleVideo={toggleVideo}
-                            onToggleAudio={toggleAudio}
-                            onCheckLiveKit={checkLiveKitStatus}
-                            isConnected={isConnected}
-                            isPublishing={isPublishing}
-                            connectionState={connectionState}
-                            remoteParticipants={remoteParticipants}
-                            localParticipant={localParticipant}
-                            currentLivestream={currentLivestream}
-                            mediaError={mediaError}
-                            livekitError={livekitError}
-                        />
+                    <div className={`col-span-12 ${showComments ? 'lg:col-span-4' : 'lg:col-span-7'} flex flex-col`}>
+                        <div className="h-[calc(100vh-120px)] max-h-[900px] flex flex-col">
+                            <VideoPreview
+                                localVideoRef={localVideoRef}
+                                isVideoPlaying={isVideoPlaying}
+                                isAudioPlaying={isAudioPlaying}
+                                videoDimensions={videoDimensions}
+                                isFullscreen={isFullscreen}
+                                onToggleFullscreen={toggleFullscreen}
+                                onToggleVideo={toggleVideo}
+                                onToggleAudio={toggleAudio}
+                                onCheckLiveKit={checkLiveKitStatus}
+                                isConnected={isConnected}
+                                isPublishing={isPublishing}
+                                connectionState={connectionState}
+                                remoteParticipants={remoteParticipants}
+                                localParticipant={localParticipant}
+                                currentLivestream={currentLivestream}
+                                mediaError={mediaError}
+                                livekitError={livekitError}
+                            />
+                        </div>
                     </div>
 
-                    {/* Right Sidebar - Comments & Reactions */}
+                    {/* Right Sidebar - Comments & Products */}
                     {currentLivestream && showComments && (
                         <>
                             <div className="col-span-12 lg:col-span-3">
@@ -2131,31 +2110,29 @@ const LiveStreamDashboard = () => {
                                     onToggle={() => setShowComments(!showComments)}
                                 />
                             </div>
-                            <div className="col-span-12 lg:col-span-2">
-                                <div className="bg-white rounded-lg shadow-md border border-gray-200 h-[calc(100vh-160px)] max-h-[800px] flex flex-col">
-                                    <div className="p-3 border-b border-gray-200 bg-gray-50 rounded-t-lg">
-                                        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide flex items-center gap-2">
-                                            <svg className="w-4 h-4 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                                            </svg>
-                                            Engagement
-                                        </h3>
-                                    </div>
-                                    <div className="flex-1 overflow-y-auto p-3">
-                                        <LiveStreamReactions liveId={currentLivestream._id} />
+                            {/* Products Management */}
+                            <div className="col-span-12 lg:col-span-3 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-120px)] max-h-[900px]">
+                                <div className="p-3 border-b border-gray-200 bg-gray-50 rounded-t-lg flex-shrink-0">
+                                    <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wide flex items-center gap-2">
+                                        <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                        </svg>
+                                        Products Management
+                                    </h3>
+                                </div>
+                                <div className="flex-1 overflow-y-auto">
+                                    <div className="p-3">
+                                        <LiveStreamProducts liveId={currentLivestream._id} />
                                     </div>
                                 </div>
                             </div>
                         </>
                     )}
-                </div>
 
-                {/* Bottom Section - Products */}
-                <div className="grid grid-cols-12 gap-4 mt-4">
-                    {/* Products Management */}
-                    {currentLivestream && (
-                        <div className={`${showComments ? 'col-span-12 lg:col-span-7' : 'col-span-12 lg:col-span-8'} bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden`}>
-                            <div className="p-3 border-b border-gray-200 bg-gray-50">
+                    {/* Products Management - When comments are hidden */}
+                    {currentLivestream && !showComments && (
+                        <div className="col-span-12 lg:col-span-3 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-120px)] max-h-[900px]">
+                            <div className="p-3 border-b border-gray-200 bg-gray-50 rounded-t-lg flex-shrink-0">
                                 <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wide flex items-center gap-2">
                                     <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -2163,27 +2140,10 @@ const LiveStreamDashboard = () => {
                                     Products Management
                                 </h3>
                             </div>
-                            <div className="max-h-[450px] overflow-y-auto">
+                            <div className="flex-1 overflow-y-auto">
                                 <div className="p-3">
                                     <LiveStreamProducts liveId={currentLivestream._id} />
                                 </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Reactions/Engagement - Only show when comments are hidden */}
-                    {currentLivestream && !showComments && (
-                        <div className="col-span-12 lg:col-span-4 bg-white rounded-lg shadow-md border border-gray-200">
-                            <div className="p-3 border-b border-gray-200 bg-gray-50">
-                                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wide flex items-center gap-2">
-                                    <svg className="w-4 h-4 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                                    </svg>
-                                    Engagement
-                                </h3>
-                            </div>
-                            <div className="p-3">
-                                <LiveStreamReactions liveId={currentLivestream._id} />
                             </div>
                         </div>
                     )}
@@ -2194,7 +2154,7 @@ const LiveStreamDashboard = () => {
             {currentLivestream && !showComments && (
                 <button
                     onClick={() => setShowComments(true)}
-                    className="fixed bottom-5 right-5 z-50 flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg transition-all duration-300"
+                    className="fixed bottom-5 right-5 z-50 flex items-center gap-1.5 px-4 py-2.5 text-white rounded-lg shadow-lg transition-all duration-300 bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] transform hover:scale-105"
                 >
                     <Chat className="w-4 h-4" />
                     <span className="font-semibold text-sm">Show Comments</span>

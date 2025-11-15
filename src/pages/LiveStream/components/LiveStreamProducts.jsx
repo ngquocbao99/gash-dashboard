@@ -108,7 +108,7 @@ const LiveStreamProducts = ({ liveId }) => {
                     // STRICT CHECK: Only show products where isActive === true
                     return product.isActive === true;
                 });
-                
+
                 setLiveProducts(activeProducts);
                 // Show success toast only when manually refreshed
                 if (showSuccessToast && activeProducts.length > 0) {
@@ -237,13 +237,13 @@ const LiveStreamProducts = ({ liveId }) => {
                 showToast('Invalid product ID', 'error');
                 return;
             }
-            
+
             const response = await Api.livestream.addProduct({ liveId: liveIdStr, productId: productIdStr });
-            
+
             // Backend returns: { success: true/false, message: string, data?: object }
             if (response?.success === true) {
                 const productName = allProducts.find(p => (p?._id || p?.id) === selectedProductId)?.productName || 'Unknown';
-                showToast(`Product added successfully!`, 'success');
+                showToast(`Product added successfully`, 'success');
                 setSelectedProductId('');
                 // Reload products to show the newly added product
                 await loadLiveProducts();
@@ -271,7 +271,7 @@ const LiveStreamProducts = ({ liveId }) => {
         try {
             setIsSubmitting(true);
             setError('');
-            
+
             // Backend expects: { liveId, productId } in body
             // Extract productId from liveProduct (can be populated object or string/ObjectId)
             let productId = null;
@@ -279,7 +279,7 @@ const LiveStreamProducts = ({ liveId }) => {
                 // If productId is populated object, get _id
                 if (typeof liveProduct.productId === 'object' && liveProduct.productId._id) {
                     productId = liveProduct.productId._id;
-                } 
+                }
                 // If productId is string/ObjectId
                 else if (typeof liveProduct.productId === 'string') {
                     productId = liveProduct.productId;
@@ -291,27 +291,27 @@ const LiveStreamProducts = ({ liveId }) => {
             } else if (liveProduct.product?.productId) {
                 productId = liveProduct.product.productId;
             }
-            
+
             if (!productId) {
                 setError('Product ID not found');
                 showToast('Product ID not found', 'error');
                 return;
             }
-            
+
             // Ensure productId is a string
             if (typeof productId !== 'string') {
                 productId = String(productId);
             }
-            
+
             const productName = getProductName(liveProduct.productId || liveProduct.product || {});
-            
+
             // Call API to remove product
             // Backend will find the ACTIVE product (isActive: true) and set isActive: false
             const response = await Api.livestream.removeProduct({ liveId, productId });
-            
+
             // Backend returns: { success: true/false, message: string, data?: object }
             if (response?.success === true) {
-                const message = response?.message || 'Product removed successfully!';
+                const message = response?.message || 'Product removed successfully';
                 showToast(message, 'success');
                 // Reload products to reflect the removal (getActiveLiveProducts only returns isActive: true)
                 await loadLiveProducts();
@@ -339,7 +339,7 @@ const LiveStreamProducts = ({ liveId }) => {
             setError('');
             await Api.livestream.pinProduct(liveProduct._id, { liveId });
             const productName = getProductName(liveProduct.productId || liveProduct.product || {});
-            showToast(`Product pinned successfully!`, 'success');
+            showToast(`Product pinned successfully`, 'success');
             await loadLiveProducts();
         } catch (e) {
             const apiMsg = e?.response?.data?.message || e?.message || 'Unable to pin product';
@@ -359,7 +359,7 @@ const LiveStreamProducts = ({ liveId }) => {
             setError('');
             await Api.livestream.unpinProduct(liveProduct._id, { liveId });
             const productName = getProductName(liveProduct.productId || liveProduct.product || {});
-            showToast(`Product unpinned successfully!`, 'success');
+            showToast(`Product unpinned successfully`, 'success');
             await loadLiveProducts();
         } catch (e) {
             const apiMsg = e?.response?.data?.message || e?.message || 'Unable to unpin product';
@@ -372,12 +372,12 @@ const LiveStreamProducts = ({ liveId }) => {
     };
 
     return (
-        <div className="bg-transparent rounded-lg p-0">
+        <div className="bg-transparent rounded-lg p-0 flex flex-col h-full">
             {/* Header with stats and refresh */}
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+            <div className="flex items-center justify-between mb-4 pb-3 pt-2 border-b border-gray-200 flex-shrink-0">
                 <div className="flex items-center gap-3">
                     <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Products</h3>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-300 shadow-sm">
                         <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
                         {liveProducts?.length || 0} Active
                     </span>
@@ -385,7 +385,7 @@ const LiveStreamProducts = ({ liveId }) => {
                 <button
                     onClick={() => loadLiveProducts(true)}
                     disabled={isLoading}
-                    className="text-xs px-2.5 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+                    className="text-xs px-2.5 py-1.5 rounded-md border border-gray-300 bg-gradient-to-r from-white to-gray-50 hover:from-gray-50 hover:to-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-1.5"
                     aria-label="Refresh live products"
                     title="Refresh"
                 >
@@ -397,7 +397,7 @@ const LiveStreamProducts = ({ liveId }) => {
             </div>
 
             {/* Add product section - Compact */}
-            <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
+            <div className="mb-3 p-3 bg-white rounded-lg border border-gray-200 shadow-sm flex-shrink-0">
                 <div className="space-y-3">
                     {/* Search input - inline */}
                     <div className="relative">
@@ -506,7 +506,7 @@ const LiveStreamProducts = ({ liveId }) => {
                         <button
                             onClick={handleAddToLive}
                             disabled={!selectedProductId || isSubmitting}
-                            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold text-sm shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 whitespace-nowrap"
+                            className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-700 text-white rounded-lg hover:from-emerald-600 hover:to-emerald-800 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold text-sm shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 whitespace-nowrap transform hover:scale-105 disabled:transform-none"
                             title="Add to livestream"
                         >
                             {isSubmitting ? (
@@ -523,16 +523,16 @@ const LiveStreamProducts = ({ liveId }) => {
             </div>
 
             {/* List live products - Compact */}
-            <div className="space-y-2">
+            <div className="flex-1 min-h-0 flex flex-col">
                 {isLoading ? (
-                    <div className="grid gap-2">
+                    <div className="grid gap-2 flex-1">
                         {[...Array(3)].map((_, i) => (
                             <div key={i} className="p-3 rounded-lg border border-gray-200 bg-gray-50 animate-pulse h-16" />
                         ))}
                     </div>
                 ) : liveProducts.length === 0 ? (
-                    <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                        <svg className="w-10 h-10 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300 flex-1 flex flex-col items-center justify-center">
+                        <svg className="w-10 h-10 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                         </svg>
                         <p className="text-sm text-gray-600 font-medium">No products in livestream</p>
@@ -541,7 +541,7 @@ const LiveStreamProducts = ({ liveId }) => {
                 ) : (
                     <>
                         {liveProducts.length > 20 && (
-                            <div className="flex justify-end mb-2">
+                            <div className="flex justify-end mb-2 flex-shrink-0">
                                 <button
                                     onClick={() => setShowAllProducts(!showAllProducts)}
                                     className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
@@ -550,107 +550,107 @@ const LiveStreamProducts = ({ liveId }) => {
                                 </button>
                             </div>
                         )}
-                        <div className={`${showAllProducts ? '' : 'max-h-96'} overflow-y-auto space-y-2 pr-1`}>
+                        <div className={`flex-1 overflow-y-auto space-y-2 pr-1 ${showAllProducts ? '' : ''}`}>
                             {(showAllProducts ? liveProducts : liveProducts.slice(0, 20)).map((lp) => {
-                        const product = lp.productId || lp.product || {};
-                        const productName = getProductName(product);
-                        const productId = product._id || lp.productId?._id || lp.productId || '';
-                        const productImageUrl = getMainImageUrl(product);
+                                const product = lp.productId || lp.product || {};
+                                const productName = getProductName(product);
+                                const productId = product._id || lp.productId?._id || lp.productId || '';
+                                const productImageUrl = getMainImageUrl(product);
 
-                        return (
-                            <div
-                                key={lp._id || productId}
-                                className={`group p-3 rounded-lg border transition-all flex items-center gap-3 ${lp.isPinned
-                                    ? 'bg-yellow-50 border-yellow-300 shadow-sm'
-                                    : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm'
-                                    }`}
-                            >
-                                {/* Product Image */}
-                                <div className="flex-shrink-0">
-                                    {productImageUrl ? (
-                                        <img
-                                            src={productImageUrl}
-                                            alt={productName}
-                                            className="w-12 h-12 object-cover rounded-lg border border-gray-200"
-                                            onError={(e) => {
-                                                e.target.style.display = 'none';
-                                                e.target.nextSibling.style.display = 'flex';
-                                            }}
-                                        />
-                                    ) : null}
-                                    <div className={`w-12 h-12 bg-gray-100 rounded-lg border border-gray-200 items-center justify-center ${productImageUrl ? 'hidden' : 'flex'}`}>
-                                        <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                        </svg>
-                                    </div>
-                                </div>
-
-                                {/* Product Info */}
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="text-sm font-medium text-gray-900 truncate">{productName}</span>
-                                        {lp.isPinned && (
-                                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-200 text-yellow-800 border border-yellow-400">
-                                                <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" />
-                                                </svg>
-                                                PINNED
-                                            </span>
-                                        )}
-                                    </div>
-                                    {/* AddBy and time info */}
-                                    {lp.addedAt && (
-                                        <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                                            {lp.addBy && (
-                                                <>
-                                                    <span>by {lp.addBy.name || lp.addBy.username || 'Unknown'}</span>
-                                                    <span>•</span>
-                                                </>
-                                            )}
-                                            <span>{formatDateTime(lp.addedAt)}</span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Actions - Compact */}
-                                <div className="flex items-center gap-1.5 flex-shrink-0">
-                                    {lp.isPinned ? (
-                                        <button
-                                            onClick={() => handleUnpin(lp)}
-                                            disabled={isSubmitting}
-                                            className="p-1.5 text-yellow-700 hover:bg-yellow-100 rounded-md disabled:opacity-50 transition-colors"
-                                            title="Unpin product"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7l4-4m0 0l4 4m-4-4v18" />
-                                            </svg>
-                                        </button>
-                                    ) : (
-                                        <button
-                                            onClick={() => handlePin(lp)}
-                                            disabled={isSubmitting}
-                                            className="p-1.5 text-yellow-600 hover:bg-yellow-50 rounded-md disabled:opacity-50 transition-colors"
-                                            title="Pin product"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                                            </svg>
-                                        </button>
-                                    )}
-                                    <button
-                                        onClick={() => handleRemoveFromLive(lp)}
-                                        disabled={isSubmitting}
-                                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-md disabled:opacity-50 transition-colors"
-                                        title="Remove product from live"
+                                return (
+                                    <div
+                                        key={lp._id || productId}
+                                        className={`group p-3 rounded-lg border transition-all flex items-center gap-3 ${lp.isPinned
+                                            ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-300 shadow-md'
+                                            : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'
+                                            }`}
                                     >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
+                                        {/* Product Image */}
+                                        <div className="flex-shrink-0">
+                                            {productImageUrl ? (
+                                                <img
+                                                    src={productImageUrl}
+                                                    alt={productName}
+                                                    className="w-12 h-12 object-cover rounded-lg border border-gray-200"
+                                                    onError={(e) => {
+                                                        e.target.style.display = 'none';
+                                                        e.target.nextSibling.style.display = 'flex';
+                                                    }}
+                                                />
+                                            ) : null}
+                                            <div className={`w-12 h-12 bg-gray-100 rounded-lg border border-gray-200 items-center justify-center ${productImageUrl ? 'hidden' : 'flex'}`}>
+                                                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                </svg>
+                                            </div>
+                                        </div>
+
+                                        {/* Product Info */}
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-sm font-medium text-gray-900 truncate">{productName}</span>
+                                                {lp.isPinned && (
+                                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-200 text-yellow-800 border border-yellow-400">
+                                                        <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" />
+                                                        </svg>
+                                                        PINNED
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {/* AddBy and time info */}
+                                            {lp.addedAt && (
+                                                <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                                    {lp.addBy && (
+                                                        <>
+                                                            <span>by {lp.addBy.name || lp.addBy.username || 'Unknown'}</span>
+                                                            <span>•</span>
+                                                        </>
+                                                    )}
+                                                    <span>{formatDateTime(lp.addedAt)}</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Actions - Compact */}
+                                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                                            {lp.isPinned ? (
+                                                <button
+                                                    onClick={() => handleUnpin(lp)}
+                                                    disabled={isSubmitting}
+                                                    className="p-1.5 text-yellow-700 hover:bg-gradient-to-r hover:from-yellow-50 hover:to-amber-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
+                                                    title="Unpin product"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7l4-4m0 0l4 4m-4-4v18" />
+                                                    </svg>
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handlePin(lp)}
+                                                    disabled={isSubmitting}
+                                                    className="p-1.5 text-yellow-600 hover:bg-gradient-to-r hover:from-yellow-50 hover:to-amber-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
+                                                    title="Pin product"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                                                    </svg>
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => handleRemoveFromLive(lp)}
+                                                disabled={isSubmitting}
+                                                className="p-1.5 text-red-600 hover:bg-gradient-to-r hover:from-red-50 hover:to-rose-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
+                                                title="Remove product from live"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                         {!showAllProducts && liveProducts.length > 20 && (
                             <p className="text-xs text-gray-500 mt-2 text-center">

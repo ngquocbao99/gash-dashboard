@@ -22,6 +22,7 @@ const LiveStreamManagement = () => {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [startForm, setStartForm] = useState({ title: '', description: '' });
     const [showStartForm, setShowStartForm] = useState(false);
+    const [validationErrors, setValidationErrors] = useState({});
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -100,23 +101,55 @@ const LiveStreamManagement = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [showStartForm, currentLivestream]);
 
+    // Restart stream when microphone or camera changes
+    useEffect(() => {
+        if (showStartForm && !currentLivestream && streamRef.current) {
+            // Restart stream with new device
+            const timer = setTimeout(() => {
+                startMediaStream().catch(error => {
+                    console.error('Error restarting stream with new device:', error);
+                });
+            }, 300);
+            return () => clearTimeout(timer);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedMicrophone, selectedCamera]);
+
     // Media setup
     const setupMediaDevices = useCallback(async () => {
         try {
+            // Request permission first to get device labels
+            // This is required because enumerateDevices() won't return labels without permission
+            let tempStream = null;
+            try {
+                tempStream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: true
+                });
+                // Stop the temporary stream immediately
+                tempStream.getTracks().forEach(track => track.stop());
+            } catch (permError) {
+                // Permission denied or device not available - continue anyway
+                console.warn('Permission request failed, device labels may be missing:', permError);
+            }
+
+            // Now enumerate devices - labels should be available if permission was granted
             const devices = await navigator.mediaDevices.enumerateDevices();
             const cameras = devices.filter(device => device.kind === 'videoinput');
             const microphones = devices.filter(device => device.kind === 'audioinput');
 
             setMediaDevices({ cameras, microphones });
 
+            // Select first available device if not already selected
             if (cameras.length > 0) {
-                setSelectedCamera(cameras[0].deviceId);
+                setSelectedCamera(prev => prev || cameras[0].deviceId);
             }
             if (microphones.length > 0) {
-                setSelectedMicrophone(microphones[0].deviceId);
+                setSelectedMicrophone(prev => prev || microphones[0].deviceId);
             }
 
         } catch (error) {
+            console.error('Error setting up media devices:', error);
             setMediaError('Unable to access media devices');
         }
     }, []);
@@ -188,9 +221,16 @@ const LiveStreamManagement = () => {
                 previewVideoRef.current.srcObject = stream;
 
                 try {
+                    // Ensure audio is not muted if audio is enabled
+                    if (isAudioEnabled && stream.getAudioTracks().length > 0) {
+                        previewVideoRef.current.muted = false;
+                    } else {
+                        previewVideoRef.current.muted = true;
+                    }
+
                     await previewVideoRef.current.play();
                     setIsVideoPlaying(true);
-                    setIsAudioPlaying(true);
+                    setIsAudioPlaying(isAudioEnabled && stream.getAudioTracks().length > 0);
 
                     previewVideoRef.current.onloadedmetadata = () => {
                         checkMediaStatus();
@@ -201,8 +241,8 @@ const LiveStreamManagement = () => {
                         checkMediaStatus();
                     }, 500);
                 } catch (playError) {
+                    console.error('Error playing preview video:', playError);
                 }
-            } else {
             }
 
             return stream;
@@ -284,19 +324,48 @@ const LiveStreamManagement = () => {
         setTimeout(checkMediaStatus, 100);
     };
 
-    const toggleAudio = () => {
+    const toggleAudio = async () => {
         const newValue = !isAudioEnabled;
         setIsAudioEnabled(newValue);
-
-        // Update playing state based on enabled state
         setIsAudioPlaying(newValue);
 
         if (streamRef.current) {
             const audioTrack = streamRef.current.getAudioTracks()[0];
-            if (audioTrack) {
-                audioTrack.enabled = newValue;
+
+            if (newValue) {
+                // Turning audio ON - need to restart stream if no audio track exists
+                if (!audioTrack) {
+                    // Restart stream to get audio track
+                    try {
+                        await startMediaStream();
+                    } catch (error) {
+                        console.error('Error restarting stream for audio:', error);
+                        setIsAudioEnabled(false);
+                        setIsAudioPlaying(false);
+                    }
+                    return;
+                } else {
+                    // Enable existing audio track
+                    audioTrack.enabled = true;
+                }
+            } else {
+                // Turning audio OFF - just disable the track
+                if (audioTrack) {
+                    audioTrack.enabled = false;
+                }
             }
+        } else if (newValue && showStartForm) {
+            // No stream exists but audio is being enabled - start stream
+            try {
+                await startMediaStream();
+            } catch (error) {
+                console.error('Error starting stream for audio:', error);
+                setIsAudioEnabled(false);
+                setIsAudioPlaying(false);
+            }
+            return;
         }
+
         setTimeout(checkMediaStatus, 100);
     };
 
@@ -604,11 +673,75 @@ const LiveStreamManagement = () => {
 
     const visiblePages = getVisiblePages();
 
+    // Validate individual field
+    const validateField = useCallback((name, value, currentFormData = startForm) => {
+        switch (name) {
+            case 'title':
+                if (!value || value.trim() === '') return 'Please fill in all required fields';
+                const trimmedTitle = value.trim();
+                if (trimmedTitle.length < 3 || trimmedTitle.length > 50) {
+                    return 'Livestream title must be between 3 and 50 characters';
+                }
+                return null;
+            case 'description':
+                // Description is optional, but if provided, must be valid
+                if (value && value.trim() !== '') {
+                    const trimmedDescription = value.trim();
+                    if (trimmedDescription.length < 10 || trimmedDescription.length > 100) {
+                        return 'Livestream description must be between 10 and 100 characters';
+                    }
+                }
+                return null;
+            default:
+                return null;
+        }
+    }, [startForm]);
+
+    // Validation function
+    const validateForm = useCallback(() => {
+        const errors = {};
+
+        // Validate title
+        const titleError = validateField('title', startForm.title);
+        if (titleError) errors.title = titleError;
+
+        // Validate description
+        const descriptionError = validateField('description', startForm.description);
+        if (descriptionError) errors.description = descriptionError;
+
+        setValidationErrors(errors);
+        return Object.keys(errors).length === 0;
+    }, [startForm, validateField]);
+
+    // Handle field change with real-time validation
+    const handleFieldChange = useCallback((field, value) => {
+        setStartForm(prev => {
+            const updated = { ...prev, [field]: value };
+
+            // Validate the current field with updated formData
+            const error = validateField(field, value, updated);
+
+            // Update errors
+            setValidationErrors(prevErrors => {
+                const newErrors = { ...prevErrors };
+                if (error) {
+                    newErrors[field] = error;
+                } else {
+                    delete newErrors[field];
+                }
+                return newErrors;
+            });
+
+            return updated;
+        });
+    }, [validateField]);
 
     // Start livestream
     const handleStartLivestream = async () => {
-        if (!startForm.title.trim()) {
-            showToast('Please enter livestream title', 'error');
+        // Validate form - this will set validationErrors
+        if (!validateForm()) {
+            // Show generic message since error messages are already displayed under each field
+            showToast('Please check the input fields again', 'error');
             return;
         }
 
@@ -680,7 +813,7 @@ const LiveStreamManagement = () => {
                 const livestreamId = response.data.livestreamId || response.data._id;
 
                 // Show success message
-                showToast('Livestream started successfully!', 'success');
+                showToast('Livestream started successfully', 'success');
 
                 // Clean up video elements before navigation to prevent AbortError
                 if (localVideoRef.current) {
@@ -698,6 +831,7 @@ const LiveStreamManagement = () => {
 
                 // Reset form and state
                 setStartForm({ title: '', description: '' });
+                setValidationErrors({});
                 setShowStartForm(false);
                 setCurrentLivestream(null);
                 setIsLive(false);
@@ -715,28 +849,74 @@ const LiveStreamManagement = () => {
             console.error('Error starting livestream:', error);
 
             // Provide specific error messages based on error type
+            let errorMessage = "An unexpected error occurred";
+            const blankFields = {};
+            let hasFieldErrors = false;
+
             if (error.response) {
                 // Server responded with error status
                 const status = error.response.status;
                 const message = error.response.data?.message || error.response.data?.error || 'Unknown server error';
 
+                // Extract actual message if wrapped
+                const prefix = 'Failed to start livestream: ';
+                if (message.includes(prefix)) {
+                    errorMessage = message.replace(prefix, '');
+                } else {
+                    errorMessage = message;
+                }
+
+                // If error is "Please fill in all required fields", highlight blank fields
+                if (errorMessage === "Please fill in all required fields" ||
+                    errorMessage.toLowerCase().includes("fill in all required")) {
+                    if (!startForm.title || !startForm.title.trim()) {
+                        blankFields.title = "Please fill in all required fields";
+                        hasFieldErrors = true;
+                    }
+                    if (Object.keys(blankFields).length > 0) {
+                        setValidationErrors(prev => ({ ...prev, ...blankFields }));
+                    }
+                } else if (errorMessage.includes('Livestream title must be between') || errorMessage.includes('Title must be')) {
+                    setValidationErrors(prev => ({
+                        ...prev,
+                        title: errorMessage
+                    }));
+                    hasFieldErrors = true;
+                } else if (errorMessage.includes('Livestream description must be between')) {
+                    setValidationErrors(prev => ({
+                        ...prev,
+                        description: errorMessage
+                    }));
+                    hasFieldErrors = true;
+                }
+
                 if (status === 400) {
-                    showToast(`Data error: ${message}`, 'error');
+                    if (!hasFieldErrors) {
+                        showToast(`Data error: ${errorMessage}`, 'error');
+                    }
                 } else if (status === 401) {
                     showToast('Please login to perform this action', 'error');
                 } else if (status === 403) {
                     showToast('You do not have permission. Only admin/manager can start livestream', 'error');
                 } else if (status === 500) {
-                    showToast(`Server error: ${message}`, 'error');
+                    showToast(`Server error: ${errorMessage}`, 'error');
                 } else {
-                    showToast(`API error (${status}): ${message}`, 'error');
+                    if (!hasFieldErrors) {
+                        showToast(`API error (${status}): ${errorMessage}`, 'error');
+                    }
                 }
             } else if (error.request) {
                 // Network error
                 showToast('Network error. Please check your internet connection and try again', 'error');
             } else {
                 // Other error
-                showToast(`Unknown error: ${error.message}`, 'error');
+                errorMessage = error.message;
+                showToast(errorMessage, 'error');
+            }
+
+            // Show toast: if field errors are displayed, show generic message; otherwise show specific error
+            if (hasFieldErrors || Object.keys(blankFields).length > 0) {
+                showToast("Please check the input fields again", "error");
             }
 
             stopMediaStream();
@@ -759,7 +939,7 @@ const LiveStreamManagement = () => {
             if (response.success) {
                 setCurrentLivestream(null);
                 setIsLive(false);
-                showToast('Livestream stopped successfully!', 'success');
+                showToast('Livestream stopped successfully', 'success');
             } else {
                 showToast(response.message || 'Unable to stop livestream', 'error');
             }
@@ -1100,96 +1280,144 @@ const LiveStreamManagement = () => {
 
             {/* Start Stream Modal */}
             {showStartForm && !currentLivestream && isAdminOrManager && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                        {/* Modal Header */}
-                        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between z-10">
-                            <h2 className="text-xl font-semibold text-gray-900">Start New Livestream</h2>
+                <div className="fixed inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
+                    <div
+                        className="bg-white rounded-2xl shadow-2xl border-2 w-full max-w-4xl max-h-[90vh] flex flex-col transform transition-all duration-300"
+                        style={{ borderColor: '#A86523' }}
+                    >
+                        {/* Header */}
+                        <div
+                            className="flex items-center justify-between p-3 sm:p-4 lg:p-5 border-b shrink-0"
+                            style={{ borderColor: '#A86523' }}
+                        >
+                            <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
+                                Start New Livestream
+                            </h2>
                             <button
+                                type="button"
                                 onClick={() => {
                                     setShowStartForm(false);
                                     setStartForm({ title: '', description: '' });
+                                    setValidationErrors({});
                                     stopMediaStream();
                                 }}
-                                className="text-gray-400 hover:text-gray-600"
+                                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                                style={{ '--tw-ring-color': '#A86523' }}
+                                aria-label="Close"
                             >
-                                ✕
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
                             </button>
                         </div>
 
-                        {/* Modal Content */}
-                        <div className="p-6 space-y-6 overflow-y-auto" style={{ marginTop: '70px' }}>
-                            {/* Media Setup */}
-                            <MediaSetup
-                                mediaDevices={mediaDevices}
-                                selectedCamera={selectedCamera}
-                                selectedMicrophone={selectedMicrophone}
-                                isVideoPlaying={isVideoPlaying}
-                                isAudioPlaying={isAudioPlaying}
-                                videoDimensions={videoDimensions}
-                                mediaError={mediaError}
-                                isVideoEnabled={isVideoEnabled}
-                                isAudioEnabled={isAudioEnabled}
-                                onCameraChange={setSelectedCamera}
-                                onMicrophoneChange={setSelectedMicrophone}
-                                onToggleVideo={toggleVideo}
-                                onToggleAudio={toggleAudio}
-                                previewVideoRef={previewVideoRef}
-                            />
+                        {/* Body */}
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+                            <div className="space-y-5 lg:space-y-6">
+                                {/* Start Form */}
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Livestream Information</h3>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                                Stream Title <span className="text-red-500">*</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={startForm.title}
+                                                onChange={(e) => handleFieldChange('title', e.target.value)}
+                                                placeholder="Enter livestream title..."
+                                                className={`w-full px-4 py-2.5 border rounded-lg transition-all duration-200 focus:ring-2 bg-white text-sm lg:text-base ${validationErrors.title
+                                                    ? 'border-red-400 focus:border-red-500 focus:ring-red-500'
+                                                    : 'border-gray-300 hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
+                                                    }`}
+                                                required
+                                            />
+                                            {validationErrors.title && (
+                                                <p className="mt-1.5 text-sm text-red-600">{validationErrors.title}</p>
+                                            )}
+                                        </div>
 
-                            {/* Start Form */}
-                            <div>
-                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Livestream Information</h3>
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Stream Title *
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={startForm.title}
-                                            onChange={(e) => setStartForm({ ...startForm, title: e.target.value })}
-                                            placeholder="Enter livestream title..."
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Stream Description
-                                        </label>
-                                        <textarea
-                                            value={startForm.description}
-                                            onChange={(e) => setStartForm({ ...startForm, description: e.target.value })}
-                                            placeholder="Enter livestream description..."
-                                            rows={3}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                        />
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                                Stream Description
+                                            </label>
+                                            <textarea
+                                                value={startForm.description}
+                                                onChange={(e) => handleFieldChange('description', e.target.value)}
+                                                placeholder="Enter livestream description..."
+                                                rows={3}
+                                                className={`w-full px-4 py-2.5 border rounded-lg transition-all duration-200 focus:ring-2 bg-white text-sm lg:text-base ${validationErrors.description
+                                                    ? 'border-red-400 focus:border-red-500 focus:ring-red-500'
+                                                    : 'border-gray-300 hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
+                                                    }`}
+                                            />
+                                            {validationErrors.description && (
+                                                <p className="mt-1.5 text-sm text-red-600">{validationErrors.description}</p>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
+
+                                {/* Media Setup */}
+                                <MediaSetup
+                                    mediaDevices={mediaDevices}
+                                    selectedCamera={selectedCamera}
+                                    selectedMicrophone={selectedMicrophone}
+                                    isVideoPlaying={isVideoPlaying}
+                                    isAudioPlaying={isAudioPlaying}
+                                    videoDimensions={videoDimensions}
+                                    mediaError={mediaError}
+                                    isVideoEnabled={isVideoEnabled}
+                                    isAudioEnabled={isAudioEnabled}
+                                    onCameraChange={setSelectedCamera}
+                                    onMicrophoneChange={setSelectedMicrophone}
+                                    onToggleVideo={toggleVideo}
+                                    onToggleAudio={toggleAudio}
+                                    previewVideoRef={previewVideoRef}
+                                />
                             </div>
                         </div>
 
-                        {/* Modal Footer */}
-                        <div className="sticky bottom-0 bg-gray-50 border-t px-6 py-4 flex justify-end gap-3">
+                        {/* Footer */}
+                        <div
+                            className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 sm:gap-4 p-3 sm:p-4 lg:p-5 border-t shrink-0"
+                            style={{ borderColor: '#A86523' }}
+                        >
                             <button
+                                type="button"
                                 onClick={() => {
                                     setShowStartForm(false);
                                     setStartForm({ title: '', description: '' });
+                                    setValidationErrors({});
                                     stopMediaStream();
                                 }}
                                 disabled={isLoading}
-                                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                                className="px-5 py-2.5 text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-all duration-200 font-medium text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50"
+                                style={{ '--tw-ring-color': '#A86523' }}
                             >
                                 Cancel
                             </button>
                             <button
+                                type="button"
                                 onClick={handleStartLivestream}
-                                disabled={isLoading || !startForm.title.trim()}
-                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                                disabled={isLoading}
+                                className="flex items-center gap-2 px-6 py-2.5 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:hover:shadow-md bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] disabled:hover:from-[#E9A319] disabled:hover:to-[#A86523]"
+                                style={{
+                                    '--tw-ring-color': '#A86523'
+                                }}
                             >
-                                <PlayArrow className="w-4 h-4" />
-                                {isLoading ? 'Starting...' : 'Start Stream'}
+                                {isLoading ? (
+                                    <div className="flex items-center justify-center space-x-2">
+                                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                        <span>Starting...</span>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <PlayArrow className="w-4 h-4 lg:w-5 lg:h-5" />
+                                        Start Stream
+                                    </>
+                                )}
                             </button>
                         </div>
                     </div>

@@ -162,17 +162,17 @@ const LiveStreamDetails = () => {
     const getStatusBadge = (status) => {
         const badges = {
             'live': {
-                className: 'bg-red-100 text-red-800 border-red-200',
+                className: 'bg-gradient-to-r from-red-400 to-red-600 text-white border border-red-500',
                 icon: <LiveTv className="w-4 h-4" />,
                 text: 'Live'
             },
             'ended': {
-                className: 'bg-gray-100 text-gray-800 border-gray-200',
+                className: 'bg-gradient-to-r from-gray-400 to-gray-600 text-white border border-gray-500',
                 icon: <Flag className="w-4 h-4" />,
                 text: 'Ended'
             },
             'scheduled': {
-                className: 'bg-blue-100 text-blue-800 border-blue-200',
+                className: 'bg-gradient-to-r from-blue-400 to-cyan-500 text-white border border-blue-500',
                 icon: <Schedule className="w-4 h-4" />,
                 text: 'Scheduled'
             }
@@ -201,7 +201,7 @@ const LiveStreamDetails = () => {
                     <p className="text-gray-600 mb-6">This livestream does not exist or has been deleted.</p>
                     <button
                         onClick={() => navigate('/livestream')}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        className="inline-flex items-center gap-2 px-4 py-2 text-white rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] transform hover:scale-105"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -401,7 +401,7 @@ const LiveStreamDetails = () => {
                         <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-2 sm:mb-3">Timeline</h3>
                         <div className="space-y-3">
                             <div className="flex items-start gap-3">
-                                <div className="shrink-0 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                                <div className="shrink-0 w-10 h-10 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full flex items-center justify-center shadow-sm">
                                     <Schedule className="w-5 h-5 text-green-600" />
                                 </div>
                                 <div className="flex-1">
@@ -412,7 +412,7 @@ const LiveStreamDetails = () => {
 
                             {livestream.endTime && (
                                 <div className="flex items-start gap-3">
-                                    <div className="shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                                    <div className="shrink-0 w-10 h-10 bg-gradient-to-br from-red-100 to-rose-100 rounded-full flex items-center justify-center shadow-sm">
                                         <Flag className="w-5 h-5 text-red-600" />
                                     </div>
                                     <div className="flex-1">
@@ -482,7 +482,7 @@ const LiveStreamDetails = () => {
                             {products.length > 20 && (
                                 <button
                                     onClick={() => setShowAllProducts(!showAllProducts)}
-                                    className="text-xs sm:text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                                    className="text-xs sm:text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 px-2 py-1 rounded-md transition-all duration-200"
                                 >
                                     {showAllProducts ? 'Show Less' : `View All (${products.length})`}
                                 </button>
@@ -516,11 +516,6 @@ const LiveStreamDetails = () => {
                                                 <h4 className="font-semibold text-gray-900 truncate">
                                                     {liveProduct.productId?.productName || 'Unknown Product'}
                                                 </h4>
-                                                {liveProduct.isPinned && (
-                                                    <span className="text-xs font-medium px-2 py-0.5 rounded bg-yellow-100 text-yellow-800 shrink-0">
-                                                        📌 Pinned
-                                                    </span>
-                                                )}
                                                 {isActive ? (
                                                     <span className="text-xs font-medium px-2 py-0.5 rounded bg-green-100 text-green-800 shrink-0">
                                                         Active

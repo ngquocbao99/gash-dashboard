@@ -137,44 +137,49 @@ const LiveStreamReactions = ({ liveId }) => {
     const totalReactions = Object.values(reactionCounts).reduce((sum, count) => sum + count, 0);
 
     return (
-        <div className="bg-transparent p-0 w-full">
-            <div className="flex items-center justify-between mb-2">
-                <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold">
+        <div className="bg-transparent p-0 w-full h-full flex flex-col">
+            <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
+                <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-2 py-0.5 rounded-lg text-[9px] font-bold shadow-sm">
                     {totalReactions.toLocaleString()} total
                 </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-1 flex-1 min-h-0 justify-between">
                 {REACTIONS.map(({ type, emoji, color, label }) => {
                     const count = reactionCounts[type] || 0;
                     const percentage = totalReactions > 0 ? (count / totalReactions) * 100 : 0;
 
                     return (
-                        <div key={type} className="group flex-1 min-w-0 p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all duration-200">
-                            <div className="flex flex-col items-center">
+                        <div key={type} className="group p-1.5 bg-gray-50 rounded-lg hover:bg-gray-100 border border-gray-200/50 hover:border-gray-300 transition-all duration-200 flex-shrink-0">
+                            <div className="flex items-center gap-2">
                                 <div
-                                    className="p-2 rounded-lg transition-all group-hover:scale-105 flex items-center justify-center mb-1.5"
-                                    style={{ backgroundColor: `${color}20` }}
+                                    className="p-1 rounded-lg transition-all group-hover:scale-105 flex items-center justify-center shrink-0 shadow-sm"
+                                    style={{ backgroundColor: `${color}15` }}
                                 >
-                                    <span className="text-xl leading-none">{emoji}</span>
+                                    <span className="text-base leading-none">{emoji}</span>
                                 </div>
-                                <span className="text-gray-800 font-medium text-[10px] mb-1 text-center">{label}</span>
-                                <span className="text-gray-900 font-bold text-xs mb-0.5">{count.toLocaleString()}</span>
-                                {percentage > 0 && (
-                                    <span className="text-gray-500 text-[9px] font-semibold">{percentage.toFixed(1)}%</span>
-                                )}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between mb-0.5">
+                                        <span className="text-gray-800 font-semibold text-[10px]">{label}</span>
+                                        <span className="text-gray-900 font-bold text-[11px]">{count.toLocaleString()}</span>
+                                    </div>
+                                    {percentage > 0 && (
+                                        <div className="w-full bg-gray-200 rounded-full h-1 overflow-hidden shadow-inner">
+                                            <div
+                                                className="h-full rounded-full transition-all duration-500 shadow-sm"
+                                                style={{
+                                                    width: `${percentage}%`,
+                                                    backgroundColor: color
+                                                }}
+                                            ></div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     );
                 })}
             </div>
-
-            {totalReactions === 0 && (
-                <div className="text-center py-6 bg-gray-50 rounded-lg">
-                    <p className="text-gray-500 text-xs font-medium">No reactions yet</p>
-                    <p className="text-gray-400 text-[10px] mt-1">Reactions will appear here</p>
-                </div>
-            )}
         </div>
     );
 };

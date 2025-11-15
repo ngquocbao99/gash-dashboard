@@ -183,9 +183,11 @@ const StreamsList = ({
 
                                         {/* Status */}
                                         <td className="px-2 lg:px-4 py-3 whitespace-nowrap">
-                                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${stream.status === 'live' ? 'bg-red-100 text-red-800' :
-                                                stream.status === 'ended' ? 'bg-gray-100 text-gray-800' :
-                                                    'bg-yellow-100 text-yellow-800'
+                                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${stream.status === 'live'
+                                                ? 'bg-gradient-to-r from-red-400 to-red-600 text-white border border-red-500'
+                                                : stream.status === 'ended'
+                                                    ? 'bg-gradient-to-r from-gray-400 to-gray-600 text-white border border-gray-500'
+                                                    : 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white border border-yellow-500'
                                                 }`}>
                                                 {stream.status || 'unknown'}
                                             </span>

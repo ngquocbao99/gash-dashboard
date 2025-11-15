@@ -22,11 +22,11 @@ const VideoPreview = ({
     livekitError
 }) => {
     return (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden h-full flex flex-col">
             {/* Video Container */}
-            <div className="bg-gradient-to-br from-gray-900 to-black relative">
-                <div className="flex justify-center items-center min-h-[400px] p-4">
-                    <div className="relative bg-black rounded-lg overflow-hidden shadow-lg border-2 border-gray-800" style={{ width: 'min(360px, 90vw)', aspectRatio: '9/16' }}>
+            <div className="bg-gradient-to-br from-gray-900 to-black relative flex-1 min-h-[280px] flex items-center justify-center">
+                <div className="flex justify-center items-center p-3 w-full h-full">
+                    <div className="relative bg-black rounded-lg overflow-hidden shadow-lg border-2 border-gray-800" style={{ width: 'min(280px, 85vw)', aspectRatio: '9/16' }}>
                         <video
                             ref={localVideoRef}
                             autoPlay
@@ -38,12 +38,12 @@ const VideoPreview = ({
                         />
 
                         {/* LIVE Badge */}
-                        <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                        {/* <div className="absolute top-3 left-3 flex items-center gap-1.5">
                             <div className="flex items-center gap-1.5 bg-gradient-to-r from-red-600 to-red-700 text-white px-2.5 py-1 rounded-lg shadow-lg shadow-red-500/50 backdrop-blur-sm">
                                 <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
                                 <span className="text-xs font-bold uppercase tracking-wide">LIVE</span>
                             </div>
-                        </div>
+                        </div> */}
 
                         {/* Media Status Indicators */}
                         {/* <div className="absolute top-3 right-3 flex flex-col gap-1.5">
@@ -73,7 +73,7 @@ const VideoPreview = ({
                         {/* Fullscreen Button */}
                         <button
                             onClick={onToggleFullscreen}
-                            className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-md text-white p-1.5 rounded-lg hover:bg-black/90 transition-all duration-200 shadow-md"
+                            className="absolute bottom-3 right-3 bg-gradient-to-r from-gray-800/90 to-black/90 backdrop-blur-md text-white p-1.5 rounded-lg hover:from-gray-700/90 hover:to-gray-900/90 transition-all duration-200 shadow-md hover:shadow-lg"
                         >
                             {isFullscreen ? <FullscreenExit className="w-4 h-4" /> : <Fullscreen className="w-4 h-4" />}
                         </button>
@@ -82,14 +82,14 @@ const VideoPreview = ({
             </div>
 
             {/* Controls Section */}
-            <div className="p-3 border-t border-gray-200 bg-gray-50">
+            <div className="p-2.5 border-t border-gray-200 bg-gray-50 flex-shrink-0">
                 {/* Primary Controls */}
-                <div className="flex flex-wrap items-center justify-center gap-2 mb-3">
+                <div className="flex flex-wrap items-center justify-center gap-2 mb-2">
                     <button
                         onClick={onToggleVideo}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${isVideoPlaying
-                            ? 'bg-gray-200 text-gray-900 hover:bg-gray-300'
-                            : 'bg-red-600 text-white hover:bg-red-700'
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 shadow-md hover:shadow-lg ${isVideoPlaying
+                            ? 'bg-gradient-to-r from-gray-200 to-gray-300 text-gray-900 hover:from-gray-300 hover:to-gray-400'
+                            : 'bg-gradient-to-r from-red-500 to-red-700 text-white hover:from-red-600 hover:to-red-800'
                             }`}
                     >
                         {isVideoPlaying ? 'Turn Off Video' : 'Turn On Video'}
@@ -97,9 +97,9 @@ const VideoPreview = ({
 
                     <button
                         onClick={onToggleAudio}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${isAudioPlaying
-                            ? 'bg-gray-200 text-gray-900 hover:bg-gray-300'
-                            : 'bg-red-600 text-white hover:bg-red-700'
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 shadow-md hover:shadow-lg ${isAudioPlaying
+                            ? 'bg-gradient-to-r from-gray-200 to-gray-300 text-gray-900 hover:from-gray-300 hover:to-gray-400'
+                            : 'bg-gradient-to-r from-red-500 to-red-700 text-white hover:from-red-600 hover:to-red-800'
                             }`}
                     >
                         {isAudioPlaying ? 'Turn Off Mic' : 'Turn On Mic'}
@@ -108,7 +108,7 @@ const VideoPreview = ({
                 </div>
 
                 {/* Status Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-3 border-t border-gray-300">
+                {/* <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-3 border-t border-gray-300">
                     <div className="text-center p-2 bg-white rounded-lg border border-gray-200">
                         <div className="text-[10px] font-semibold text-gray-500 mb-1.5 uppercase">Video</div>
                         <div className={`inline-flex px-2.5 py-1 rounded-lg text-[10px] font-bold ${isVideoPlaying
@@ -127,7 +127,7 @@ const VideoPreview = ({
                             {isAudioPlaying ? 'ON' : 'OFF'}
                         </div>
                     </div>
-                </div>
+                </div> */}
 
                 {/* Error Messages */}
                 {(mediaError || livekitError) && (
