@@ -1,17 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  FiBell,
-  FiFilter,
   FiPlus,
   FiTrash2,
   FiSend,
   FiEdit2,
   FiX,
   FiFileText,
-  FiChevronLeft,
-  FiChevronRight,
 } from "react-icons/fi";
 import { io } from "socket.io-client"; // 🧩 SOCKET ADDED
 
@@ -21,7 +17,7 @@ export default function Notifications() {
   const [templates, setTemplates] = useState([]);
   const [loadingList, setLoadingList] = useState(false);
 
-  const [showFilter, setShowFilter] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showEditTemplate, setShowEditTemplate] = useState(false);
   const [showCreateTemplate, setShowCreateTemplate] = useState(false);
@@ -31,13 +27,15 @@ export default function Notifications() {
   const [sending, setSending] = useState(false);
   const [savingTemplate, setSavingTemplate] = useState(false);
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 6;
+  // Infinite scroll state
+  const [displayedItems, setDisplayedItems] = useState(10); // Number of items to display initially
+  const itemsPerLoad = 10; // Number of items to load each time
+  const scrollContainerRef = useRef(null);
 
   const [newNotification, setNewNotification] = useState({
     title: "",
     message: "",
-    recipient: "specific",
+    recipient: "all",
     userId: "",
     // selectedUsers will be stored separately in stateSelectedUsers
   });
@@ -193,7 +191,6 @@ export default function Notifications() {
 
       const res = await axios.post("http://localhost:5000/notifications/admin/create", payload);
       alert("✅ Notification sent successfully!");
-      setShowCreate(false);
       setNewNotification({ title: "", message: "", recipient: "all", userId: "" });
       // reset selections
       setSelectedUsers([]);
@@ -220,29 +217,53 @@ export default function Notifications() {
   };
 
   // ===== DELETE NOTIFICATION =====
-  const handleDeleteNotification = async (id) => {
-    if (!window.confirm("Delete this notification?")) return;
+  const handleDeleteNotification = async (notification) => {
+    const deleteCount = notification.notificationIds?.length || 1;
+    const message = deleteCount > 1 
+      ? `Delete this notification group (${deleteCount} notifications)?`
+      : "Delete this notification?";
+    if (!window.confirm(message)) return;
+    
     try {
-      await axios.delete(`http://localhost:5000/notifications/admin/${id}`);
+      // Delete all notifications in the group
+      const idsToDelete = notification.notificationIds || [notification._id];
+      await Promise.all(
+        idsToDelete.map(id => axios.delete(`http://localhost:5000/notifications/admin/${id}`))
+      );
+      
+      // 🧩 SOCKET EMIT - Notify recipients to remove notification immediately
+      try {
+        if (socket && socket.connected) {
+          // Emit deletion event for each notification ID
+          idsToDelete.forEach(id => {
+            socket.emit("adminDeletedNotification", { notificationId: id });
+          });
+          console.log("📡 adminDeletedNotification emitted for", idsToDelete.length, "notification(s)");
+        } else {
+          console.warn("⚠️ Admin socket not connected — cannot emit realtime deletion");
+        }
+      } catch (emitErr) {
+        console.error("❌ Error emitting adminDeletedNotification:", emitErr);
+      }
+      
       fetchNotifications();
     } catch (err) {
       console.error(err);
-      alert("Failed to delete notification.");
+      alert("Failed to delete notification(s).");
     }
   };
 
   // ===== TEMPLATE =====
   const applyTemplateToForm = (template) => {
-    setTab("notifications");
-    setTimeout(() => {
       setNewNotification({
         title: template.title || "",
         message: template.message || "",
-        recipient: "all",
+      recipient: "all",
         userId: "",
       });
-      setShowCreate(true);
-    }, 150);
+    // Reset selected users when applying template
+    setSelectedUsers([]);
+    setSelectAll(false);
   };
 
   const handleEditTemplate = (template) => {
@@ -256,6 +277,7 @@ export default function Notifications() {
       await axios.patch(
         `http://localhost:5000/notifications/admin/templates/${editingTemplate._id}`,
         {
+          name: editingTemplate.name,
           title: editingTemplate.title,
           message: editingTemplate.message,
           type: editingTemplate.type || "system",
@@ -351,8 +373,47 @@ export default function Notifications() {
     setShowSelectUsersModal(false);
   };
 
-  // ===== FILTER + PAGINATION =====
-  const filtered = notifications.filter((n) => {
+  // ===== FILTER + GROUP =====
+  // Group notifications by title + message + createdAt (rounded to nearest second) to show as single items
+  const groupedNotifications = notifications.reduce((acc, n) => {
+    // Round createdAt to nearest second for grouping
+    const createdAtRound = new Date(n.createdAt);
+    createdAtRound.setMilliseconds(0);
+    const groupKey = `${n.title}|${n.message}|${createdAtRound.getTime()}`;
+    
+    if (!acc.has(groupKey)) {
+      // Store the notification with recipient count and all IDs in the group
+      acc.set(groupKey, {
+        ...n,
+        recipientCount: 1,
+        recipients: n.userId ? [n.userId] : [],
+        notificationIds: [n._id], // Track all notification IDs in this group
+        isAllUsers: !n.userId // Track if this is sent to all users
+      });
+    } else {
+      // Increment recipient count and collect recipients
+      const existing = acc.get(groupKey);
+      existing.recipientCount += 1;
+      existing.notificationIds.push(n._id); // Add this notification ID to the group
+      if (n.userId) {
+        // Avoid duplicate recipients
+        const recipientId = typeof n.userId === 'object' ? n.userId._id : n.userId;
+        if (!existing.recipients.find(r => {
+          const rId = typeof r === 'object' ? r._id : r;
+          return rId === recipientId;
+        })) {
+          existing.recipients.push(n.userId);
+        }
+      } else {
+        existing.isAllUsers = true;
+      }
+    }
+    return acc;
+  }, new Map());
+
+  const uniqueNotifications = Array.from(groupedNotifications.values());
+
+  const filtered = uniqueNotifications.filter((n) => {
     const matchType = filterType ? n.type === filterType : true;
     const matchKeyword = searchKeyword
       ? n.title.toLowerCase().includes(searchKeyword.toLowerCase())
@@ -360,15 +421,64 @@ export default function Notifications() {
     return matchType && matchKeyword;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
-  useEffect(() => {
-    if (currentPage > totalPages) setCurrentPage(totalPages);
-  }, [totalPages, currentPage]);
+  // Check if any filters are active
+  const hasActiveFilters = () => {
+    return searchKeyword || filterType !== '';
+  };
 
-  const currentItems = filtered.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // Clear all filters
+  const clearFilters = () => {
+    setFilterType("");
+    setSearchKeyword("");
+    setDisplayedItems(10); // Reset to initial display count
+  };
+
+  // Toggle filters
+  const toggleFilters = () => {
+    setShowFilters(!showFilters);
+  };
+
+  // Get items to display (infinite scroll)
+  const currentItems = filtered.slice(0, displayedItems);
+
+  // Infinite scroll handler
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer || displayedItems >= filtered.length) return;
+
+    let isLoading = false;
+
+    const handleScroll = () => {
+      if (isLoading || displayedItems >= filtered.length) return;
+
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+      // Load more when user is within 100px of bottom
+      if (scrollHeight - scrollTop - clientHeight < 100) {
+        isLoading = true;
+        setDisplayedItems(prev => {
+          const next = Math.min(prev + itemsPerLoad, filtered.length);
+          // Reset loading flag after state update
+          setTimeout(() => {
+            isLoading = false;
+          }, 100);
+          return next;
+        });
+      }
+    };
+
+    scrollContainer.addEventListener('scroll', handleScroll);
+    return () => {
+      if (scrollContainer) {
+        scrollContainer.removeEventListener('scroll', handleScroll);
+      }
+    };
+  }, [displayedItems, filtered.length, itemsPerLoad]);
+
+  // Reset displayed items when filters change
+  useEffect(() => {
+    setDisplayedItems(10);
+  }, [filterType, searchKeyword]);
+
 
   // ===== UI =====
   return (
@@ -376,31 +486,26 @@ export default function Notifications() {
       {/* Header Section */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4 mb-4 lg:mb-6 pt-2 lg:pt-3 pb-2 lg:pb-3">
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-2 leading-tight flex items-center gap-2">
-            <FiBell className="text-indigo-600" /> Notification Management
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-2 leading-tight">
+            Notification Management
           </h1>
         </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 lg:gap-4 shrink-0">
           <div className="bg-gradient-to-r from-yellow-400/20 via-amber-400/20 to-orange-400/20 backdrop-blur-md px-2 lg:px-4 py-1 lg:py-2 rounded-xl border-2 border-yellow-400/50 shadow-md">
             <span className="text-xs lg:text-sm font-semibold text-gray-700">
-              {notifications.length} notification{notifications.length !== 1 ? "s" : ""}
+              {filtered.length} notification{filtered.length !== 1 ? "s" : ""}
             </span>
           </div>
           <button
             className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-xs lg:text-sm font-semibold bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 transform hover:scale-105"
-            onClick={() => setShowFilter(!showFilter)}
+            onClick={toggleFilters}
             aria-label="Toggle filters"
           >
-            <FiFilter />
-            <span className="font-medium hidden sm:inline">{showFilter ? "Hide Filters" : "Show Filters"}</span>
+            <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z" />
+            </svg>
+            <span className="font-medium hidden sm:inline">{showFilters ? "Hide Filters" : "Show Filters"}</span>
             <span className="font-medium sm:hidden">Filters</span>
-          </button>
-          <button
-            className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-xs lg:text-sm font-semibold bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] transform hover:scale-105"
-            onClick={() => setShowCreate(true)}
-          >
-            <FiPlus />
-            <span className="font-medium">Create Notification</span>
           </button>
           <button
             className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-xs lg:text-sm font-semibold bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] transform hover:scale-105"
@@ -413,27 +518,20 @@ export default function Notifications() {
       </div>
 
       {/* Filter Section */}
-      <AnimatePresence>
-        {showFilter && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="backdrop-blur-xl rounded-xl border p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6"
-            style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(251, 191, 36, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}
-          >
+      {showFilters && (
+        <div className="backdrop-blur-xl rounded-xl border p-3 sm:p-4 lg:p-6 mb-4 lg:mb-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(251, 191, 36, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}>
             <div className="flex items-center justify-between mb-3 lg:mb-4">
               <h2 className="text-base lg:text-lg font-semibold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Search & Filter</h2>
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  setFilterType("");
-                  setSearchKeyword("");
-                  setCurrentPage(1);
-                }}
-                className="px-2 py-1.5 lg:px-3 lg:py-2 text-gray-600 hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:via-pink-500 hover:to-rose-500 rounded-xl transition-all duration-300 border-2 border-gray-300/60 hover:border-transparent font-medium text-xs lg:text-sm shadow-md hover:shadow-lg"
+                onClick={clearFilters}
+                disabled={!hasActiveFilters()}
+                className="px-2 py-1.5 lg:px-3 lg:py-2 text-gray-600 hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:via-pink-500 hover:to-rose-500 rounded-xl transition-all duration-300 border-2 border-gray-300/60 hover:border-transparent font-medium text-xs lg:text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-600 shadow-md hover:shadow-lg"
+                aria-label="Clear all filters"
               >
                 Clear
               </button>
+            </div>
             </div>
             <div className="mb-3 lg:mb-4">
               <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Search by title...</label>
@@ -444,7 +542,7 @@ export default function Notifications() {
                 value={searchKeyword}
                 onChange={(e) => {
                   setSearchKeyword(e.target.value);
-                  setCurrentPage(1);
+                  setDisplayedItems(10); // Reset to initial display count
                 }}
               />
             </div>
@@ -456,7 +554,7 @@ export default function Notifications() {
                   value={filterType}
                   onChange={(e) => {
                     setFilterType(e.target.value);
-                    setCurrentPage(1);
+                    setDisplayedItems(10); // Reset to initial display count
                   }}
                 >
                   <option value="">All Types</option>
@@ -466,55 +564,86 @@ export default function Notifications() {
                 </select>
               </div>
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
 
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
         {/* LEFT: Notification List */}
         <div className="lg:w-1/3 backdrop-blur-xl rounded-xl border overflow-hidden flex flex-col" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(251, 191, 36, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}>
           <div className="backdrop-blur-sm border-b px-4 lg:px-6 py-3 lg:py-4 flex justify-between items-center" style={{ borderColor: '#A86523' }}>
-            <h2 className="text-lg lg:text-xl font-semibold text-gray-800 flex items-center gap-2">
-              <FiBell className="text-indigo-600" /> Sent Notifications
+            <h2 className="text-lg lg:text-xl font-semibold text-gray-800">
+              Sent Notifications
             </h2>
           </div>
 
-        <ul className="divide-y divide-gray-100 flex-1 overflow-y-auto">
           {loadingList ? (
-            <li className="p-6 text-center text-gray-500">Loading...</li>
-          ) : currentItems.length === 0 ? (
-            <li className="p-6 text-center text-gray-500">No notifications found.</li>
+          <div className="flex-1 flex items-center justify-center p-6">
+            <div className="flex flex-col items-center justify-center space-y-4 min-h-[180px]">
+              <div className="w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: '#FCEFCB', borderTopColor: '#E9A319' }}></div>
+              <p className="text-gray-600 font-medium">
+                Loading notifications...
+              </p>
+            </div>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center p-6">
+            <div className="flex flex-col items-center justify-center space-y-4 min-h-[180px]">
+              <div className="w-14 h-14 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center shadow-lg">
+                <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                  />
+                </svg>
+              </div>
+              <div className="text-center">
+                <h3 className="text-base font-medium text-gray-900">No notifications found</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {notifications.length === 0
+                    ? "Get started by creating your first notification"
+                    : "Try adjusting your search or filter criteria"}
+                </p>
+              </div>
+            </div>
+          </div>
           ) : (
-            currentItems.map((n) => (
+          <ul ref={scrollContainerRef} className="notification-list-container divide-y divide-gray-100 flex-1 overflow-y-auto" style={{ maxHeight: '600px' }}>
+            {currentItems.map((n) => (
               <li
                 key={n._id}
                 className="flex items-start justify-between px-4 lg:px-6 py-3 lg:py-4 hover:bg-gradient-to-r hover:from-yellow-50/50 hover:via-amber-50/50 hover:to-orange-50/50 transition-all duration-300 border-b-2 border-gray-200/40"
               >
                 {/* Left side */}
-                <div className="flex items-start gap-4">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 font-semibold">
-                    {n.title?.charAt(0)?.toUpperCase() || "N"}
-                  </div>
-
-                  <div>
+                <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold text-gray-900">{n.title}</h3>
                       <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full capitalize">
                         {n.type || "system"}
                       </span>
                     </div>
-                    <p className="text-gray-600 text-sm line-clamp-1">{n.message}</p>
+                  <p className="text-gray-600 text-sm line-clamp-1 mt-1">{n.message}</p>
                     <p className="text-xs text-gray-500 mt-1">
                       To:{" "}
-                      {n.userId
-                        ? n.userId.fullName || n.userId.username || n.userId.email || "Unknown"
-                        : "All Users"}
+                      {n.isAllUsers || (!n.userId && !n.recipients?.length)
+                        ? "All Users"
+                        : n.recipientCount > 1
+                        ? `${n.recipientCount} users`
+                        : n.recipients?.[0]
+                        ? (typeof n.recipients[0] === 'object' 
+                            ? n.recipients[0].fullName || n.recipients[0].username || n.recipients[0].email || "Unknown"
+                            : "User")
+                        : n.userId
+                        ? (typeof n.userId === 'object'
+                            ? n.userId.fullName || n.userId.username || n.userId.email || "Unknown"
+                            : "User")
+                        : "Unknown"}
                     </p>
-                  </div>
                 </div>
 
                 {/* Right side (time + delete) */}
-                <div className="flex flex-col items-end text-right gap-2">
+                <div className="flex flex-col items-end text-right gap-2 ml-4">
                   <span className="text-xs text-gray-500 whitespace-nowrap">
                     {new Date(n.createdAt).toLocaleDateString("en-GB", {
                       weekday: "short",
@@ -525,106 +654,181 @@ export default function Notifications() {
                     })}
                   </span>
                   <button
-                    onClick={() => handleDeleteNotification(n._id)}
+                    onClick={() => handleDeleteNotification(n)}
                     className="p-1.5 rounded-xl transition-all duration-300 border-2 shadow-md hover:shadow-lg transform hover:scale-110 text-white bg-red-600 hover:bg-red-700 border-red-600 hover:border-red-700"
-                    title="Delete notification"
+                    title={n.notificationIds?.length > 1 ? `Delete notification group (${n.notificationIds.length} notifications)` : "Delete notification"}
                   >
                     <FiTrash2 className="w-3 h-3 lg:w-4 lg:h-4" />
                   </button>
                 </div>
               </li>
-            ))
+            ))}
+            {displayedItems < filtered.length && (
+              <li className="px-4 lg:px-6 py-4 text-center">
+                <div className="w-6 h-6 border-2 border-gray-300 border-t-amber-500 rounded-full animate-spin mx-auto"></div>
+                <p className="text-sm text-gray-500 mt-2">Loading more notifications...</p>
+              </li>
           )}
         </ul>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="backdrop-blur-sm border-t px-4 py-3 flex justify-between items-center text-sm text-gray-600" style={{ borderColor: '#A86523' }}>
-              <span className="text-xs lg:text-sm">
-                Showing {(currentPage - 1) * itemsPerPage + 1}–
-                {Math.min(currentPage * itemsPerPage, filtered.length)} of {filtered.length}
-              </span>
-              <div className="flex gap-2">
-                <button
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-amber-50 hover:text-gray-800 hover:border-amber-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-gray-600 disabled:hover:border-gray-300 transition-all duration-200"
-                >
-                  Prev
-                </button>
-                <button
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  className="px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-amber-50 hover:text-gray-800 hover:border-amber-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-gray-600 disabled:hover:border-gray-300 transition-all duration-200"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
+        )}
         </div>
 
-        {/* RIGHT: Templates Section */}
-        <div className="lg:w-2/3 backdrop-blur-xl rounded-xl border overflow-hidden" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(251, 191, 36, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}>
+        {/* RIGHT: Create Notification Form */}
+        <div className="lg:w-2/3 backdrop-blur-xl rounded-xl border overflow-hidden flex flex-col" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(251, 191, 36, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}>
           <div className="backdrop-blur-sm border-b px-4 lg:px-6 py-3 lg:py-4" style={{ borderColor: '#A86523' }}>
-            <h2 className="text-lg lg:text-xl font-semibold flex items-center gap-2 text-gray-800">
-              <FiFileText className="text-indigo-600" /> Notification Templates
+            <h2 className="text-lg lg:text-xl font-semibold text-gray-800">
+              Create Notification
             </h2>
           </div>
-          <div className="p-4 lg:p-6">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[600px]">
-                <thead className="backdrop-blur-sm border-b" style={{ borderColor: '#A86523' }}>
-                  <tr>
-                    <th className="px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Name</th>
-                    <th className="px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Title</th>
-                    <th className="px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Type</th>
-                    <th className="px-2 lg:px-4 py-3 text-center text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+          <div className="p-4 lg:p-6 flex flex-col flex-1 overflow-y-auto">
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Title</label>
+                <input
+                  type="text"
+                  placeholder="Title"
+                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
+                  value={newNotification.title}
+                  onChange={(e) =>
+                    setNewNotification({ ...newNotification, title: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Message</label>
+                <textarea
+                  placeholder="Message"
+                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60 min-h-[120px]"
+                  value={newNotification.message}
+                  onChange={(e) =>
+                    setNewNotification({ ...newNotification, message: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Recipient</label>
+                <select
+                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
+                  value={newNotification.recipient}
+                  onChange={(e) =>
+                    setNewNotification({ ...newNotification, recipient: e.target.value })
+                  }
+                >
+                  <option value="all">All Users</option>
+                  <option value="single">Single User (by ID)</option>
+                  <option value="multiple">Multiple Users (by IDs)</option>
+                  <option value="specific">Specific Users (choose)</option>
+                </select>
+              </div>
+
+              {(newNotification.recipient === "single" ||
+                newNotification.recipient === "multiple") && (
+                <div>
+                  <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">
+                    {newNotification.recipient === "single" ? "User ID" : "User IDs (comma-separated)"}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder={
+                      newNotification.recipient === "single"
+                        ? "Enter user ID"
+                        : "Enter multiple IDs, separated by commas"
+                    }
+                    className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
+                    value={newNotification.userId}
+                    onChange={(e) =>
+                      setNewNotification({ ...newNotification, userId: e.target.value })
+                    }
+                  />
+                </div>
+              )}
+
+              {newNotification.recipient === "specific" && (
+                <div>
+                  <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Select Users</label>
+                  <div className="flex items-center gap-3">
+                <button
+                      onClick={openSelectUsersModal}
+                      className="px-3 lg:px-4 py-2 lg:py-3 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-amber-50 hover:text-gray-800 hover:border-amber-300 transition-all duration-200"
+                >
+                      Select Users
+                </button>
+                    <div className="text-sm text-gray-700">
+                      {selectedUsers.length > 0 ? (
+                        <span>{selectedUsers.length} user{selectedUsers.length > 1 ? "s" : ""} selected</span>
+                      ) : (
+                        <span className="text-gray-400">No users selected</span>
+                      )}
+              </div>
+            </div>
+        </div>
+              )}
+
+              <button
+                onClick={handleSendNotification}
+                disabled={sending}
+                className={`mt-2 bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] text-white px-4 py-3 rounded-xl shadow-lg hover:shadow-xl flex items-center justify-center gap-2 transition-all duration-300 transform hover:scale-105 ${
+                  sending ? "opacity-70 cursor-not-allowed" : ""
+                }`}
+              >
+                {sending ? (
+                  <>
+                    <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <FiSend /> Send Notification
+                  </>
+                )}
+              </button>
+          </div>
+
+            {/* Templates Section */}
+            <div className="mt-6 pt-6 border-t" style={{ borderColor: '#A86523' }}>
+              <h3 className="text-base font-semibold text-gray-800 mb-3">Templates</h3>
                   {templates.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="text-center py-8 text-gray-500">
-                        No templates found.
-                      </td>
-                    </tr>
+                <p className="text-sm text-gray-500 text-center py-4">No templates found.</p>
                   ) : (
-                    templates.map((t) => (
-                      <tr key={t._id} className="border-b-2 border-gray-200/40 hover:bg-gradient-to-r hover:from-yellow-50/50 hover:via-amber-50/50 hover:to-orange-50/50 transition-all duration-300">
-                        <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm text-gray-900">{t.name || "(unnamed)"}</td>
-                        <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm text-gray-900">{t.title}</td>
-                        <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm capitalize text-gray-900">{t.type}</td>
-                        <td className="px-2 lg:px-4 py-3">
-                          <div className="flex justify-center items-center gap-2">
+                <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                  {templates.map((t) => (
+                    <div
+                      key={t._id}
+                      className="p-3 border-2 border-gray-200/60 rounded-xl hover:bg-gradient-to-r hover:from-yellow-50/50 hover:via-amber-50/50 hover:to-orange-50/50 transition-all duration-300"
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-sm text-gray-900 truncate">{t.name || "(unnamed)"}</h4>
+                          <p className="text-xs text-gray-600 mt-1 line-clamp-1">{t.title}</p>
+                        </div>
+                        <div className="flex gap-1 shrink-0">
                             <button
                               onClick={() => applyTemplateToForm(t)}
-                              className="p-1.5 rounded-xl transition-all duration-300 border-2 shadow-md hover:shadow-lg transform hover:scale-110 border-yellow-400/60 bg-gradient-to-br from-yellow-100/80 via-amber-100/80 to-orange-100/80 hover:from-yellow-200 hover:via-amber-200 hover:to-orange-200 text-amber-700 hover:text-amber-800 backdrop-blur-sm"
-                              title="Use this template"
+                            className="p-1.5 rounded-lg transition-all duration-300 border-2 shadow-md hover:shadow-lg transform hover:scale-110 border-yellow-400/60 bg-gradient-to-br from-yellow-100/80 via-amber-100/80 to-orange-100/80 hover:from-yellow-200 hover:via-amber-200 hover:to-orange-200 text-amber-700 hover:text-amber-800 backdrop-blur-sm"
+                            title="Apply template"
                             >
-                              <FiSend className="w-3 h-3 lg:w-4 lg:h-4" />
+                            <FiSend className="w-3 h-3" />
                             </button>
                             <button
                               onClick={() => handleEditTemplate(t)}
-                              className="p-1.5 rounded-xl transition-all duration-300 border-2 shadow-md hover:shadow-lg transform hover:scale-110 border-yellow-400/60 bg-gradient-to-br from-yellow-100/80 via-amber-100/80 to-orange-100/80 hover:from-yellow-200 hover:via-amber-200 hover:to-orange-200 text-amber-700 hover:text-amber-800 backdrop-blur-sm"
+                            className="p-1.5 rounded-lg transition-all duration-300 border-2 shadow-md hover:shadow-lg transform hover:scale-110 border-yellow-400/60 bg-gradient-to-br from-yellow-100/80 via-amber-100/80 to-orange-100/80 hover:from-yellow-200 hover:via-amber-200 hover:to-orange-200 text-amber-700 hover:text-amber-800 backdrop-blur-sm"
                               title="Edit template"
                             >
-                              <FiEdit2 className="w-3 h-3 lg:w-4 lg:h-4" />
+                            <FiEdit2 className="w-3 h-3" />
                             </button>
                             <button
                               onClick={() => handleDeleteTemplate(t._id)}
-                              className="p-1.5 rounded-xl transition-all duration-300 border-2 shadow-md hover:shadow-lg transform hover:scale-110 text-white bg-red-600 hover:bg-red-700 border-red-600 hover:border-red-700"
+                            className="p-1.5 rounded-lg transition-all duration-300 border-2 shadow-md hover:shadow-lg transform hover:scale-110 text-white bg-red-600 hover:bg-red-700 border-red-600 hover:border-red-700"
                               title="Delete template"
                             >
-                              <FiTrash2 className="w-3 h-3 lg:w-4 lg:h-4" />
+                            <FiTrash2 className="w-3 h-3" />
                             </button>
                           </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -875,6 +1079,66 @@ export default function Notifications() {
 </AnimatePresence>
 
 
+      {/* === Edit Template Modal === */}
+      <AnimatePresence>
+        {showEditTemplate && editingTemplate && (
+          <motion.div
+            className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white p-4 lg:p-6 rounded-xl w-full max-w-lg shadow-xl relative backdrop-blur-xl border"
+              style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(251, 191, 36, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+            >
+              <button
+                onClick={() => setShowEditTemplate(false)}
+                className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+              >
+                <FiX size={20} />
+              </button>
+
+              <h2 className="text-xl font-semibold mb-4">
+                Edit Template
+              </h2>
+
+              <div className="flex flex-col gap-3">
+                <input
+                  type="text"
+                  placeholder="Template Name"
+                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
+                  value={editingTemplate.name || ""}
+                  onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
+                />
+                <input
+                  type="text"
+                  placeholder="Title"
+                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
+                  value={editingTemplate.title || ""}
+                  onChange={(e) => setEditingTemplate({ ...editingTemplate, title: e.target.value })}
+                />
+                <textarea
+                  placeholder="Message"
+                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60 min-h-[120px]"
+                  value={editingTemplate.message || ""}
+                  onChange={(e) => setEditingTemplate({ ...editingTemplate, message: e.target.value })}
+                />
+                <button
+                  onClick={handleSaveTemplate}
+                  className="mt-2 bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] text-white px-4 py-2 rounded-xl shadow-lg hover:shadow-xl flex items-center justify-center gap-2 transition-all duration-300 transform hover:scale-105"
+                >
+                  <FiEdit2 /> Update Template
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* === Create Template Modal === */}
       <AnimatePresence>
         {showCreateTemplate && (
@@ -898,8 +1162,8 @@ export default function Notifications() {
                 <FiX size={20} />
               </button>
 
-              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <FiFileText /> Create Template
+              <h2 className="text-xl font-semibold mb-4">
+                Create Template
               </h2>
 
               <div className="flex flex-col gap-3">
