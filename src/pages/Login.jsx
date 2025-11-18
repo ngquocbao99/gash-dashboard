@@ -8,7 +8,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = React.useContext(AuthContext);
+  const { login, passkeyLogin } = React.useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
   const usernameRef = useRef(null);
@@ -50,6 +50,33 @@ const Login = () => {
     if (name === 'password') setPassword(value);
     setError('');
   }, []);
+
+  const handlePasskeyLogin = useCallback(async () => {
+    const trimmedUsername = username.trim();
+    
+    if (!trimmedUsername) {
+      setError('Please enter your username to use passkey login.');
+      usernameRef.current?.focus();
+      return;
+    }
+
+    if (trimmedUsername.length < 3 || trimmedUsername.length > 30) {
+      setError('Username must be between 3 and 30 characters.');
+      usernameRef.current?.focus();
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+    try {
+      await passkeyLogin(trimmedUsername);
+      navigate(from, { replace: true });
+    } catch (err) {
+      // Error message is already shown in passkeyLogin
+    } finally {
+      setIsLoading(false);
+    }
+  }, [username, passkeyLogin, navigate, from]);
 
   return (
     <div className="login-container">
@@ -112,6 +139,28 @@ const Login = () => {
             )}
           </button>
         </form>
+        <div className="mt-4 space-y-3">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-gray-500">Or</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handlePasskeyLogin}
+            disabled={isLoading}
+            className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 px-4 rounded-xl transition-all duration-200 border border-gray-300 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            aria-label="Sign in with Biometrics"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            {isLoading ? 'Authenticating...' : 'Sign in with Biometrics'}
+          </button>
+        </div>
         <p className="login-signup-prompt">
           New to GASH?{' '}
           <Link to="/signup" className="login-signup-link">

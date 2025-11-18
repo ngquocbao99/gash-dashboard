@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import Api from "../common/SummaryAPI";
 import { useToast } from "../hooks/useToast";
+import { startRegistration } from "@simplewebauthn/browser";
 
 // Import modal
 import EditProfileModal from "../components/EditProfileModal";
@@ -24,6 +25,8 @@ const Profile = () => {
   const [editMode, setEditMode] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [isDeleted, setIsDeleted] = useState(false);
+  const [passkeys, setPasskeys] = useState([]);
+  const [isSettingUpPasskey, setIsSettingUpPasskey] = useState(false);
   const [formData, setFormData] = useState({
     username: "",
     name: "",
@@ -101,9 +104,26 @@ const Profile = () => {
     }
   }, [user, showToast]);
 
+  const fetchPasskeys = useCallback(async () => {
+    if (!user || !user._id) return;
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        const response = await Api.passkeys.getUserPasskeys(token);
+        setPasskeys(response.data.passkeys || []);
+      }
+    } catch (err) {
+      console.error('Fetch passkeys error:', err);
+    }
+  }, [user]);
+
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
+
+  useEffect(() => {
+    fetchPasskeys();
+  }, [fetchPasskeys]);
 
   useEffect(() => {
     if (editMode) {
@@ -276,6 +296,71 @@ const Profile = () => {
     setInvalidFile(false);
   }, [profile]);
 
+  const handleSetupPasskey = useCallback(async () => {
+    setIsSettingUpPasskey(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        showToast('Please log in again', 'error', 3000);
+        return;
+      }
+
+      // Get registration options
+      const regResponse = await Api.passkeys.generateRegistrationOptions(token);
+      const { options, challenge } = regResponse.data;
+
+      // Start registration
+      const registrationResponse = await startRegistration(options);
+
+      // Detect device type
+      const deviceType = navigator.userAgent.includes('Mobile') ? 'mobile' :
+        navigator.userAgent.includes('Tablet') ? 'tablet' : 'desktop';
+
+      // Prepare verification data
+      const verifyData = {
+        id: registrationResponse.id,
+        rawId: registrationResponse.rawId,
+        response: registrationResponse.response,
+        type: registrationResponse.type,
+        challenge: challenge,
+        deviceType,
+      };
+
+      await Api.passkeys.verifyRegistration(verifyData, token);
+
+      showToast('Biometric authentication set up successfully!', 'success', 2000);
+      fetchPasskeys();
+    } catch (err) {
+      console.error('Passkey setup error:', err);
+      const errorMsg = err.response?.data?.message || 'Failed to set up biometric authentication';
+      showToast(errorMsg, 'error', 3000);
+    } finally {
+      setIsSettingUpPasskey(false);
+    }
+  }, [showToast, fetchPasskeys]);
+
+  const handleDeletePasskey = useCallback(async (passkeyId) => {
+    if (!window.confirm('Are you sure you want to delete this passkey?')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        showToast('Please log in again', 'error', 3000);
+        return;
+      }
+
+      await Api.passkeys.deletePasskey(passkeyId, token);
+      showToast('Biometric authentication removed successfully!', 'success', 2000);
+      fetchPasskeys();
+    } catch (err) {
+      console.error('Delete passkey error:', err);
+      const errorMsg = err.response?.data?.message || 'Failed to remove biometric authentication';
+      showToast(errorMsg, 'error', 3000);
+    }
+  }, [showToast, fetchPasskeys]);
+
   if (!user) {
     return <div className="w-full h-full"></div>;
   }
@@ -387,6 +472,17 @@ const Profile = () => {
                         onClick={() => setShowChangePassword(true)}
                       >
                         Change Password
+                      </button>
+                      <button
+                        className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 px-4 rounded-xl transition-all duration-200 border border-gray-300 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={handleSetupPasskey}
+                        disabled={isSettingUpPasskey || passkeys.length > 0}
+                      >
+                        {isSettingUpPasskey
+                          ? 'Setting up...'
+                          : passkeys.length > 0
+                            ? 'Biometrics Already Set Up'
+                            : 'Set Up Biometrics'}
                       </button>
                     </div>
                   ) : (
@@ -535,6 +631,43 @@ const Profile = () => {
                             </div>
                           </div>
                         </div>
+                      </div>
+
+                      {/* Passkeys Section */}
+                      <div className="mt-6 space-y-3">
+                        <h3 className="text-lg font-medium text-gray-900">Biometric Authentication</h3>
+                        {passkeys.length > 0 ? (
+                          <div className="space-y-2">
+                            {passkeys.map((passkey) => (
+                              <div key={passkey.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md border border-gray-200">
+                                <div className="flex items-center">
+                                  <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center mr-3">
+                                    <svg className="w-3 h-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                    </svg>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900 capitalize">{passkey.deviceType || 'Unknown Device'}</p>
+                                    <p className="text-xs text-gray-500">
+                                      Added {new Date(passkey.createdAt).toLocaleDateString('vi-VN')}
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => handleDeletePasskey(passkey.id)}
+                                  className="text-red-600 hover:text-red-800 text-sm font-medium"
+                                  aria-label="Remove biometric authentication"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-4 bg-gray-50 rounded-md border border-gray-200 text-center">
+                            <p className="text-sm text-gray-600">No biometric authentication set up yet. Click "Set Up Biometrics" to use Touch ID, Face ID, or Windows Hello.</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

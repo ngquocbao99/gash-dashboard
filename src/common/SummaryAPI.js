@@ -274,6 +274,30 @@ const Api = {
         getConversations: (params = {}) => axiosClient.get("/chat/conversations", { params }),
     },
 
+    // ==== Passkeys ====
+    passkeys: {
+        // Generate registration options
+        generateRegistrationOptions: (token) => axiosClient.post('/passkeys/register/generate', {}, {
+            headers: { Authorization: `Bearer ${token}` },
+        }),
+        // Verify registration
+        verifyRegistration: (data, token) => axiosClient.post('/passkeys/register/verify', data, {
+            headers: { Authorization: `Bearer ${token}` },
+        }),
+        // Generate authentication options
+        generateAuthenticationOptions: (username) => axiosClient.post('/passkeys/auth/generate', { username }),
+        // Verify authentication
+        verifyAuthentication: (data) => axiosClient.post('/passkeys/auth/verify', data),
+        // Get user's passkeys
+        getUserPasskeys: (token) => axiosClient.get('/passkeys/list', {
+            headers: { Authorization: `Bearer ${token}` },
+        }),
+        // Delete a passkey
+        deletePasskey: (passkeyId, token) => axiosClient.delete(`/passkeys/${passkeyId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+        }),
+    },
+
     // ==== Livestream ====
     livestream: {
         // ==== Livestream Management ====
