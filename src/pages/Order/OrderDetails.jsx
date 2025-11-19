@@ -315,10 +315,10 @@ const OrderDetails = ({ order, onClose, isOpen, autoOpenRefundModal = false }) =
             }
 
             // Check for network errors
-            if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
-                errorMessage = "Network error - please check your connection";
+            if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error') || !err.response) {
+                errorMessage = "Failed to upload refund proof. Please try again later.";
             } else if (err?.response?.status === 500) {
-                errorMessage = "Server error - please try again later";
+                errorMessage = "Failed to upload refund proof. Server error - please try again later";
             }
 
             setError(errorMessage);

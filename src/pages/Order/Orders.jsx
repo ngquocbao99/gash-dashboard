@@ -790,10 +790,10 @@ const Orders = () => {
       }
 
       // Check for network errors
-      if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
-        errorMessage = "Network error - please check your connection";
+      if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error') || !err.response) {
+        errorMessage = "Failed to upload refund proof. Please try again later.";
       } else if (err?.response?.status === 500) {
-        errorMessage = "Server error - please try again later";
+        errorMessage = "Failed to upload refund proof. Server error - please try again later";
       }
 
       setRefundError(errorMessage);
@@ -896,8 +896,16 @@ const Orders = () => {
       showToast("Order edited successfully", "success");
     } catch (err) {
       // Extract error message from response
-      const errorMessage =
-        err?.response?.data?.message || err?.message || "Failed to update order";
+      let errorMessage = "Failed to update order";
+      
+      if (err?.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err?.message) {
+        errorMessage = err.message;
+      } else if (!err.response) {
+        errorMessage = "Failed to update order. Please try again later.";
+      }
+      
       showToast(errorMessage, "error");
       setUpdateError(errorMessage);
       if (err?.response?.data) {
@@ -939,7 +947,7 @@ const Orders = () => {
               {filteredOrders.length !== 1 ? "s" : ""}
             </span>
           </div>
-          {(user?.role === "admin" || user?.role === "manager") && (
+          {/* {(user?.role === "admin" || user?.role === "manager") && (
             <button
               className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-xs lg:text-sm font-semibold bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 transform hover:scale-105"
               onClick={() => setShowDebugOrderModal(true)}
@@ -962,7 +970,7 @@ const Orders = () => {
               <span className="font-medium hidden sm:inline">Debug Orders</span>
               <span className="font-medium sm:hidden">Debug</span>
             </button>
-          )}
+          )} */}
           <button
             className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-xs lg:text-sm font-semibold bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 transform hover:scale-105"
             onClick={toggleFilters}

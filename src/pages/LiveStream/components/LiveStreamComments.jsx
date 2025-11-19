@@ -68,11 +68,14 @@ const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, commentText }) => {
 // CommentInput Component
 const CommentInput = ({ onSendComment, isSending }) => {
     const [commentText, setCommentText] = useState('');
-    const maxLength = 500;
+    const maxLength = 100;
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!commentText.trim() || isSending) return;
+        if (commentText.trim().length > 100) {
+            return;
+        }
         await onSendComment(commentText.trim());
         setCommentText('');
     };
@@ -311,12 +314,27 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
             const response = await Api.livestream.addComment({ liveId, commentText: content });
 
             if (response?.success || response?.data?.success) {
+                showToast('Comment added successfully', 'success');
             } else {
-                setError(response?.message || response?.data?.message || 'Unable to send comment');
+                const errorMsg = response?.message || response?.data?.message || 'Unable to send comment';
+                if (errorMsg.includes('at most 100') || errorMsg.includes('100 characters')) {
+                    setError('Comment must be at most 100 characters');
+                } else if (errorMsg.includes('required') || errorMsg.includes('fill in')) {
+                    setError('Please fill in all required fields');
+                } else {
+                    setError(errorMsg);
+                }
             }
         } catch (error) {
             console.error('❌ Error sending comment:', error);
-            setError('Error sending comment');
+            const errorMsg = error?.response?.data?.message || error?.message || 'Error sending comment';
+            if (errorMsg.includes('at most 100') || errorMsg.includes('100 characters')) {
+                setError('Comment must be at most 100 characters');
+            } else if (errorMsg.includes('required') || errorMsg.includes('fill in')) {
+                setError('Please fill in all required fields');
+            } else {
+                setError(errorMsg);
+            }
         } finally {
             setIsSending(false);
         }

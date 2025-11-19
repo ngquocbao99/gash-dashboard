@@ -48,8 +48,9 @@ const Profile = () => {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (!file.type.startsWith("image/")) {
-        showToast("Please select a valid image file.", "error", 3000);
+      const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+      if (!validTypes.includes(file.type.toLowerCase())) {
+        showToast("Profile picture must be a PNG or JPG image", "error", 3000);
         setInvalidFile(true);
         setSelectedFile(null);
         setPreviewUrl("");
@@ -140,27 +141,44 @@ const Profile = () => {
     const newErrors = {};
     const { username, name, email, phone, address } = formData;
 
-    if (!username.trim()) newErrors.username = "Username cannot be blank";
-    if (!name.trim()) newErrors.name = "Full name cannot be blank";
-    if (!email.trim()) newErrors.email = "Email cannot be blank";
-    if (!phone.trim()) newErrors.phone = "Phone cannot be blank";
-    if (!address.trim()) newErrors.address = "Address cannot be blank";
+    if (!username.trim()) newErrors.username = "Please fill in all required fields";
+    if (!name.trim()) newErrors.name = "Please fill in all required fields";
+    if (!email.trim()) newErrors.email = "Please fill in all required fields";
+    if (!phone.trim()) newErrors.phone = "Please fill in all required fields";
+    if (!address.trim()) newErrors.address = "Please fill in all required fields";
 
     const hasImage = Boolean(formData.image?.trim() || selectedFile || profile?.image);
-    if (!hasImage) newErrors.image = "Image cannot be blank";
+    if (!hasImage) newErrors.image = "Please fill in all required fields";
 
-    if (username && (username.length < 3 || username.length > 30)) {
-      newErrors.username = "Username must be 3-30 characters";
+    if (username && (username.length < 5 || username.length > 30)) {
+      newErrors.username = "Username must be between 5 and 30 characters";
     }
-    if (name && name.length > 50) newErrors.name = "Name cannot exceed 50 characters";
-    if (name && !/^[\p{L}\p{N}\s]+$/u.test(name))
-      newErrors.name = "Name can only contain letters, numbers, and spaces";
+    if (name && name.length > 50) {
+      newErrors.name = "Name must be at most 50 characters";
+    }
+    if (name && !/^[\p{L}\s]+$/u.test(name))
+      newErrors.name = "Name must contain only letters and spaces";
     if (email && !/^\S+@\S+\.\S+$/.test(email))
       newErrors.email = "Valid email is required";
     if (phone && !/^\d{10}$/.test(phone))
       newErrors.phone = "Phone must be exactly 10 digits";
-    if (address && address.length > 100)
-      newErrors.address = "Address cannot exceed 100 characters";
+    if (address && address.length > 200)
+      newErrors.address = "Address must be at most 200 characters";
+
+    // Validate image format if provided
+    if (hasImage) {
+      if (selectedFile) {
+        const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+        if (!validTypes.includes(selectedFile.type.toLowerCase())) {
+          newErrors.image = "Profile picture must be a PNG or JPG image";
+        }
+      } else if (formData.image?.trim()) {
+        const imageUrl = formData.image.trim().toLowerCase();
+        if (!imageUrl.match(/\.(png|jpg|jpeg)$/i) && !imageUrl.startsWith('data:image/')) {
+          newErrors.image = "Profile picture must be a PNG or JPG image";
+        }
+      }
+    }
 
     if (Object.keys(newErrors).length > 0) {
       Object.values(newErrors).forEach((msg) =>
@@ -214,7 +232,7 @@ const Profile = () => {
         .then((response) => {
           setProfile(response.account);
           setEditMode(false);
-          showToast("Profile updated successfully!", "success", 2000);
+          showToast("Profile edited successfully", "success", 2000);
         })
         .catch((err) => {
           console.error("Update profile with image error:", err.response || err.message);
@@ -236,7 +254,7 @@ const Profile = () => {
       if (!validateForm()) return;
 
       if (invalidFile) {
-        showToast("Invalid file selected. Please choose an image.", "error", 3000);
+        showToast("Profile picture must be a PNG or JPG image", "error", 3000);
         return;
       }
 

@@ -679,16 +679,16 @@ const LiveStreamManagement = () => {
             case 'title':
                 if (!value || value.trim() === '') return 'Please fill in all required fields';
                 const trimmedTitle = value.trim();
-                if (trimmedTitle.length < 3 || trimmedTitle.length > 50) {
-                    return 'Livestream title must be between 3 and 50 characters';
+                if (trimmedTitle.length > 50) {
+                    return 'Livestream title must be at most 50 characters';
                 }
                 return null;
             case 'description':
                 // Description is optional, but if provided, must be valid
                 if (value && value.trim() !== '') {
                     const trimmedDescription = value.trim();
-                    if (trimmedDescription.length < 10 || trimmedDescription.length > 100) {
-                        return 'Livestream description must be between 10 and 100 characters';
+                    if (trimmedDescription.length > 100) {
+                        return 'Livestream description must be at most 100 characters';
                     }
                 }
                 return null;
@@ -764,7 +764,7 @@ const LiveStreamManagement = () => {
 
         // Require both video and audio to start livestream
         if (!isVideoEnabled || !isAudioEnabled) {
-            showToast('Please enable both video and audio to start livestream', 'warning');
+            showToast('Camera and microphone must be on', 'error');
             return;
         }
 
@@ -849,7 +849,7 @@ const LiveStreamManagement = () => {
             console.error('Error starting livestream:', error);
 
             // Provide specific error messages based on error type
-            let errorMessage = "An unexpected error occurred";
+            let errorMessage = "Failed to start livestream";
             const blankFields = {};
             let hasFieldErrors = false;
 
@@ -876,23 +876,29 @@ const LiveStreamManagement = () => {
                     if (Object.keys(blankFields).length > 0) {
                         setValidationErrors(prev => ({ ...prev, ...blankFields }));
                     }
-                } else if (errorMessage.includes('Livestream title must be between') || errorMessage.includes('Title must be')) {
+                } else if (errorMessage.includes('Livestream title must be') || errorMessage.includes('title must be at most') || errorMessage.includes('Title must be')) {
                     setValidationErrors(prev => ({
                         ...prev,
-                        title: errorMessage
+                        title: errorMessage.includes('at most') ? errorMessage : 'Livestream title must be at most 50 characters'
                     }));
                     hasFieldErrors = true;
-                } else if (errorMessage.includes('Livestream description must be between')) {
+                } else if (errorMessage.includes('Livestream description must be between') || errorMessage.includes('description must be at most')) {
                     setValidationErrors(prev => ({
                         ...prev,
                         description: errorMessage
                     }));
                     hasFieldErrors = true;
+                } else if (errorMessage.includes('already has an active livestream') || errorMessage.includes('already a livestream running') || errorMessage.includes('already have an active livestream')) {
+                    errorMessage = 'The system already has an active livestream';
                 }
 
                 if (status === 400) {
                     if (!hasFieldErrors) {
-                        showToast(`Data error: ${errorMessage}`, 'error');
+                        if (errorMessage.includes('already has an active livestream')) {
+                            showToast(errorMessage, 'error');
+                        } else {
+                            showToast(`Data error: ${errorMessage}`, 'error');
+                        }
                     }
                 } else if (status === 401) {
                     showToast('Please login to perform this action', 'error');
@@ -902,12 +908,16 @@ const LiveStreamManagement = () => {
                     showToast(`Server error: ${errorMessage}`, 'error');
                 } else {
                     if (!hasFieldErrors) {
-                        showToast(`API error (${status}): ${errorMessage}`, 'error');
+                        if (errorMessage.includes('already has an active livestream')) {
+                            showToast(errorMessage, 'error');
+                        } else {
+                            showToast(`API error (${status}): ${errorMessage}`, 'error');
+                        }
                     }
                 }
             } else if (error.request) {
                 // Network error
-                showToast('Network error. Please check your internet connection and try again', 'error');
+                showToast('Failed to start livestream. Please check your internet connection and try again', 'error');
             } else {
                 // Other error
                 errorMessage = error.message;

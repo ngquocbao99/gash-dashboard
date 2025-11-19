@@ -112,10 +112,10 @@ const UploadRefundProofModal = ({
                     let uploadErrorMessage = "Failed to upload refund proof";
 
                     // Check for network errors
-                    if (uploadErr.code === 'ERR_NETWORK' || uploadErr.message?.includes('Network Error')) {
-                        uploadErrorMessage = "Network error - please check your connection";
+                    if (uploadErr.code === 'ERR_NETWORK' || uploadErr.message?.includes('Network Error') || !uploadErr.response) {
+                        uploadErrorMessage = "Failed to upload refund proof. Please try again later.";
                     } else if (uploadErr.response?.status === 500) {
-                        uploadErrorMessage = "Server error - please try again later";
+                        uploadErrorMessage = "Failed to upload refund proof. Server error - please try again later";
                     } else if (uploadErr.response?.status === 413) {
                         uploadErrorMessage = "File too large - please choose a smaller image";
                     } else if (uploadErr.response?.status === 400) {

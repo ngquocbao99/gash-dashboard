@@ -137,8 +137,8 @@ const ProductModal = ({
                 if (!value || value.trim() === '') return 'Please fill in all required fields';
                 const trimmedProductName = value.trim();
                 const productNamePattern = /^[a-zA-ZÀ-ỹ0-9\s\-]+$/;
-                if (trimmedProductName.length < 3 || trimmedProductName.length > 100 || !productNamePattern.test(trimmedProductName)) {
-                    return 'Product name must be 3 to 100 characters long and contain only letters, numbers, spaces, and hyphens';
+                if (trimmedProductName.length < 5 || trimmedProductName.length > 100 || !productNamePattern.test(trimmedProductName)) {
+                    return 'Product name must be 5 to 100 characters long and contain only letters, numbers, spaces, and hyphens';
                 }
                 return null;
             case 'categoryId':
@@ -153,8 +153,11 @@ const ProductModal = ({
                 const trimmedDescription = textContent.trim();
                 // Check if blank after extracting text content
                 if (trimmedDescription === '') return 'Please fill in all required fields';
-                if (trimmedDescription.length < 50 || trimmedDescription.length > 10000) {
-                    return 'Description must be between 50 and 10000 characters long';
+                if (trimmedDescription.length < 10) {
+                    return 'Description must be at least 10 characters';
+                }
+                if (trimmedDescription.length > 10000) {
+                    return 'Description must be at most 10000 characters';
                 }
                 return null;
             default:
@@ -526,7 +529,7 @@ const ProductModal = ({
         } catch (err) {
             console.error(`${isEditMode ? 'Edit' : 'Add'} product error:`, err);
 
-            let errorMessage = "An unexpected error occurred";
+            let errorMessage = isEditMode ? "Failed to update product" : "Failed to create product";
             const blankFields = {};
             let hasFieldErrors = false;
 
@@ -573,6 +576,8 @@ const ProductModal = ({
                 }
             } else if (err.response?.data?.error) {
                 errorMessage = err.response.data.error;
+            } else if (!err.response) {
+                errorMessage = isEditMode ? "Failed to update product. Please try again later." : "Failed to create product. Please try again later.";
             } else if (err.message) {
                 errorMessage = err.message;
             }
@@ -809,7 +814,7 @@ const ProductModal = ({
                                     <p className="text-sm text-red-600">{validationErrors.description}</p>
                                 )}
                                 <div className="ml-auto">
-                                    <p className={`text-xs font-medium ${getDescriptionCharCount(formData.description) < 50
+                                    <p className={`text-xs font-medium ${getDescriptionCharCount(formData.description) < 10
                                         ? 'text-orange-600'
                                         : getDescriptionCharCount(formData.description) > 10000
                                             ? 'text-red-600'
@@ -818,8 +823,8 @@ const ProductModal = ({
                                                 : 'text-gray-500'
                                         }`}>
                                         {getDescriptionCharCount(formData.description)} / 10000 characters
-                                        {getDescriptionCharCount(formData.description) < 50 && (
-                                            <span className="ml-1">(Minimum: 50)</span>
+                                        {getDescriptionCharCount(formData.description) < 10 && (
+                                            <span className="ml-1">(Minimum: 10)</span>
                                         )}
                                     </p>
                                 </div>

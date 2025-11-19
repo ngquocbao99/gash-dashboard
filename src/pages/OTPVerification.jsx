@@ -47,7 +47,13 @@ const OTPVerification = () => {
   const handleSubmit = useCallback(
     async (e) => {
       e.preventDefault();
-      if (!otp || otp.length !== 6 || !/^\d{6}$/.test(otp)) {
+      if (!otp || otp.trim() === '') {
+        setError('Please fill in all required fields');
+        setSuccess('');
+        otpRef.current?.focus();
+        return;
+      }
+      if (otp.length !== 6 || !/^\d{6}$/.test(otp)) {
         setError('Please enter a valid 6-digit OTP');
         setSuccess('');
         otpRef.current?.focus();
@@ -64,7 +70,8 @@ const OTPVerification = () => {
           navigate('/reset-password', { state: { email, otp } });
         }
       } catch (err) {
-        setError(err.response?.data?.message || 'Invalid or expired OTP');
+        const errorMsg = err.response?.data?.message || 'Invalid or expired OTP';
+        setError(errorMsg);
         setSuccess('');
         otpRef.current?.focus();
       } finally {

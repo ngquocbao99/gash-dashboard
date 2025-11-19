@@ -71,6 +71,9 @@ const ProductSpecifications = () => {
       return err.response?.data?.message || "Cannot perform this action because the item is still in use";
     } else if (err.response?.status >= 500) {
       return "Server error. Please try again later";
+    } else if (!err.response) {
+      // Network error - no response from server
+      return defaultMessage.includes("Failed to") ? defaultMessage + ". Please try again later." : `Failed to perform action. Please try again later.`;
     } else if (err.message) {
       return err.message;
     }
@@ -377,8 +380,8 @@ const ProductSpecifications = () => {
 
     if (duplicate) {
       // Duplicate is not an input validation error - only show toast, no field error
-      const label = tabToLabel[activeTab === 'specifcations' ? type + 's' : activeTab] || 'Item';
-      showToast(`${label} name already exists`, "error");
+      const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+      showToast(`${typeLabel} with this name already exists`, "error");
       setLoading(false);
       return;
     }
@@ -437,7 +440,8 @@ const ProductSpecifications = () => {
         category: setCategories
       }[type];
       setFunc((prev) => [...prev, newItem]);
-      showToast(response.message || `${tabToLabel[activeTab === 'specifcations' ? type + 's' : activeTab]} created successfully`, 'success');
+      const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+      showToast(response.message || `${typeLabel} created successfully`, 'success');
       setNewForm({ name: '', type: 'color' });
       setCreateFieldErrors({});
       setShowCreateModal(false);
@@ -489,6 +493,8 @@ const ProductSpecifications = () => {
         errorMessage = err.response?.data?.message || "Cannot perform this action because the item is still in use";
       } else if (err.response?.status >= 500) {
         errorMessage = "Server error. Please try again later";
+      } else if (!err.response) {
+        errorMessage = `Failed to create ${typeLabel.toLowerCase()}. Please try again later.`;
       }
 
       // Set field errors only if we have input validation errors
@@ -533,8 +539,8 @@ const ProductSpecifications = () => {
 
     if (duplicate) {
       // Duplicate is not an input validation error - only show toast, no field error
-      const label = type.charAt(0).toUpperCase() + type.slice(1);
-      showToast(`${label} name already exists`, "error");
+      const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+      showToast(`${typeLabel} with this name already exists`, "error");
       setLoading(false);
       return;
     }
@@ -668,6 +674,8 @@ const ProductSpecifications = () => {
         errorMessage = err.response?.data?.message || "Cannot update because the item is still in use";
       } else if (err.response?.status >= 500) {
         errorMessage = "Server error. Please try again later";
+      } else if (!err.response) {
+        errorMessage = `Failed to update ${typeLabel.toLowerCase()}. Please try again later.`;
       }
 
       // Set field errors only if we have input validation errors
@@ -778,6 +786,8 @@ const ProductSpecifications = () => {
         errorMessage = err.response?.data?.message || "Cannot delete because the item is still in use";
       } else if (err.response?.status >= 500) {
         errorMessage = "Server error. Please try again later";
+      } else if (!err.response) {
+        errorMessage = `Failed to delete ${type}. Please try again later.`;
       }
 
       showToast(errorMessage, 'error');
@@ -828,16 +838,16 @@ const ProductSpecifications = () => {
     // Backend validates both length and pattern together, returning a single message
     if (type === 'color') {
       // Color: pattern validation (only letters, numbers, Vietnamese characters - NO spaces)
-      const colorNamePattern = /^[a-zA-ZÀ-Ỵà-ỹ0-9 ]+$/;
+      const colorNamePattern = /^[a-zA-ZÀ-Ỵà-ỹ0-9]+$/;
       if (trimmed.length < 2 || trimmed.length > 30 || !colorNamePattern.test(trimmed)) {
-        return 'Color name must be 2 to 30 characters long and contain only letters and numbers';
+        return 'Color name must be 2-30 characters and contain only letters and numbers';
       }
     } else if (type === 'size') {
       // Size: chỉ chữ (có dấu), số, không khoảng trắng
       const sizeNamePattern = /^[a-zA-ZÀ-Ỵà-ỹ0-9]+$/;
 
       if (trimmed.length < 1 || trimmed.length > 12 || !sizeNamePattern.test(trimmed)) {
-        return 'Size name must be 1 to 12 characters long and contain only letters and numbers';
+        return 'Size name must be 1-12 characters and contain only letters and numbers';
       }
 
       // Nếu chỉ là số → kiểm tra giới hạn an toàn
@@ -851,10 +861,10 @@ const ProductSpecifications = () => {
     else if (type === 'category') {
       // Category: pattern validation (letters, numbers, Vietnamese characters, hyphen - NO spaces except hyphen)
       // Must contain at least one letter (cannot be only numbers)
-      const categoryNamePattern = /^[a-zA-ZÀ-Ỵà-ỹ0-9\- ]+$/;
+      const categoryNamePattern = /^[a-zA-ZÀ-Ỵà-ỹ0-9\-]+$/;
       const hasLetter = /[a-zA-ZÀ-Ỵà-ỹ]/.test(trimmed);
-      if (trimmed.length < 2 || trimmed.length > 30 || !categoryNamePattern.test(trimmed) || !hasLetter) {
-        return 'Category name must be 2 to 30 characters long and contain only letters, numbers, and hyphens';
+      if (trimmed.length < 3 || trimmed.length > 30 || !categoryNamePattern.test(trimmed) || !hasLetter) {
+        return 'Category name must be 3–30 characters and contain only letters, numbers, and hyphens';
       }
     } else {
       // Default validation for unknown types

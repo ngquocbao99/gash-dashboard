@@ -120,23 +120,29 @@ const VariantModal = ({
         const errors = {};
 
         if (!variantForm.productColorId) {
-            errors.productColorId = 'Please select a color';
+            errors.productColorId = 'Please fill in all required fields';
         }
 
         if (!variantForm.productSizeId) {
-            errors.productSizeId = 'Please select a size';
+            errors.productSizeId = 'Please fill in all required fields';
         }
 
-        if (!variantForm.variantPrice || variantForm.variantPrice <= 0) {
-            errors.variantPrice = 'Price must be greater than 0';
-        } else if (variantForm.variantPrice > 100000000) {
-            errors.variantPrice = 'Price must be less than 100,000,000 VND';
+        if (!variantForm.variantPrice || variantForm.variantPrice === '') {
+            errors.variantPrice = 'Please fill in all required fields';
+        } else {
+            const price = parseFloat(variantForm.variantPrice);
+            if (isNaN(price) || price < 1000 || price > 1000000000) {
+                errors.variantPrice = 'Price must be between 1.000 and 1.000.000.000';
+            }
         }
 
-        if (variantForm.stockQuantity === '' || variantForm.stockQuantity < 0) {
-            errors.stockQuantity = 'Stock quantity must be 0 or greater';
-        } else if (variantForm.stockQuantity > 10000) {
-            errors.stockQuantity = 'Stock quantity must be less than 10,000';
+        if (variantForm.stockQuantity === '' || variantForm.stockQuantity === null || variantForm.stockQuantity === undefined) {
+            errors.stockQuantity = 'Please fill in all required fields';
+        } else {
+            const stock = parseInt(variantForm.stockQuantity);
+            if (isNaN(stock) || stock < 1 || stock > 100000) {
+                errors.stockQuantity = 'Stock quantity must be between 1 and 100.000';
+            }
         }
 
         // Image validation: Create mode requires image, Edit mode allows existing image
@@ -220,14 +226,16 @@ const VariantModal = ({
         const price = parseFloat(variantForm.variantPrice);
         const stock = parseInt(variantForm.stockQuantity);
 
-        if (isNaN(price) || price <= 0) {
-            showToast("Price must be a positive number", 'error');
+        if (isNaN(price) || price < 1000 || price > 1000000000) {
+            setValidationErrors(prev => ({ ...prev, variantPrice: 'Price must be between 1.000 and 1.000.000.000' }));
+            showToast('Please check the input fields again', 'error');
             setLoading(false);
             return;
         }
 
-        if (isNaN(stock) || stock < 0) {
-            showToast("Stock quantity must be a non-negative number", 'error');
+        if (isNaN(stock) || stock < 1 || stock > 100000) {
+            setValidationErrors(prev => ({ ...prev, stockQuantity: 'Stock quantity must be between 1 and 100.000' }));
+            showToast('Please check the input fields again', 'error');
             setLoading(false);
             return;
         }
@@ -344,10 +352,17 @@ const VariantModal = ({
             console.error("Error response:", err.response);
             console.error("Error response data:", err.response?.data);
 
-            let errorMessage = err.response?.data?.message ||
-                err.response?.data?.error ||
-                err.message ||
-                `Failed to ${isEditMode ? 'update' : 'create'} variant`;
+            let errorMessage = `Failed to ${isEditMode ? 'update' : 'create'} variant`;
+            
+            if (err.response?.data?.message) {
+                errorMessage = err.response.data.message;
+            } else if (err.response?.data?.error) {
+                errorMessage = err.response.data.error;
+            } else if (err.message) {
+                errorMessage = err.message;
+            } else if (!err.response) {
+                errorMessage = `Failed to ${isEditMode ? 'update' : 'create'} variant. Please try again later.`;
+            }
 
             // Extract the actual error message if wrapped
             if (errorMessage.includes('Failed to create product variant:') ||
@@ -358,15 +373,16 @@ const VariantModal = ({
             // Note: Backend now automatically updates existing variant instead of throwing error
             // This error handling is kept for backward compatibility or other edge cases
             if (errorMessage.includes('Variant with this product, color, and size already exists') ||
+                errorMessage.includes('Variant with this product, color or size already exists') ||
                 errorMessage.includes('already exists')) {
                 // This should not happen anymore as backend updates existing variant
                 // But keep for safety
                 setValidationErrors(prev => ({
                     ...prev,
-                    productColorId: 'A variant with this color and size combination already exists for this product',
-                    productSizeId: 'A variant with this color and size combination already exists for this product'
+                    productColorId: 'Variant with this product, color or size already exists',
+                    productSizeId: 'Variant with this product, color or size already exists'
                 }));
-                errorMessage = 'A variant with this color and size combination already exists for this product. Please choose a different combination.';
+                errorMessage = 'Variant with this product, color or size already exists';
             }
 
             setError(errorMessage);
