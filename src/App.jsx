@@ -36,6 +36,7 @@ import ProductStatistics from "./pages/ProductStatistics/ProductStatistics.jsx";
 import LiveStreamManagement from "./pages/LiveStream/LiveStreamManagement.jsx";
 import LiveStreamDashboard from "./pages/LiveStream/LiveStreamDashboard.jsx";
 import LiveStreamDetails from "./pages/LiveStream/LiveStreamDetails.jsx";
+import LiveStreamControl from "./pages/LiveStream/LiveStreamControl.jsx";
 
 // Redirect to categories tab
 const CategoriesRedirect = () => {
@@ -240,6 +241,14 @@ const App = () => {
                 element={
                   <ProtectedRoute>
                     <LiveStreamDetails />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/livestream-control/:livestreamId"
+                element={
+                  <ProtectedRoute>
+                    <LiveStreamControl />
                   </ProtectedRoute>
                 }
               />

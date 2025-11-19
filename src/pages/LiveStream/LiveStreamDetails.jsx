@@ -3,9 +3,19 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import Api from '../../common/SummaryAPI';
 import { useToast } from '../../hooks/useToast';
-import { LiveTv, Videocam, VideocamOff, VolumeUp, VolumeOff, People, TrendingUp, TrendingDown, Schedule, Flag, Dashboard, Fingerprint, Comment, Inventory2 } from '@mui/icons-material';
+import { LiveTv, Videocam, VideocamOff, VolumeUp, VolumeOff, People, TrendingUp, TrendingDown, Schedule, Flag, Fingerprint, Comment, Inventory2, PushPin, MoreVert, Dashboard } from '@mui/icons-material';
 import Loading from '../../components/Loading';
 import { format } from 'date-fns';
+
+// Format date helper function
+const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+        return format(new Date(dateString), 'dd/MM/yyyy HH:mm:ss');
+    } catch (error) {
+        return dateString;
+    }
+};
 
 const LiveStreamDetails = () => {
     const { user } = useContext(AuthContext);
@@ -27,6 +37,7 @@ const LiveStreamDetails = () => {
     });
     const [showAllComments, setShowAllComments] = useState(false);
     const [showAllProducts, setShowAllProducts] = useState(false);
+    const [productImageCache, setProductImageCache] = useState({}); // Cache for fetched product images
 
     // Load livestream details
     const loadLivestreamDetails = async () => {
@@ -68,8 +79,41 @@ const LiveStreamDetails = () => {
                 });
 
                 // Set products, comments, reactions separately
-                setProducts(productsData || []);
-                setComments(commentsData || []);
+                // Sort products: pinned products first (only when live), then by addedAt (newest first)
+                const sortedProducts = Array.isArray(productsData)
+                    ? productsData.sort((a, b) => {
+                        // If livestream is live, prioritize pinned products
+                        if (livestreamData.status === 'live') {
+                            const aIsPinned = a.isPinned === true;
+                            const bIsPinned = b.isPinned === true;
+
+                            // Pinned products come first
+                            if (aIsPinned && !bIsPinned) return -1;
+                            if (!aIsPinned && bIsPinned) return 1;
+
+                            // If both pinned or both not pinned, sort by addedAt (newest first)
+                            const dateA = a.addedAt ? new Date(a.addedAt).getTime() : 0;
+                            const dateB = b.addedAt ? new Date(b.addedAt).getTime() : 0;
+                            return dateB - dateA; // Descending order (newest first)
+                        } else {
+                            // For non-live streams, just sort by addedAt (newest first)
+                            const dateA = a.addedAt ? new Date(a.addedAt).getTime() : 0;
+                            const dateB = b.addedAt ? new Date(b.addedAt).getTime() : 0;
+                            return dateB - dateA; // Descending order (newest first)
+                        }
+                    })
+                    : [];
+                setProducts(sortedProducts);
+
+                // Sort comments by createdAt (oldest first for chronological order)
+                const sortedComments = Array.isArray(commentsData)
+                    ? commentsData.sort((a, b) => {
+                        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                        return dateA - dateB; // Ascending order (oldest first)
+                    })
+                    : [];
+                setComments(sortedComments);
                 setReactions(reactionsData || null);
 
                 // Set viewer stats
@@ -112,14 +156,195 @@ const LiveStreamDetails = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [livestreamId, livestream?.status]);
 
-    // Format date
-    const formatDate = (dateString) => {
-        if (!dateString) return 'N/A';
-        try {
-            return format(new Date(dateString), 'dd/MM/yyyy HH:mm:ss');
-        } catch (error) {
-            return dateString;
+    // Fetch images for products that don't have images (especially newest product)
+    // Only fetch for first 3 products to avoid performance issues
+    useEffect(() => {
+        if (products.length === 0) return;
+
+        products.slice(0, 3).forEach((liveProduct, index) => {
+            const productImageUrl = getProductImageUrl(liveProduct, index);
+            if (!productImageUrl && liveProduct.productId) {
+                const productId = typeof liveProduct.productId === 'string'
+                    ? liveProduct.productId
+                    : (liveProduct.productId._id || liveProduct.productId.id);
+
+                if (productId && !productImageCache[productId]) {
+                    // Fetch product image asynchronously
+                    fetchProductImage(productId).catch(() => {
+                        // Silently fail - image will show placeholder
+                    });
+                }
+            }
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [products]);
+
+
+    // Helper: Fetch product details from API if productImageIds is empty
+    const fetchProductImage = async (productId) => {
+        if (!productId) return null;
+
+        const productIdStr = typeof productId === 'string' ? productId : (productId._id || productId.id);
+        if (!productIdStr) return null;
+
+        // Check cache first
+        if (productImageCache[productIdStr]) {
+            return productImageCache[productIdStr];
         }
+
+        try {
+            const response = await Api.newProducts.getById(productIdStr);
+            if (response.success && response.data) {
+                const product = response.data;
+                // Try to get image from fetched product
+                let images = product.productImageIds || [];
+                if (Array.isArray(images) && images.length > 0) {
+                    const validImg = images.find(img => {
+                        if (!img || typeof img !== 'object') return false;
+                        const url = img?.imageUrl || img?.url;
+                        return url && typeof url === 'string' && url.trim().length > 0;
+                    });
+                    if (validImg) {
+                        const imageUrl = validImg.imageUrl || validImg.url;
+                        if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim().length > 0) {
+                            // Cache the result
+                            setProductImageCache(prev => ({ ...prev, [productIdStr]: imageUrl.trim() }));
+                            return imageUrl.trim();
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            // Silently fail - image will show placeholder
+        }
+
+        return null;
+    };
+
+    // Helper: Get main product image URL from liveProduct (synchronous version)
+    // Handles multiple data structures from backend (similar to LiveStreamProducts.jsx)
+    const getProductImageUrl = (liveProduct, index = -1) => {
+        if (!liveProduct) return null;
+
+        // Try multiple paths to get images - try ALL paths, not just first match
+        let images = [];
+
+        // Path 1: productId.productImageIds (most common) - check if it's an array
+        if (liveProduct.productId?.productImageIds) {
+            if (Array.isArray(liveProduct.productId.productImageIds)) {
+                images = liveProduct.productId.productImageIds;
+            }
+            // If it's an object (nested), try to extract array
+            else if (typeof liveProduct.productId.productImageIds === 'object' && liveProduct.productId.productImageIds !== null) {
+                if (Array.isArray(liveProduct.productId.productImageIds.data)) {
+                    images = liveProduct.productId.productImageIds.data;
+                } else if (Array.isArray(liveProduct.productId.productImageIds.images)) {
+                    images = liveProduct.productId.productImageIds.images;
+                }
+            }
+        }
+
+        // Path 2: productId.productIdImageIds (alternative field name) - try if Path 1 didn't work
+        if (images.length === 0 && liveProduct.productId?.productIdImageIds) {
+            if (Array.isArray(liveProduct.productId.productIdImageIds)) {
+                images = liveProduct.productId.productIdImageIds;
+            }
+            // If it's an object (nested), try to extract array
+            else if (typeof liveProduct.productId.productIdImageIds === 'object' && liveProduct.productId.productIdImageIds !== null) {
+                if (Array.isArray(liveProduct.productId.productIdImageIds.data)) {
+                    images = liveProduct.productId.productIdImageIds.data;
+                } else if (Array.isArray(liveProduct.productId.productIdImageIds.images)) {
+                    images = liveProduct.productId.productIdImageIds.images;
+                }
+            }
+        }
+
+        // Path 3: productId.images (alternative)
+        if (images.length === 0 && liveProduct.productId?.images) {
+            if (Array.isArray(liveProduct.productId.images)) {
+                images = liveProduct.productId.images;
+            } else if (typeof liveProduct.productId.images === 'object' && liveProduct.productId.images !== null) {
+                if (Array.isArray(liveProduct.productId.images.data)) {
+                    images = liveProduct.productId.images.data;
+                }
+            }
+        }
+
+        // Path 4: product.productImageIds (if product is separate field)
+        if (images.length === 0 && liveProduct.product?.productImageIds) {
+            if (Array.isArray(liveProduct.product.productImageIds)) {
+                images = liveProduct.product.productImageIds;
+            } else if (typeof liveProduct.product.productImageIds === 'object' && liveProduct.product.productImageIds !== null) {
+                if (Array.isArray(liveProduct.product.productImageIds.data)) {
+                    images = liveProduct.product.productImageIds.data;
+                } else if (Array.isArray(liveProduct.product.productImageIds.images)) {
+                    images = liveProduct.product.productImageIds.images;
+                }
+            }
+        }
+
+        // Path 5: product.images (alternative)
+        if (images.length === 0 && liveProduct.product?.images) {
+            if (Array.isArray(liveProduct.product.images)) {
+                images = liveProduct.product.images;
+            } else if (typeof liveProduct.product.images === 'object' && liveProduct.product.images !== null) {
+                if (Array.isArray(liveProduct.product.images.data)) {
+                    images = liveProduct.product.images.data;
+                }
+            }
+        }
+
+        // Path 6: productImageIds at root level
+        if (images.length === 0 && liveProduct.productImageIds) {
+            if (Array.isArray(liveProduct.productImageIds)) {
+                images = liveProduct.productImageIds;
+            } else if (typeof liveProduct.productImageIds === 'object' && liveProduct.productImageIds !== null) {
+                if (Array.isArray(liveProduct.productImageIds.data)) {
+                    images = liveProduct.productImageIds.data;
+                } else if (Array.isArray(liveProduct.productImageIds.images)) {
+                    images = liveProduct.productImageIds.images;
+                }
+            }
+        }
+
+
+        // If no images found, check cache first
+        if (images.length === 0 && liveProduct.productId) {
+            const productId = typeof liveProduct.productId === 'string'
+                ? liveProduct.productId
+                : (liveProduct.productId._id || liveProduct.productId.id);
+
+            if (productId && productImageCache[productId]) {
+                return productImageCache[productId];
+            }
+        }
+
+        if (images.length === 0) return null;
+
+        // Filter valid images
+        const validImages = images.filter(img => {
+            if (!img || typeof img !== 'object') return false;
+            const url = img?.imageUrl || img?.url;
+            return url && typeof url === 'string' && url.trim().length > 0;
+        });
+
+        if (validImages.length === 0) return null;
+
+        // Find main image first (isMain === true)
+        const mainImage = validImages.find(img => {
+            const isMain = img?.isMain === true || img?.isMain === 'true' || img?.isMain === 1;
+            return isMain;
+        });
+
+        // Use main image or first valid image
+        const selectedImage = mainImage || validImages[0];
+        const imageUrl = selectedImage?.imageUrl || selectedImage?.url;
+
+        if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim().length > 0) {
+            return imageUrl.trim();
+        }
+
+        return null;
     };
 
     // Calculate duration
@@ -230,8 +455,8 @@ const LiveStreamDetails = () => {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 lg:gap-4 shrink-0">
                     {livestream.status === 'live' && (
                         <button
-                            onClick={() => navigate(`/manage-livestream/${livestreamId}`)}
-                            className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-xs lg:text-sm font-semibold bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 transform hover:scale-105"
+                            onClick={() => navigate(`/livestream-control/${livestreamId}`)}
+                            className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-xs lg:text-sm font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transform hover:scale-105"
                         >
                             <Dashboard className="w-3 h-3 lg:w-4 lg:h-4" />
                             <span className="font-medium">Go to Dashboard</span>
@@ -521,33 +746,87 @@ const LiveStreamDetails = () => {
                             )}
                         </div>
                         <div className={`space-y-3 ${showAllProducts ? '' : 'max-h-96'} overflow-y-auto pr-1`}>
-                            {(showAllProducts ? products : products.slice(0, 20)).map((liveProduct) => {
+                            {(showAllProducts ? products : products.slice(0, 20)).map((liveProduct, index) => {
                                 const isActive = liveProduct.isActive && !liveProduct.removedAt;
+                                const isPinned = liveProduct.isPinned === true && livestream?.status === 'live';
+
+                                // Get product name
+                                const productName = liveProduct.productId?.productName || liveProduct.product?.productName || 'Unknown Product';
+
+                                // Get main image URL using helper function (pass index for debugging)
+                                let productImageUrl = getProductImageUrl(liveProduct, index);
+
+                                // Additional fallback: if productId is a string (not populated), we can't get images
+                                // But if it's an object and we still don't have images, try direct access
+                                if (!productImageUrl && liveProduct.productId && typeof liveProduct.productId === 'object') {
+                                    // Last resort: try to access any image-related field directly
+                                    const directAccess = liveProduct.productId.productImageIds?.[0] ||
+                                        liveProduct.productId.productIdImageIds?.[0] ||
+                                        liveProduct.productId.images?.[0];
+
+                                    if (directAccess) {
+                                        const directUrl = directAccess.imageUrl || directAccess.url;
+                                        if (directUrl && typeof directUrl === 'string' && directUrl.trim().length > 0) {
+                                            productImageUrl = directUrl.trim();
+                                        }
+                                    }
+                                }
+
                                 return (
-                                    <div key={liveProduct._id} className={`bg-gray-50 rounded-lg border p-2.5 sm:p-3 hover:shadow-md transition-shadow flex items-center gap-3 sm:gap-4 ${!isActive ? 'opacity-60' : ''}`} style={{ borderColor: '#A86523' }}>
+                                    <div key={liveProduct._id} className={`rounded-lg border p-2.5 sm:p-3 hover:shadow-md transition-shadow flex items-center gap-3 sm:gap-4 ${!isActive ? 'opacity-60' : ''} ${isPinned ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-300 shadow-md' : 'bg-gray-50'}`} style={isPinned ? {} : { borderColor: '#A86523' }}>
                                         {/* Product Image */}
-                                        {liveProduct.productId?.productImageIds && liveProduct.productId.productImageIds.length > 0 ? (
-                                            <div className="flex-shrink-0">
+                                        <div className="flex-shrink-0 relative">
+                                            {productImageUrl ? (
                                                 <img
-                                                    src={liveProduct.productId.productImageIds[0]?.imageUrl || ''}
-                                                    alt={liveProduct.productId.productName}
-                                                    className="w-20 h-20 object-cover rounded-lg"
+                                                    key={`img-${liveProduct._id}-${productImageUrl.substring(0, 50)}-${index}`}
+                                                    src={productImageUrl}
+                                                    alt={productName}
+                                                    className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                                                    loading={index < 3 ? "eager" : "lazy"}
+                                                    onError={(e) => {
+                                                        // Hide the broken image
+                                                        const imgElement = e.target;
+                                                        imgElement.style.display = 'none';
+                                                        // Show placeholder
+                                                        const placeholder = imgElement.nextElementSibling;
+                                                        if (placeholder) {
+                                                            placeholder.style.display = 'flex';
+                                                        }
+                                                    }}
+                                                    onLoad={(e) => {
+                                                        // Ensure placeholder is hidden when image loads successfully
+                                                        const placeholder = e.target.nextElementSibling;
+                                                        if (placeholder) {
+                                                            placeholder.style.display = 'none';
+                                                        }
+                                                    }}
                                                 />
-                                            </div>
-                                        ) : (
-                                            <div className="flex-shrink-0 w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center">
+                                            ) : null}
+                                            <div
+                                                key={`placeholder-${liveProduct._id}`}
+                                                className="flex-shrink-0 w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center border border-gray-200"
+                                                style={{ display: productImageUrl ? 'none' : 'flex' }}
+                                            >
                                                 <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                                 </svg>
                                             </div>
-                                        )}
+                                        </div>
 
                                         {/* Product Info */}
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1">
                                                 <h4 className="font-semibold text-gray-900 truncate">
-                                                    {liveProduct.productId?.productName || 'Unknown Product'}
+                                                    {productName}
                                                 </h4>
+                                                {isPinned && (
+                                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-200 text-yellow-800 border border-yellow-400 shrink-0">
+                                                        <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" />
+                                                        </svg>
+                                                        PINNED
+                                                    </span>
+                                                )}
                                                 {isActive ? (
                                                     <span className="text-xs font-medium px-2 py-0.5 rounded bg-green-100 text-green-800 shrink-0">
                                                         Active
@@ -599,81 +878,116 @@ const LiveStreamDetails = () => {
                 )}
 
                 {/* Live Comments */}
-                {comments && comments.length > 0 && (
-                    <div className="backdrop-blur-xl rounded-xl border p-3 sm:p-4 lg:p-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(233, 163, 25, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}>
-                        <div className="flex items-center justify-between mb-2 sm:mb-3">
-                            <h3 className="text-sm sm:text-base font-semibold text-gray-900">
-                                Comments ({comments.length})
-                            </h3>
-                            {comments.length > 20 && (
-                                <button
-                                    onClick={() => setShowAllComments(!showAllComments)}
-                                    className="text-xs sm:text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
-                                >
-                                    {showAllComments ? 'Show Less' : `View All (${comments.length})`}
-                                </button>
-                            )}
-                        </div>
-                        <div className={`space-y-3 ${showAllComments ? '' : 'max-h-96'} overflow-y-auto pr-1`}>
-                            {(showAllComments ? comments : comments.slice(0, 20)).map((comment) => {
-                                const isDeleted = comment.isDeleted === true;
-                                return (
-                                    <div key={comment._id} className={`bg-gray-50 rounded-lg border p-2.5 sm:p-3 ${isDeleted ? 'opacity-60' : ''}`} style={{ borderColor: '#A86523' }}>
-                                        <div className="flex items-start justify-between mb-2">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                    {comment.senderId && (
-                                                        <span className={`font-semibold text-sm ${isDeleted ? 'text-gray-500' : 'text-gray-900'}`}>
-                                                            {comment.senderId.name || comment.senderId.username || 'Unknown'}
-                                                        </span>
-                                                    )}
-                                                    {isDeleted && (
-                                                        <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded">
-                                                            Deleted
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <p className={`text-sm ${isDeleted ? 'text-gray-500' : 'text-gray-700'}`}>
-                                                    {comment.commentText || comment.content}
-                                                </p>
-                                                {isDeleted && comment.deletedBy && (
-                                                    <p className="text-xs text-gray-400 mt-1">
-                                                        Deleted by: {typeof comment.deletedBy === 'object'
-                                                            ? (comment.deletedBy.name || comment.deletedBy.username || 'Unknown')
-                                                            : 'Unknown'}
-                                                        {typeof comment.deletedBy === 'object' && comment.deletedBy.role && (
-                                                            <span className="ml-1 text-gray-500">({comment.deletedBy.role})</span>
-                                                        )}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center justify-between mt-2">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <span className="text-xs text-gray-500">
-                                                    {formatDate(comment.createdAt)}
-                                                </span>
-                                                {isDeleted && comment.deletedAt && (
-                                                    <>
-                                                        <span className="text-xs text-gray-400">•</span>
-                                                        <span className="text-xs text-gray-400">
-                                                            Deleted: {formatDate(comment.deletedAt)}
-                                                        </span>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        {!showAllComments && comments.length > 20 && (
-                            <p className="text-sm text-gray-500 mt-4 text-center">
-                                Showing 20 of {comments.length} comments
-                            </p>
+                <div className="backdrop-blur-xl rounded-xl border p-3 sm:p-4 lg:p-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(233, 163, 25, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}>
+                    <div className="flex items-center justify-between mb-2 sm:mb-3">
+                        <h3 className="text-sm sm:text-base font-semibold text-gray-900">
+                            Comments ({comments?.length || 0})
+                        </h3>
+                        {comments && comments.length > 20 && (
+                            <button
+                                onClick={() => setShowAllComments(!showAllComments)}
+                                className="text-xs sm:text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                            >
+                                {showAllComments ? 'Show Less' : `View All (${comments.length})`}
+                            </button>
                         )}
                     </div>
-                )}
+
+                    {/* Comments List */}
+                    {comments && comments.length > 0 && (
+                        <>
+                            <div className={`space-y-3 ${showAllComments ? '' : 'max-h-96'} overflow-y-auto pr-1`}>
+                                {(showAllComments ? comments : comments.slice(0, 20))
+                                    .map((comment) => (
+                                        <CommentItem
+                                            key={comment._id}
+                                            comment={comment}
+                                            user={user}
+                                            livestreamId={livestreamId}
+                                        />
+                                    ))}
+                            </div>
+                            {!showAllComments && comments.length > 20 && (
+                                <p className="text-sm text-gray-500 mt-4 text-center">
+                                    Showing 20 of {comments.length} comments
+                                </p>
+                            )}
+                        </>
+                    )}
+
+                    {/* Empty State */}
+                    {(!comments || comments.length === 0) && (
+                        <div className="text-center py-8">
+                            <Comment className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                            <p className="text-sm text-gray-500">No comments yet</p>
+                            {livestream?.status === 'live' && (
+                                <p className="text-xs text-gray-400 mt-1">Be the first to comment!</p>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// CommentItem Component
+const CommentItem = ({ comment, user, livestreamId }) => {
+    const isDeleted = comment.isDeleted === true;
+
+    return (
+        <div className={`group relative rounded-lg border p-2.5 sm:p-3 transition-all ${isDeleted
+            ? 'bg-gray-100 border-gray-300 opacity-60'
+            : 'bg-gray-50 border-gray-200 hover:border-gray-300 hover:shadow-sm'
+            }`} style={!isDeleted ? { borderColor: '#A86523' } : {}}>
+            <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                    {/* Author and badges */}
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        {comment.senderId && (
+                            <span className={`font-semibold text-sm truncate ${isDeleted ? 'text-gray-500' : 'text-gray-900'}`}>
+                                {comment.senderId.name || comment.senderId.username || 'Unknown'}
+                            </span>
+                        )}
+                        {isDeleted && (
+                            <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded shrink-0">
+                                Deleted
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Comment text */}
+                    <p className={`text-sm break-words mb-1.5 ${isDeleted ? 'text-gray-500' : 'text-gray-700'}`}>
+                        {comment.commentText || comment.content}
+                    </p>
+
+                    {/* Delete info */}
+                    {isDeleted && comment.deletedBy && (
+                        <p className="text-xs text-gray-400 mb-1">
+                            Deleted by: {typeof comment.deletedBy === 'object'
+                                ? (comment.deletedBy.name || comment.deletedBy.username || 'Unknown')
+                                : 'Unknown'}
+                            {typeof comment.deletedBy === 'object' && comment.deletedBy.role && (
+                                <span className="ml-1 text-gray-500">({comment.deletedBy.role})</span>
+                            )}
+                        </p>
+                    )}
+
+                    {/* Timestamp */}
+                    <div className="flex items-center gap-2 flex-wrap mt-1.5 pt-1.5 border-t border-gray-200">
+                        <span className="text-xs text-gray-500">
+                            {formatDate(comment.createdAt)}
+                        </span>
+                        {isDeleted && comment.deletedAt && (
+                            <>
+                                <span className="text-xs text-gray-400">•</span>
+                                <span className="text-xs text-gray-500">
+                                    Deleted: {formatDate(comment.deletedAt)}
+                                </span>
+                            </>
+                        )}
+                    </div>
+                </div>
             </div>
         </div>
     );
