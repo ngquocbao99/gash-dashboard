@@ -543,12 +543,11 @@ const RevenueByDay = ({ user }) => {
     if (loading) {
         return (
             <div className="backdrop-blur-xl rounded-xl border p-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(233, 163, 25, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }} role="status" aria-live="polite">
-                <div className="flex flex-col items-center justify-center space-y-4 min-h-[180px]">
-                    <div className="w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: '#FCEFCB', borderTopColor: '#E9A319' }}></div>
-                    <p className="text-gray-600 font-medium">
-                        Loading Revenue by Day...
-                    </p>
-                </div>
+                <Loading
+                    type="page"
+                    size="medium"
+                    message="Loading Revenue by Day..."
+                />
             </div>
         );
     }
@@ -746,7 +745,7 @@ const RevenueByDay = ({ user }) => {
                     {filterType === 'specificMonth' && selectedMonth && selectedYear && filterLoading && (
                         <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                             <div className="flex items-center">
-                                <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin mr-2"></div>
+                                <Loading type="inline" size="small" message="" className="mr-2" />
                                 <span className="text-sm text-green-800">
                                     Loading data for {selectedMonth}/{selectedYear}...
                                 </span>

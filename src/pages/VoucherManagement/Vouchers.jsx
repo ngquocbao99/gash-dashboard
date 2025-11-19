@@ -437,10 +437,9 @@ export default function Vouchers() {
               {/* ── LOADING ── */}
               {loading ? (
                 <Loading
-                  type="inline"
+                  type="page"
                   size="medium"
                   message="Loading vouchers..."
-                  className="min-h-[180px]"
                 />
               ) : error ? (
                 /* ── NETWORK ERROR ── */

@@ -202,12 +202,11 @@ const OrdersByWeek = ({ user }) => {
     if (loading) {
         return (
             <div className="backdrop-blur-xl rounded-xl border p-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(233, 163, 25, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }} role="status" aria-live="polite">
-                <div className="flex flex-col items-center justify-center space-y-4 min-h-[180px]">
-                    <div className="w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: '#FCEFCB', borderTopColor: '#E9A319' }}></div>
-                    <p className="text-gray-600 font-medium">
-                        Loading Order Statistics by Week...
-                    </p>
-                </div>
+                <Loading
+                    type="page"
+                    size="medium"
+                    message="Loading Order Statistics by Week..."
+                />
             </div>
         );
     }

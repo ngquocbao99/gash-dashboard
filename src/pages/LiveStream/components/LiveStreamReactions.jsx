@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Api from '../../../common/SummaryAPI';
+import Loading from '../../../components/Loading';
 import io from 'socket.io-client';
 
 const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -127,9 +128,11 @@ const LiveStreamReactions = ({ liveId }) => {
     if (isLoading) {
         return (
             <div className="bg-transparent p-0">
-                <div className="flex items-center justify-center py-4">
-                    <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                </div>
+                <Loading
+                    type="default"
+                    size="small"
+                    message="Loading reactions..."
+                />
             </div>
         );
     }

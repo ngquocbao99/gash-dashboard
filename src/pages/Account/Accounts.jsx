@@ -4,6 +4,7 @@ import { AuthContext } from "../../context/AuthContext";
 import { useNavigate, useLocation } from 'react-router-dom';
 import SummaryAPI from "../../common/SummaryAPI";
 import AccountModal from "./AccountModal";
+import Loading from "../../components/Loading";
 
 export default function Accounts() {
     const { showToast } = useContext(ToastContext);
@@ -415,12 +416,11 @@ export default function Accounts() {
 
                         {/* ── LOADING ── */}
                         {loading ? (
-                            <>
-                                <div className="w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: '#FCEFCB', borderTopColor: '#E9A319' }}></div>
-                                <p className="text-gray-600 font-medium">
-                                    Loading accounts...
-                                </p>
-                            </>
+                            <Loading
+                                type="page"
+                                size="medium"
+                                message="Loading accounts..."
+                            />
                         ) : error ? (
 
                             /* ── NETWORK ERROR ── */

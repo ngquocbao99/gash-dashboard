@@ -124,13 +124,13 @@ const VoucherModal = ({
                     if (!isNaN(minOrderNum) && !isNaN(discountNum) && minOrderNum > 0 && discountNum > minOrderNum) {
                         setFieldErrors(prevErrors => ({
                             ...prevErrors,
-                            discountValue: 'For fixed discount, the discount value cannot exceed the minimum order value'
+                            discountValue: 'Fixed discount value must not exceed the minimum order value'
                         }));
                     } else {
                         // Clear error if validation passes
                         setFieldErrors(prevErrors => {
                             const newErrors = { ...prevErrors };
-                            if (newErrors.discountValue === 'For fixed discount, the discount value cannot exceed the minimum order value') {
+                            if (newErrors.discountValue === 'Fixed discount value must not exceed the minimum order value') {
                                 delete newErrors.discountValue;
                             }
                             return newErrors;
@@ -166,7 +166,7 @@ const VoucherModal = ({
                 if (!value || !value.trim()) return 'Please fill in all required fields';
                 // Combined validation: check length and format together
                 if (value.length < 3 || value.length > 30 || !/^[A-Z0-9]+$/.test(value)) {
-                    return 'Voucher code must contain only uppercase letters and numbers, 3 to 30 characters long.';
+                    return 'Voucher code must be 3-30 characters and contain only uppercase letters and numbers';
                 }
                 return null;
             case 'discountValue':
@@ -174,8 +174,8 @@ const VoucherModal = ({
                 const discountNum = Number(value);
                 if (isNaN(discountNum) || discountNum <= 0) return 'Discount value must be greater than 0';
                 if (currentFormData.discountType === 'percentage') {
-                    if (discountNum > 100) {
-                        return 'Percentage must be less than or equal to 100';
+                    if (discountNum <= 0 || discountNum > 100) {
+                        return 'Percentage discount must be higher than 0 and no higher than 100';
                     }
                 }
                 // For fixed discount, backend only checks > 0, no minimum amount requirement
@@ -183,7 +183,7 @@ const VoucherModal = ({
                 if (currentFormData.discountType === 'fixed' && currentFormData.minOrderValue) {
                     const minOrderNum = Number(currentFormData.minOrderValue);
                     if (!isNaN(minOrderNum) && minOrderNum > 0 && discountNum > minOrderNum) {
-                        return 'For fixed discount, the discount value cannot exceed the minimum order value';
+                        return 'Fixed discount value must not exceed the minimum order value';
                     }
                 }
                 return null;
@@ -198,9 +198,9 @@ const VoucherModal = ({
                 if (isNaN(minOrderNum)) {
                     return 'Please fill in all required fields';
                 }
-                // Must be >= 0 (0 is allowed)
-                if (minOrderNum < 0) {
-                    return 'Minimum order value cannot be negative';
+                // Must be > 0
+                if (minOrderNum <= 0) {
+                    return 'Minimum order value must be greater than 0';
                 }
                 return null;
             case 'maxDiscount':
@@ -211,7 +211,7 @@ const VoucherModal = ({
                     }
                     const maxDiscountNum = Number(value);
                     if (isNaN(maxDiscountNum) || maxDiscountNum <= 0) {
-                        return 'Maximum discount must be greater than 0';
+                        return 'Maximum discount value must be greater than 0';
                     }
                 }
                 return null;
@@ -228,7 +228,7 @@ const VoucherModal = ({
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
                     if (startDate < today) {
-                        return 'Start date cannot be in the past';
+                        return 'Start date must not be in the past';
                     }
                 }
                 return null;
@@ -243,7 +243,7 @@ const VoucherModal = ({
                 if (currentFormData.startDate) {
                     const startDate = new Date(currentFormData.startDate);
                     if (endDate <= startDate) {
-                        return 'End date must be after start date';
+                        return 'End date must be later than start date.';
                     }
                 }
                 return null;
@@ -292,7 +292,7 @@ const VoucherModal = ({
                 const minOrderNum = Number(formData.minOrderValue);
                 const discountNum = Number(formData.discountValue);
                 if (!isNaN(minOrderNum) && !isNaN(discountNum) && minOrderNum > 0 && discountNum > minOrderNum) {
-                    errors.discountValue = 'For fixed discount, the discount value cannot exceed the minimum order value';
+                    errors.discountValue = 'Fixed discount value must not exceed the minimum order value';
                     hasErrors = true;
                 }
             }
@@ -322,7 +322,7 @@ const VoucherModal = ({
             if (mode === 'create') {
                 payload.code = formData.code;
                 await SummaryAPI.vouchers.create(payload);
-                showToast("Voucher added successfully!", "success");
+                showToast("Voucher created successfully", "success");
             } else {
                 if (!voucher?.id && !voucher?._id) {
                     showToast("Invalid voucher data", "error");
@@ -341,7 +341,7 @@ const VoucherModal = ({
         } catch (err) {
             console.error("Voucher operation error:", err);
 
-            let errorMessage = "An unexpected error occurred";
+            let errorMessage = mode === 'create' ? "Failed to create voucher" : "Failed to update voucher";
             const blankFields = {};
             let hasFieldErrors = false;
 
@@ -406,7 +406,7 @@ const VoucherModal = ({
             } else if (err.response?.data?.message) {
                 // If we already processed the message above, don't override
                 // But if it's a different error message, use it
-                if (!errorMessage || errorMessage === "An unexpected error occurred") {
+                if (!errorMessage || errorMessage === "Failed to create voucher" || errorMessage === "Failed to update voucher") {
                     errorMessage = err.response.data.message;
                 }
             } else if (err.message) {
@@ -433,6 +433,12 @@ const VoucherModal = ({
                     setFieldErrors(prev => ({
                         ...prev,
                         code: backendMessage
+                    }));
+                    hasFieldErrors = true;
+                } else if (backendMessage.includes('Voucher code already exists') || backendMessage.includes('already exists')) {
+                    setFieldErrors(prev => ({
+                        ...prev,
+                        code: 'Voucher with this code already exists'
                     }));
                     hasFieldErrors = true;
                 }

@@ -8,33 +8,34 @@ const Loading = ({
     fullScreen = false,
     className = ''
 }) => {
-    // Size configurations
     const sizeConfig = {
         small: {
-            spinner: 'w-8 h-8',
+            spinner: 'w-6 h-6',
             text: 'text-sm',
             subText: 'text-xs',
-            spacing: 'mb-2'
+            spacing: 'mb-1',
+            borderWidth: 'border-2'
         },
         medium: {
             spinner: 'w-12 h-12',
             text: 'text-base',
             subText: 'text-sm',
-            spacing: 'mb-3'
+            spacing: 'mb-3',
+            borderWidth: 'border-4'
         },
         large: {
             spinner: 'w-20 h-20',
             text: 'text-xl',
             subText: 'text-base',
-            spacing: 'mb-6'
+            spacing: 'mb-6',
+            borderWidth: 'border-4'
         }
     };
 
-    // Type configurations
     const typeConfig = {
         default: {
-            spinnerBorderColor: '#FCEFCB', // light yellow background
-            spinnerTopColor: '#E9A319', // theme yellow-orange
+            spinnerBorderColor: '#FCEFCB',
+            spinnerTopColor: '#E9A319',
             textColor: 'text-gray-800',
             subTextColor: 'text-gray-600',
             bgColor: 'bg-gray-100'
@@ -62,42 +63,78 @@ const Loading = ({
         }
     };
 
-    const config = sizeConfig[size];
-    const typeStyle = typeConfig[type];
+    const config = sizeConfig[size] || sizeConfig.large;
+    const typeStyle = typeConfig[type] || typeConfig.default;
+    const isInline = type === 'inline';
 
-    // Container classes
     const containerClasses = fullScreen
         ? `min-h-screen ${typeStyle.bgColor} flex items-center justify-center ${className}`
-        : `flex items-center justify-center ${className}`;
+        : isInline
+            ? `inline-flex items-center ${className}`
+            : `flex items-center justify-center ${className}`;
 
-    // Content classes
-    const contentClasses = fullScreen
-        ? 'text-center'
-        : 'text-center';
+    const spinnerClasses = [
+        config.spinner,
+        config.borderWidth,
+        'rounded-full',
+        'animate-spin',
+        isInline ? '' : 'mx-auto',
+        isInline ? '' : config.spacing,
+        isInline ? '' : 'shadow-lg'
+    ]
+        .filter(Boolean)
+        .join(' ');
 
-    return (
-        <div className={containerClasses} role="status" aria-live="true">
-            <div className={contentClasses}>
-                {/* Spinner */}
-                <div
-                    className={`${config.spinner} border-4 rounded-full animate-spin mx-auto ${config.spacing} shadow-lg`}
-                    style={{
-                        borderColor: typeStyle.spinnerBorderColor,
-                        borderTopColor: typeStyle.spinnerTopColor
-                    }}
-                ></div>
+    const spinnerStyle = {
+        borderColor: typeStyle.spinnerBorderColor,
+        borderTopColor: typeStyle.spinnerTopColor
+    };
 
-                {/* Main message */}
-                <h3 className={`${config.text} font-bold ${typeStyle.textColor} mb-2`}>
+    const renderMessageBlock = () => (
+        <>
+            {message && (
+                <h3 className={`${config.text} font-bold ${typeStyle.textColor} ${subMessage ? 'mb-2' : ''}`}>
                     {message}
                 </h3>
+            )}
+            {subMessage && (
+                <p className={`${config.subText} font-medium ${typeStyle.subTextColor}`}>
+                    {subMessage}
+                </p>
+            )}
+        </>
+    );
 
-                {/* Sub message */}
-                {subMessage && (
-                    <p className={`${config.subText} font-medium ${typeStyle.subTextColor}`}>
-                        {subMessage}
-                    </p>
+    if (isInline) {
+        return (
+            <div className={containerClasses} role="status" aria-live="polite">
+                <div
+                    className={`${spinnerClasses} ${message || subMessage ? 'mr-2' : ''}`}
+                    style={spinnerStyle}
+                />
+                {(message || subMessage) && (
+                    <div className="flex flex-col">
+                        {message && (
+                            <span className={`${config.text} font-semibold ${typeStyle.textColor}`}>
+                                {message}
+                            </span>
+                        )}
+                        {subMessage && (
+                            <span className={`${config.subText} font-medium ${typeStyle.subTextColor}`}>
+                                {subMessage}
+                            </span>
+                        )}
+                    </div>
                 )}
+            </div>
+        );
+    }
+
+    return (
+        <div className={containerClasses} role="status" aria-live="polite">
+            <div className="text-center">
+                <div className={spinnerClasses} style={spinnerStyle} />
+                {renderMessageBlock()}
             </div>
         </div>
     );

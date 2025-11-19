@@ -34,25 +34,13 @@ const ChangePasswordModal = ({ handleCancel }) => {
         switch (name) {
             case 'oldPassword': {
                 if (!value || value.trim() === '') return 'Please fill in all required fields';
-                // Password validation: at least 8 characters and include three of four types
-                if (value.length < 8) {
-                    return 'Passwords must be at least 8 characters and include three of four types: uppercase, lowercase, number, or special.';
-                }
-                const hasUpperCase = /[A-Z]/.test(value);
-                const hasLowerCase = /[a-z]/.test(value);
-                const hasNumber = /\d/.test(value);
-                const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(value);
-                const characterTypesMet = [hasUpperCase, hasLowerCase, hasNumber, hasSpecial].filter(Boolean).length;
-                if (characterTypesMet < 3) {
-                    return 'Passwords must be at least 8 characters and include three of four types: uppercase, lowercase, number, or special.';
-                }
                 return null;
             }
             case 'newPassword': {
                 if (!value || value.trim() === '') return 'Please fill in all required fields';
                 // Password validation: at least 8 characters and include three of four types
                 if (value.length < 8) {
-                    return 'Passwords must be at least 8 characters and include three of four types: uppercase, lowercase, number, or special.';
+                    return 'Passwords must be at least 8 characters and include three of four types: uppercase, lowercase, number, or special';
                 }
                 const hasUpperCase = /[A-Z]/.test(value);
                 const hasLowerCase = /[a-z]/.test(value);
@@ -60,14 +48,14 @@ const ChangePasswordModal = ({ handleCancel }) => {
                 const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(value);
                 const characterTypesMet = [hasUpperCase, hasLowerCase, hasNumber, hasSpecial].filter(Boolean).length;
                 if (characterTypesMet < 3) {
-                    return 'Passwords must be at least 8 characters and include three of four types: uppercase, lowercase, number, or special.';
+                    return 'Passwords must be at least 8 characters and include three of four types: uppercase, lowercase, number, or special';
                 }
                 return null;
             }
             case 'repeatPassword':
                 if (!value || value.trim() === '') return 'Please fill in all required fields';
                 if (value !== currentFormData.newPassword) {
-                    return 'Passwords do not match';
+                    return 'Repeated password does not match';
                 }
                 return null;
             default:
@@ -141,6 +129,14 @@ const ChangePasswordModal = ({ handleCancel }) => {
             return;
         }
 
+        // Check if new password is different from old password
+        if (form.oldPassword === form.newPassword) {
+            setValidationErrors(prev => ({ ...prev, newPassword: 'New password must be different from old password' }));
+            showToast('Please check the input fields again', 'error');
+            setLoading(false);
+            return;
+        }
+
         try {
             await Api.accounts.changePassword(user._id, {
                 oldPassword: form.oldPassword,
@@ -187,14 +183,20 @@ const ChangePasswordModal = ({ handleCancel }) => {
                     return;
                 } else if (backendMessage.includes('Current password is incorrect') ||
                     backendMessage.includes('Old password is incorrect')) {
-                    setValidationErrors(prev => ({ ...prev, oldPassword: backendMessage }));
+                    setValidationErrors(prev => ({ ...prev, oldPassword: 'Old password is incorrect' }));
                     showToast("Please check the input fields again", "error");
                     setLoading(false);
                     return;
                 } else if (backendMessage.includes('New password must be at least 8 characters') ||
                     backendMessage.includes('Password must include at least three') ||
                     backendMessage.includes('Passwords must be at least 8 characters')) {
-                    setValidationErrors(prev => ({ ...prev, newPassword: 'Passwords must be at least 8 characters and include three of four types: uppercase, lowercase, number, or special.' }));
+                    setValidationErrors(prev => ({ ...prev, newPassword: 'Passwords must be at least 8 characters and include three of four types: uppercase, lowercase, number, or special' }));
+                    showToast("Please check the input fields again", "error");
+                    setLoading(false);
+                    return;
+                } else if (backendMessage.includes('New password must be different') ||
+                    backendMessage.includes('same as old password')) {
+                    setValidationErrors(prev => ({ ...prev, newPassword: 'New password must be different from old password' }));
                     showToast("Please check the input fields again", "error");
                     setLoading(false);
                     return;

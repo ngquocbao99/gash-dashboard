@@ -11,11 +11,11 @@ import {
   FaSyncAlt,
   FaCheck,
   FaTimes,
-  FaSpinner,
 } from "react-icons/fa";
 import EmojiPicker from "emoji-picker-react";
 import { AuthContext } from "../context/AuthContext";
 import SummaryAPI from "../common/SummaryAPI";
+import Loading from "../components/Loading";
 
 const SOCKET_URL = "http://localhost:5000";
 const API_URL = "http://localhost:5000";
@@ -789,7 +789,11 @@ socketRef.current.on("conversation_updated", (updatedConvo) => {
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-b from-gray-50 to-gray-100">
                   {loadingMessages ? (
                     <div className="flex items-center justify-center h-full">
-                      <FaSpinner className="animate-spin text-[#E9A319] text-2xl" />
+                      <Loading
+                        type="default"
+                        size="small"
+                        message="Loading messages..."
+                      />
                     </div>
                   ) : (
                     messages.map((m, i) => {

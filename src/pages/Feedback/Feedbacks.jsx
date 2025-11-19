@@ -4,6 +4,7 @@ import { AuthContext } from "../../context/AuthContext";
 import { ToastContext } from "../../context/ToastContext";
 import Api from "../../common/SummaryAPI";
 import FeedbackDetail from "./FeedbackDetail";
+import Loading from "../../components/Loading";
 
 const Feedbacks = () => {
   const { user, isAuthLoading } = useContext(AuthContext);
@@ -543,12 +544,11 @@ const Feedbacks = () => {
             <div className="flex flex-col items-center justify-center space-y-4 min-h-[180px]">
               {/* ── LOADING ── */}
               {isAuthLoading || loading ? (
-                <>
-                  <div className="w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: '#FCEFCB', borderTopColor: '#E9A319' }}></div>
-                  <p className="text-gray-600 font-medium">
-                    Loading feedbacks...
-                  </p>
-                </>
+                <Loading
+                  type="page"
+                  size="medium"
+                  message="Loading feedbacks..."
+                />
               ) : error ? (
                 /* ── NETWORK ERROR ── */
                 <div className="flex flex-col items-center space-y-3">

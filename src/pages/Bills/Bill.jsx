@@ -360,10 +360,9 @@ export default function Bills() {
               {/* ── LOADING ── */}
               {loading ? (
                 <Loading
-                  type="inline"
+                  type="page"
                   size="medium"
                   message="Loading bills..."
-                  className="min-h-[180px]"
                 />
               ) : (
                 /* ── NO BILLS ── */

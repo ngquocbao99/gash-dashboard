@@ -3,6 +3,7 @@ import Api from "../../common/SummaryAPI";
 import ImageModal from "../../components/ImageModal";
 import UpdateOrderStatusModal from "../../components/UpdateOrderStatusModal";
 import UploadRefundProofModal from "../../components/UploadRefundProofModal";
+import Loading from "../../components/Loading";
 import { getOrderStatusOptionDisabled } from "../../utils/orderUtils";
 import { ToastContext } from "../../context/ToastContext";
 
@@ -315,10 +316,10 @@ const OrderDetails = ({ order, onClose, isOpen, autoOpenRefundModal = false }) =
             }
 
             // Check for network errors
-            if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
-                errorMessage = "Network error - please check your connection";
+            if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error') || !err.response) {
+                errorMessage = "Failed to upload refund proof. Please try again later.";
             } else if (err?.response?.status === 500) {
-                errorMessage = "Server error - please try again later";
+                errorMessage = "Failed to upload refund proof. Server error - please try again later";
             }
 
             setError(errorMessage);
@@ -646,10 +647,12 @@ const OrderDetails = ({ order, onClose, isOpen, autoOpenRefundModal = false }) =
                             </h3>
 
                             {loading ? (
-                                <div className="flex items-center justify-center py-12">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: '#FCEFCB', borderBottomColor: '#E9A319' }}></div>
-                                    <p className="ml-3 text-gray-600">Loading order details...</p>
-                                </div>
+                                <Loading
+                                    type="page"
+                                    size="medium"
+                                    message="Loading order details..."
+                                    className="py-10"
+                                />
                             ) : error ? (
                                 <div className="text-center py-12">
                                     <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">

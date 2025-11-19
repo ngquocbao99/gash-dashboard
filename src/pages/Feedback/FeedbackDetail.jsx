@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import Api from '../../common/SummaryAPI';
 import ImageModal from '../../components/ImageModal';
+import Loading from '../../components/Loading';
 
 const FeedbackDetail = ({ feedbackId, isOpen, onClose }) => {
     const { user } = React.useContext(AuthContext);
@@ -91,8 +92,11 @@ const FeedbackDetail = ({ feedbackId, isOpen, onClose }) => {
                     >
                         {loading ? (
                             <div className="flex items-center justify-center py-12">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: '#FCEFCB', borderBottomColor: '#E9A319' }}></div>
-                                <p className="ml-3 text-gray-600">Loading feedback details...</p>
+                                <Loading
+                                    type="inline"
+                                    size="medium"
+                                    message="Loading feedback details..."
+                                />
                             </div>
                         ) : error ? (
                             <div className="text-center py-12">

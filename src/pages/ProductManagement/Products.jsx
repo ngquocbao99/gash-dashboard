@@ -11,6 +11,7 @@ import VariantModal from '../../components/VariantModal';
 import ImageModal from '../../components/ImageModal';
 import axiosClient from '../../common/axiosClient';
 import Loading from '../../components/Loading';
+import DeleteConfirmModal from '../../components/DeleteConfirmModal';
 
 // Using SummaryAPI for all API calls
 
@@ -56,6 +57,8 @@ const Products = () => {
   // Add Variant Modal States
   const [showAddVariantModal, setShowAddVariantModal] = useState(false);
   const [selectedProductForVariant, setSelectedProductForVariant] = useState(null);
+  const [showDiscontinueConfirm, setShowDiscontinueConfirm] = useState(false);
+  const [productPendingDiscontinue, setProductPendingDiscontinue] = useState(null);
 
   // Status options based on model
   const statusOptions = ['active', 'discontinued'];
@@ -449,8 +452,7 @@ const Products = () => {
 
   // Delete product (soft delete) using NEW API
   const deleteProduct = useCallback(async (productId) => {
-    if (!window.confirm('Are you sure you want to discontinue this product? This action will mark it as discontinued.')) return;
-
+    if (!productId) return;
     setLoading(true);
     setError('');
 
@@ -475,8 +477,27 @@ const Products = () => {
       showToast(errorMessage, 'error');
     } finally {
       setLoading(false);
+      setProductPendingDiscontinue(null);
+      setShowDiscontinueConfirm(false);
     }
   }, [selectedProductId, editingProductId, showToast]);
+
+  const handleRequestDiscontinue = useCallback((product) => {
+    if (!product) return;
+    setProductPendingDiscontinue(product);
+    setShowDiscontinueConfirm(true);
+  }, []);
+
+  const handleCancelDiscontinue = useCallback(() => {
+    if (loading) return;
+    setShowDiscontinueConfirm(false);
+    setProductPendingDiscontinue(null);
+  }, [loading]);
+
+  const handleConfirmDiscontinue = useCallback(() => {
+    if (!productPendingDiscontinue) return;
+    deleteProduct(productPendingDiscontinue._id);
+  }, [productPendingDiscontinue, deleteProduct]);
 
   // Handle authentication state and fetch data
   useEffect(() => {
@@ -740,12 +761,11 @@ const Products = () => {
 
             {/* ── LOADING ── */}
             {loading ? (
-              <>
-                <div className="w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: '#FCEFCB', borderTopColor: '#E9A319' }}></div>
-                <p className="text-gray-600 font-medium">
-                  Loading products...
-                </p>
-              </>
+              <Loading
+                type="page"
+                size="medium"
+                message="Loading products..."
+              />
             ) : error ? (
 
               /* ── NETWORK ERROR ── */
@@ -970,7 +990,7 @@ const Products = () => {
 
                           {/* Delete (Discontinue) Button */}
                           <button
-                            onClick={() => deleteProduct(product._id)}
+                            onClick={() => handleRequestDiscontinue(product)}
                             disabled={discontinued}
                             className={`p-1.5 rounded-xl transition-all duration-300 border-2 shadow-md hover:shadow-lg transform hover:scale-110 ${discontinued
                               ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
@@ -1160,6 +1180,26 @@ const Products = () => {
         categories={categories}
         loading={loading}
         error={error}
+      />
+
+      <DeleteConfirmModal
+        isOpen={showDiscontinueConfirm}
+        title="Discontinue Product"
+        message={
+          <>
+            Are you sure you want to discontinue{' '}
+            <span className="font-semibold text-gray-900">
+              {productPendingDiscontinue?.productName || productPendingDiscontinue?.name || 'this product'}
+            </span>
+            ?
+            <br />
+            <span className="text-sm text-gray-500">This action will mark the product as discontinued.</span>
+          </>
+        }
+        onConfirm={handleConfirmDiscontinue}
+        onCancel={handleCancelDiscontinue}
+        confirmText="Discontinue"
+        isLoading={loading}
       />
 
       {/* Image Modal */}

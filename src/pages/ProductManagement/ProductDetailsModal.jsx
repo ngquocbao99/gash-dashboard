@@ -6,6 +6,7 @@ import VariantModal from '../../components/VariantModal';
 import BulkVariantModal from '../../components/BulkVariantModal';
 import ProductVariantList from '../ProductVariant/ProductVariantList';
 import ImageModal from '../../components/ImageModal';
+import Loading from '../../components/Loading';
 
 const ProductDetailsModal = ({
     isOpen,
@@ -394,8 +395,11 @@ const ProductDetailsModal = ({
                                 </div>
                             ) : (
                                 <div className="text-center py-8 bg-gray-50 border border-gray-200">
-                                    <div className="w-8 h-8 border-4 rounded-full animate-spin mx-auto mb-4" style={{ borderColor: '#FCEFCB', borderTopColor: '#E9A319' }}></div>
-                                    <p className="text-gray-500">Loading variants...</p>
+                                    <Loading
+                                        type="default"
+                                        size="medium"
+                                        message="Loading variants..."
+                                    />
                                     <div className="mt-4 text-xs text-gray-400">
                                         <p>Product ID: {product?._id}</p>
                                         <p>Variants loaded: {productVariants[product?._id] ? 'Yes' : 'No'}</p>

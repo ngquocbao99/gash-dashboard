@@ -3,6 +3,7 @@ import { ToastContext } from "../../context/ToastContext";
 import Api from "../../common/SummaryAPI";
 import { FaEdit, FaTrash } from 'react-icons/fa';
 import VariantModal from "../../components/VariantModal";
+import Loading from "../../components/Loading";
 
 const ProductVariants = () => {
   const { showToast } = useContext(ToastContext);
@@ -531,12 +532,11 @@ const ProductVariants = () => {
 
                 {/* ── LOADING ── */}
                 {loading ? (
-                  <>
-                    <div className="w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: '#FCEFCB', borderTopColor: '#E9A319' }}></div>
-                    <p className="text-gray-600 font-medium">
-                      Loading variants...
-                    </p>
-                  </>
+                  <Loading
+                    type="page"
+                    size="medium"
+                    message="Loading variants..."
+                  />
                 ) : error ? (
 
                   /* ── NETWORK ERROR ── */

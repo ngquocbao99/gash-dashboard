@@ -22,11 +22,11 @@ const EditProfileModal = ({
       case 'name': {
         if (!value || value.trim() === '') return 'Please fill in all required fields';
         const trimmedName = value.trim();
-        if (trimmedName.length < 2 || trimmedName.length > 50) {
-          return 'Name must be between 2 and 50 characters';
+        if (trimmedName.length > 50) {
+          return 'Name must be at most 50 characters';
         }
-        if (!/^[\p{L}\p{N}\s]+$/u.test(trimmedName)) {
-          return 'Name can only contain letters, numbers, and spaces';
+        if (!/^[\p{L}\s]+$/u.test(trimmedName)) {
+          return 'Name must contain only letters and spaces';
         }
         return null;
       }
@@ -40,8 +40,8 @@ const EditProfileModal = ({
       case 'address': {
         if (!value || value.trim() === '') return 'Please fill in all required fields';
         const trimmedAddress = value.trim();
-        if (trimmedAddress.length < 5 || trimmedAddress.length > 255) {
-          return 'Address must be between 5 and 255 characters';
+        if (trimmedAddress.length > 200) {
+          return 'Address must be at most 200 characters';
         }
         return null;
       }
@@ -52,6 +52,20 @@ const EditProfileModal = ({
       case 'image': {
         const hasImage = Boolean(currentFormData.image?.trim() || selectedFile || profile?.image);
         if (!hasImage) return 'Please fill in all required fields';
+        // Check if image is PNG or JPG when it's a URL
+        if (currentFormData.image?.trim() && !selectedFile) {
+          const imageUrl = currentFormData.image.trim().toLowerCase();
+          if (!imageUrl.match(/\.(png|jpg|jpeg)$/i) && !imageUrl.startsWith('data:image/')) {
+            return 'Profile picture must be a PNG or JPG image';
+          }
+        }
+        // Check file type when a file is selected
+        if (selectedFile) {
+          const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+          if (!validTypes.includes(selectedFile.type.toLowerCase())) {
+            return 'Profile picture must be a PNG or JPG image';
+          }
+        }
         return null;
       }
       default:
@@ -158,7 +172,7 @@ const EditProfileModal = ({
         {/* Modal Content */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
 
-          {/* Avatar */}
+          {/* Profile Picture */}
           <div className="flex flex-col items-center mb-6">
             <div className={`w-24 h-24 rounded-full p-[2px] bg-gradient-to-tr from-[#E9A319] via-[#A86523] to-[#8B4E1A] ${validationErrors.image ? 'ring-2 ring-red-500' : ''}`}>
               <img
@@ -175,22 +189,31 @@ const EditProfileModal = ({
               className="mt-3 px-4 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-full transition-all duration-200 border border-gray-300 hover:border-gray-400"
               onClick={() => fileInputRef.current?.click()}
             >
-              Change Avatar
+              Change Profile Picture
             </button>
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/png,image/jpeg,image/jpg"
               className="hidden"
               onChange={(e) => {
                 handleFileChange(e);
                 // Revalidate image after file change
                 if (e.target.files && e.target.files.length > 0) {
-                  setValidationErrors(prevErrors => {
-                    const newErrors = { ...prevErrors };
-                    delete newErrors.image;
-                    return newErrors;
-                  });
+                  const file = e.target.files[0];
+                  const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+                  if (validTypes.includes(file.type.toLowerCase())) {
+                    setValidationErrors(prevErrors => {
+                      const newErrors = { ...prevErrors };
+                      delete newErrors.image;
+                      return newErrors;
+                    });
+                  } else {
+                    setValidationErrors(prevErrors => ({
+                      ...prevErrors,
+                      image: 'Profile picture must be a PNG or JPG image'
+                    }));
+                  }
                 }
               }}
             />

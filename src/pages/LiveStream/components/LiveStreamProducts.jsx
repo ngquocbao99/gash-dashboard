@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import Api from '../../../common/SummaryAPI';
+import Loading from '../../../components/Loading';
 import { useToast } from '../../../hooks/useToast';
 import io from 'socket.io-client';
 
@@ -656,8 +657,8 @@ const LiveStreamProducts = ({ liveId }) => {
                             className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-700 text-white rounded-lg hover:from-emerald-600 hover:to-emerald-800 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold text-sm shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 whitespace-nowrap transform hover:scale-105 disabled:transform-none"
                             title="Add to livestream"
                         >
-                            {isSubmitting ? (
-                                <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent"></div>
+                        {isSubmitting ? (
+                                <Loading type="inline" size="small" message="" className="mr-1" />
                             ) : (
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />

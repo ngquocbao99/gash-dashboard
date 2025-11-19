@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext } from "react";
 import { ToastContext } from "../../context/ToastContext";
 import SummaryAPI from "../../common/SummaryAPI";
+import Loading from "../../components/Loading";
 
 export default function AccountModal({ isOpen, account, onClose, onSuccess, viewOnly = false }) {
     const { showToast } = useContext(ToastContext);
@@ -337,8 +338,11 @@ export default function AccountModal({ isOpen, account, onClose, onSuccess, view
                                         <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-1.5 sm:mb-2">Order Statistics</h3>
                                         {ordersLoading ? (
                                             <div className="flex items-center justify-center py-4">
-                                                <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-300 border-t-[#A86523]"></div>
-                                                <span className="ml-2 text-xs text-gray-600">Loading orders...</span>
+                                                <Loading
+                                                    type="inline"
+                                                    size="small"
+                                                    message="Loading orders..."
+                                                />
                                             </div>
                                         ) : (
                                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
@@ -434,7 +438,7 @@ export default function AccountModal({ isOpen, account, onClose, onSuccess, view
                             >
                                 {isSubmitting ? (
                                     <div className="flex items-center justify-center space-x-2">
-                                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                        <Loading type="inline" size="small" message="" className="mr-1" />
                                         <span>Processing...</span>
                                     </div>
                                 ) : (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -10,6 +10,8 @@ import {
   FiFileText,
 } from "react-icons/fi";
 import { io } from "socket.io-client"; // 🧩 SOCKET ADDED
+import Loading from "../components/Loading";
+import DeleteConfirmModal from "../components/DeleteConfirmModal";
 
 export default function Notifications() {
   const [tab, setTab] = useState("notifications");
@@ -56,6 +58,13 @@ export default function Notifications() {
   const [selectedUsers, setSelectedUsers] = useState([]); // array of user _id
   const [selectAll, setSelectAll] = useState(false);
   const [searchUser, setSearchUser] = useState("");
+  const [notificationToDelete, setNotificationToDelete] = useState(null);
+  const [notificationDeleteMessage, setNotificationDeleteMessage] = useState("");
+  const [showNotificationConfirm, setShowNotificationConfirm] = useState(false);
+  const [notificationDeleteLoading, setNotificationDeleteLoading] = useState(false);
+  const [templateToDelete, setTemplateToDelete] = useState(null);
+  const [showTemplateConfirm, setShowTemplateConfirm] = useState(false);
+  const [templateDeleteLoading, setTemplateDeleteLoading] = useState(false);
 
   // 🧩 SOCKET ADDED — kết nối realtime admin (1 lần)
   const [socket, setSocket] = useState(null);
@@ -217,24 +226,28 @@ export default function Notifications() {
   };
 
   // ===== DELETE NOTIFICATION =====
-  const handleDeleteNotification = async (notification) => {
+  const handleDeleteNotification = (notification) => {
+    if (!notification) return;
     const deleteCount = notification.notificationIds?.length || 1;
-    const message = deleteCount > 1 
+    const message = deleteCount > 1
       ? `Delete this notification group (${deleteCount} notifications)?`
       : "Delete this notification?";
-    if (!window.confirm(message)) return;
-    
+    setNotificationToDelete(notification);
+    setNotificationDeleteMessage(message);
+    setShowNotificationConfirm(true);
+  };
+
+  const confirmDeleteNotification = useCallback(async () => {
+    if (!notificationToDelete) return;
+    setNotificationDeleteLoading(true);
     try {
-      // Delete all notifications in the group
-      const idsToDelete = notification.notificationIds || [notification._id];
+      const idsToDelete = notificationToDelete.notificationIds || [notificationToDelete._id];
       await Promise.all(
         idsToDelete.map(id => axios.delete(`http://localhost:5000/notifications/admin/${id}`))
       );
-      
-      // 🧩 SOCKET EMIT - Notify recipients to remove notification immediately
+
       try {
         if (socket && socket.connected) {
-          // Emit deletion event for each notification ID
           idsToDelete.forEach(id => {
             socket.emit("adminDeletedNotification", { notificationId: id });
           });
@@ -245,12 +258,24 @@ export default function Notifications() {
       } catch (emitErr) {
         console.error("❌ Error emitting adminDeletedNotification:", emitErr);
       }
-      
+
       fetchNotifications();
+      setShowNotificationConfirm(false);
+      setNotificationToDelete(null);
+      setNotificationDeleteMessage("");
     } catch (err) {
       console.error(err);
       alert("Failed to delete notification(s).");
+    } finally {
+      setNotificationDeleteLoading(false);
     }
+  }, [notificationToDelete, socket, fetchNotifications]);
+
+  const cancelDeleteNotification = () => {
+    if (notificationDeleteLoading) return;
+    setShowNotificationConfirm(false);
+    setNotificationToDelete(null);
+    setNotificationDeleteMessage("");
   };
 
   // ===== TEMPLATE =====
@@ -292,15 +317,32 @@ export default function Notifications() {
     }
   };
 
-  const handleDeleteTemplate = async (id) => {
-    if (!window.confirm("Delete this template?")) return;
+  const handleDeleteTemplate = (template) => {
+    if (!template) return;
+    setTemplateToDelete(template);
+    setShowTemplateConfirm(true);
+  };
+
+  const confirmDeleteTemplate = useCallback(async () => {
+    if (!templateToDelete) return;
+    setTemplateDeleteLoading(true);
     try {
-      await axios.delete(`http://localhost:5000/notifications/admin/templates/${id}`);
+      await axios.delete(`http://localhost:5000/notifications/admin/templates/${templateToDelete._id}`);
       fetchTemplates();
+      setShowTemplateConfirm(false);
+      setTemplateToDelete(null);
     } catch (err) {
       console.error(err);
       alert("Failed to delete template.");
+    } finally {
+      setTemplateDeleteLoading(false);
     }
+  }, [templateToDelete, fetchTemplates]);
+
+  const cancelDeleteTemplate = () => {
+    if (templateDeleteLoading) return;
+    setShowTemplateConfirm(false);
+    setTemplateToDelete(null);
   };
 
   const handleCreateTemplate = async () => {
@@ -578,12 +620,11 @@ export default function Notifications() {
 
           {loadingList ? (
           <div className="flex-1 flex items-center justify-center p-6">
-            <div className="flex flex-col items-center justify-center space-y-4 min-h-[180px]">
-              <div className="w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: '#FCEFCB', borderTopColor: '#E9A319' }}></div>
-              <p className="text-gray-600 font-medium">
-                Loading notifications...
-              </p>
-            </div>
+            <Loading
+              type="page"
+              size="medium"
+              message="Loading notifications..."
+            />
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex-1 flex items-center justify-center p-6">
@@ -665,8 +706,11 @@ export default function Notifications() {
             ))}
             {displayedItems < filtered.length && (
               <li className="px-4 lg:px-6 py-4 text-center">
-                <div className="w-6 h-6 border-2 border-gray-300 border-t-amber-500 rounded-full animate-spin mx-auto"></div>
-                <p className="text-sm text-gray-500 mt-2">Loading more notifications...</p>
+                <Loading
+                  type="default"
+                  size="small"
+                  message="Loading more notifications..."
+                />
               </li>
           )}
         </ul>
@@ -773,7 +817,7 @@ export default function Notifications() {
               >
                 {sending ? (
                   <>
-                    <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                    <Loading type="inline" size="small" message="" className="mr-1" />
                     Sending...
                   </>
                 ) : (
@@ -817,7 +861,7 @@ export default function Notifications() {
                             <FiEdit2 className="w-3 h-3" />
                             </button>
                             <button
-                              onClick={() => handleDeleteTemplate(t._id)}
+                              onClick={() => handleDeleteTemplate(t)}
                             className="p-1.5 rounded-lg transition-all duration-300 border-2 shadow-md hover:shadow-lg transform hover:scale-110 text-white bg-red-600 hover:bg-red-700 border-red-600 hover:border-red-700"
                               title="Delete template"
                             >
@@ -933,7 +977,7 @@ export default function Notifications() {
                 >
                   {sending ? (
                     <>
-                      <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                      <Loading type="inline" size="small" message="" className="mr-1" />
                       Sending...
                     </>
                   ) : (
@@ -1196,7 +1240,7 @@ export default function Notifications() {
                 >
                   {savingTemplate ? (
                     <>
-                      <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                      <Loading type="inline" size="small" message="" className="mr-1" />
                       Saving...
                     </>
                   ) : (
@@ -1210,6 +1254,33 @@ export default function Notifications() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <DeleteConfirmModal
+        isOpen={showNotificationConfirm && !!notificationToDelete}
+        title="Delete Notification"
+        message={notificationDeleteMessage}
+        onConfirm={confirmDeleteNotification}
+        onCancel={cancelDeleteNotification}
+        confirmText="Delete"
+        isLoading={notificationDeleteLoading}
+      />
+
+      <DeleteConfirmModal
+        isOpen={showTemplateConfirm && !!templateToDelete}
+        title="Delete Template"
+        message={
+          templateToDelete ? (
+            <>
+              Are you sure you want to delete template{" "}
+              <span className="font-semibold text-gray-900">{templateToDelete.name || templateToDelete.title}</span>?
+            </>
+          ) : null
+        }
+        onConfirm={confirmDeleteTemplate}
+        onCancel={cancelDeleteTemplate}
+        confirmText="Delete"
+        isLoading={templateDeleteLoading}
+      />
     </div>
   );
 }

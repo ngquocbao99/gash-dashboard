@@ -470,7 +470,7 @@ const LiveStreamDetails = () => {
                         >
                             {isRefreshing ? (
                                 <>
-                                    <div className="animate-spin rounded-full h-3 w-3 lg:h-4 lg:w-4 border-2 border-white border-t-transparent"></div>
+                                    <Loading type="inline" size="small" message="" className="mr-1" />
                                     <span className="font-medium">Loading...</span>
                                 </>
                             ) : (
@@ -690,7 +690,7 @@ const LiveStreamDetails = () => {
                                 <dd className="text-sm text-gray-900 break-all">
                                     {typeof livestream.hostId === 'object' ? (
                                         <div className="flex items-start gap-3">
-                                            {/* Avatar */}
+                                            {/* Profile Picture */}
                                             <div className="flex-shrink-0">
                                                 {livestream.hostId?.avatar || livestream.hostId?.avatarUrl || livestream.hostId?.image || livestream.hostId?.profileImage ? (
                                                     <img
