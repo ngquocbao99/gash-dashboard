@@ -47,7 +47,7 @@ export default function Notifications() {
   });
 
   const [editingTemplate, setEditingTemplate] = useState(null);
-
+  const [isTemplateApplied, setIsTemplateApplied] = useState(false);
   // ===== Select Users Modal state =====
   const [showSelectUsersModal, setShowSelectUsersModal] = useState(false);
   const [users, setUsers] = useState([]); // accounts list
@@ -191,6 +191,7 @@ export default function Notifications() {
 
       const res = await axios.post("http://localhost:5000/notifications/admin/create", payload);
       alert("✅ Notification sent successfully!");
+      setIsTemplateApplied(false);
       setNewNotification({ title: "", message: "", recipient: "all", userId: "" });
       // reset selections
       setSelectedUsers([]);
@@ -262,6 +263,7 @@ export default function Notifications() {
         userId: "",
       });
     // Reset selected users when applying template
+    setIsTemplateApplied(true);   
     setSelectedUsers([]);
     setSelectAll(false);
   };
@@ -537,6 +539,7 @@ export default function Notifications() {
               <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Search by title...</label>
               <input
                 type="text"
+                disabled={isTemplateApplied}
                 placeholder="Search by title..."
                 className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
                 value={searchKeyword}
@@ -612,7 +615,8 @@ export default function Notifications() {
           <ul ref={scrollContainerRef} className="notification-list-container divide-y divide-gray-100 flex-1 overflow-y-auto" style={{ maxHeight: '600px' }}>
             {currentItems.map((n) => (
               <li
-                key={n._id}
+              key={`noti-${n.notificationIds.join("-")}`}
+
                 className="flex items-start justify-between px-4 lg:px-6 py-3 lg:py-4 hover:bg-gradient-to-r hover:from-yellow-50/50 hover:via-amber-50/50 hover:to-orange-50/50 transition-all duration-300 border-b-2 border-gray-200/40"
               >
                 {/* Left side */}
@@ -686,6 +690,7 @@ export default function Notifications() {
                 <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Title</label>
                 <input
                   type="text"
+                  disabled={isTemplateApplied}
                   placeholder="Title"
                   className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
                   value={newNotification.title}
@@ -697,6 +702,7 @@ export default function Notifications() {
               <div>
                 <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Message</label>
                 <textarea
+                disabled={isTemplateApplied}
                   placeholder="Message"
                   className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60 min-h-[120px]"
                   value={newNotification.message}
@@ -793,7 +799,8 @@ export default function Notifications() {
                 <div className="space-y-3 max-h-[300px] overflow-y-auto">
                   {templates.map((t) => (
                     <div
-                      key={t._id}
+                     key={`tpl-${t._id}`}
+
                       className="p-3 border-2 border-gray-200/60 rounded-xl hover:bg-gradient-to-r hover:from-yellow-50/50 hover:via-amber-50/50 hover:to-orange-50/50 transition-all duration-300"
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
