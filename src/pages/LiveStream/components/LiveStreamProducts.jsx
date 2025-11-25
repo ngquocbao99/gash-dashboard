@@ -52,13 +52,67 @@ const LiveStreamProducts = ({ liveId }) => {
         return 'Unnamed';
     };
 
-    // Helper: Get main product image URL
+    // Helper: Get main product image URL - Always prioritize isMain=true
     const getMainImageUrl = (product) => {
         if (!product) return null;
-        const images = product.productImageIds || product.images || [];
-        if (images.length === 0) return null;
-        const mainImage = images.find(img => img.isMain === true);
-        return mainImage?.imageUrl || images[0]?.imageUrl || null;
+
+        // Try to get images from multiple possible locations
+        let images = [];
+
+        // 1. Check productImageIds (most common from populated data)
+        if (product.productImageIds && Array.isArray(product.productImageIds)) {
+            images = product.productImageIds;
+        }
+        // 2. Check images array (alternative structure)
+        else if (product.images && Array.isArray(product.images)) {
+            images = product.images;
+        }
+        // 3. Check if product has a nested product object with images
+        else if (product.product?.productImageIds && Array.isArray(product.product.productImageIds)) {
+            images = product.product.productImageIds;
+        }
+        else if (product.product?.images && Array.isArray(product.product.images)) {
+            images = product.product.images;
+        }
+
+        if (images.length > 0) {
+            // PRIORITY 1: Find image with isMain === true (strict check)
+            const mainImage = images.find(img => img && img.isMain === true && img.imageUrl);
+            if (mainImage?.imageUrl) {
+                return mainImage.imageUrl;
+            }
+
+            // PRIORITY 2: If no main image, use first image with valid imageUrl
+            const firstImage = images.find(img => img && img.imageUrl);
+            if (firstImage?.imageUrl) {
+                return firstImage.imageUrl;
+            }
+        }
+
+        // PRIORITY 3: Check if there's a direct image URL (from WebSocket/realtime data)
+        if (product.image && typeof product.image === 'string') {
+            return product.image;
+        }
+
+        // PRIORITY 4: Try to get image from product variants (variantImage)
+        if (product.productVariantIds && Array.isArray(product.productVariantIds)) {
+            for (const variant of product.productVariantIds) {
+                if (variant?.variantImage && typeof variant.variantImage === 'string') {
+                    return variant.variantImage;
+                }
+            }
+        }
+
+        // PRIORITY 5: Check nested product.product for variants
+        if (product.product?.productVariantIds && Array.isArray(product.product.productVariantIds)) {
+            for (const variant of product.product.productVariantIds) {
+                if (variant?.variantImage && typeof variant.variantImage === 'string') {
+                    return variant.variantImage;
+                }
+            }
+        }
+
+        return null;
     };
 
     // Helper: Format date/time
@@ -160,17 +214,48 @@ const LiveStreamProducts = ({ liveId }) => {
         const currentLiveId = liveId?.toString?.() || liveId;
 
         if (dataLiveId === currentLiveId && data?.liveProduct) {
+            const hasImages = (data.liveProduct.productId?.productImageIds?.length > 0) ||
+                (data.liveProduct.product?.image);
+
+            // If socket data doesn't have images, try to merge from allProducts (which has full data)
+            let productToAdd = data.liveProduct;
+
+            if (!hasImages) {
+                // Find the product in allProducts by productId
+                const productIdToFind = data.liveProduct.productId?._id || data.liveProduct.productId;
+                const fullProductData = allProducts.find(p =>
+                    (p._id?.toString?.() || p._id) === (productIdToFind?.toString?.() || productIdToFind)
+                );
+
+                if (fullProductData) {
+                    // Create NEW object with merged data (don't mutate!)
+                    productToAdd = {
+                        ...data.liveProduct,
+                        productId: {
+                            _id: fullProductData._id,
+                            productName: fullProductData.productName,
+                            productImageIds: fullProductData.productImageIds || fullProductData.images || [],
+                            ...fullProductData
+                        }
+                    };
+                } else {
+                    // Fallback: reload from API to get full data
+                    loadLiveProducts();
+                    return;
+                }
+            }
+
             setLiveProducts(prev => {
                 // Check if product already exists
                 const exists = prev.some(p =>
-                    (p._id?.toString?.() || p._id) === (data.liveProduct._id?.toString?.() || data.liveProduct._id)
+                    (p._id?.toString?.() || p._id) === (productToAdd._id?.toString?.() || productToAdd._id)
                 );
                 if (exists) return prev;
 
                 // Ensure isPinned is boolean
                 const newProduct = {
-                    ...data.liveProduct,
-                    isPinned: Boolean(data.liveProduct.isPinned),
+                    ...productToAdd,
+                    isPinned: Boolean(productToAdd.isPinned),
                     isActive: true
                 };
                 const updated = [...prev, newProduct].sort((a, b) => {
@@ -186,7 +271,7 @@ const LiveStreamProducts = ({ liveId }) => {
                 return updated;
             });
         }
-    }, [liveId]);
+    }, [liveId, loadLiveProducts, allProducts]);
 
     const handleProductRemoved = useCallback((data) => {
         const dataLiveId = data?.liveId?.toString?.() || data?.liveId;
@@ -297,59 +382,45 @@ const LiveStreamProducts = ({ liveId }) => {
         });
 
         let isJoined = false;
-        const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';
 
         const joinRoom = () => {
             if (socket.connected && !isJoined) {
                 isJoined = true;
                 socket.emit('joinLivestreamRoom', liveIdStr);
-                if (DEBUG) console.log('✅ [Products] Joined livestream room:', liveIdStr);
             }
         };
 
         socket.on('connect', () => {
-            if (DEBUG) console.log('✅ [Products] Socket connected, joining room:', liveIdStr);
             joinRoom();
         });
 
-        socket.on('disconnect', (reason) => {
-            if (DEBUG) console.log('⚠️ [Products] Socket disconnected:', reason);
+        socket.on('disconnect', () => {
             isJoined = false;
         });
 
-        socket.on('connect_error', (error) => {
-            console.error('❌ [Products] Socket connection error:', error);
+        socket.on('connect_error', () => {
             isJoined = false;
         });
 
-        socket.on('reconnect', (attemptNumber) => {
-            if (DEBUG) console.log('🔄 [Products] Socket reconnected, attempt:', attemptNumber);
+        socket.on('reconnect', () => {
             isJoined = false;
             joinRoom();
         });
 
         // Setup event listeners
         socket.on('product:added', (data) => {
-            if (DEBUG) {
-                console.log('📦 [Products] Received product:added event:', data);
-                console.log('📦 [Products] Current liveId:', liveIdStr);
-                console.log('📦 [Products] Event liveId:', data?.liveId);
-            }
             handleProductAdded(data);
         });
 
         socket.on('product:removed', (data) => {
-            if (DEBUG) console.log('📦 [Products] Received product:removed event:', data);
             handleProductRemoved(data);
         });
 
         socket.on('product:pinned', (data) => {
-            if (DEBUG) console.log('📦 [Products] Received product:pinned event:', data);
             handleProductPinned(data);
         });
 
         socket.on('product:unpinned', (data) => {
-            if (DEBUG) console.log('📦 [Products] Received product:unpinned event:', data);
             handleProductUnpinned(data);
         });
 
@@ -359,7 +430,6 @@ const LiveStreamProducts = ({ liveId }) => {
         }
 
         return () => {
-            if (DEBUG) console.log('🧹 [Products] Cleaning up socket connection');
             if (socket.connected && isJoined) {
                 socket.emit('leaveLivestreamRoom', liveIdStr);
             }
@@ -725,7 +795,7 @@ const LiveStreamProducts = ({ liveId }) => {
 
                     {/* Product selector and add button - Row layout */}
                     <div className="flex gap-2 items-end">
-                        <div className="flex-1 relative" ref={dropdownRef}>
+                        <div className="flex-1 min-w-0 relative" ref={dropdownRef}>
                             <label className="block text-xs font-semibold text-gray-600 mb-1.5">Select Product</label>
                             <button
                                 type="button"
@@ -733,23 +803,25 @@ const LiveStreamProducts = ({ liveId }) => {
                                 disabled={!hasLiveId || isSubmitting || allProducts.length === 0}
                                 className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-left focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-h-[38px] hover:border-gray-400 transition-colors text-sm"
                             >
-                                {selectedProductId ? (
-                                    (() => {
-                                        const selected = allProducts.find(p => (p?._id || p?.id) === selectedProductId);
-                                        const imageUrl = selected ? getMainImageUrl(selected) : null;
-                                        const name = selected ? getProductName(selected) : 'Select a product';
-                                        return (
-                                            <>
-                                                {imageUrl && (
-                                                    <img src={imageUrl} alt={name} className="w-7 h-7 object-cover rounded border border-gray-200 flex-shrink-0" onError={(e) => { e.target.style.display = 'none'; }} />
-                                                )}
-                                                <span className="flex-1 truncate text-gray-900 text-sm">{name}</span>
-                                            </>
-                                        );
-                                    })()
-                                ) : (
-                                    <span className="text-gray-500 text-sm">Select a product</span>
-                                )}
+                                <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
+                                    {selectedProductId ? (
+                                        (() => {
+                                            const selected = allProducts.find(p => (p?._id || p?.id) === selectedProductId);
+                                            const imageUrl = selected ? getMainImageUrl(selected) : null;
+                                            const name = selected ? getProductName(selected) : 'Select a product';
+                                            return (
+                                                <>
+                                                    {imageUrl && (
+                                                        <img src={imageUrl} alt={name} className="w-7 h-7 object-cover rounded border border-gray-200 flex-shrink-0" onError={(e) => { e.target.style.display = 'none'; }} />
+                                                    )}
+                                                    <span className="flex-1 truncate text-gray-900 text-sm min-w-0" title={name}>{name}</span>
+                                                </>
+                                            );
+                                        })()
+                                    ) : (
+                                        <span className="text-gray-500 text-sm truncate">Select a product</span>
+                                    )}
+                                </div>
                                 <svg className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isDropdownOpen ? 'transform rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -780,7 +852,7 @@ const LiveStreamProducts = ({ liveId }) => {
                                                         </svg>
                                                     </div>
                                                 )}
-                                                <span className="flex-1 text-left text-sm font-medium text-gray-900 truncate">{name}</span>
+                                                <span className="flex-1 text-left text-sm font-medium text-gray-900 truncate" title={name}>{name}</span>
                                                 {isSelected && (
                                                     <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -841,10 +913,32 @@ const LiveStreamProducts = ({ liveId }) => {
                         )}
                         <div className={`flex-1 overflow-y-auto space-y-2 pr-1 ${showAllProducts ? '' : ''}`}>
                             {(showAllProducts ? liveProducts : liveProducts.slice(0, 20)).map((lp) => {
-                                const product = lp.productId || lp.product || {};
-                                const productName = getProductName(product);
+                                // Handle both populated and unpopulated productId
+                                let product = (typeof lp.productId === 'object' ? lp.productId : null) || lp.product || {};
                                 const productId = product._id || lp.productId?._id || lp.productId || '';
-                                const productImageUrl = getMainImageUrl(product);
+
+                                // CRITICAL FIX: If productId is just a string (not populated), find in allProducts
+                                if (typeof lp.productId === 'string' && allProducts.length > 0) {
+                                    const fullProduct = allProducts.find(p =>
+                                        (p._id?.toString?.() || p._id) === (lp.productId?.toString?.() || lp.productId)
+                                    );
+                                    if (fullProduct) {
+                                        product = fullProduct;
+                                    }
+                                }
+
+                                const productName = getProductName(product);
+
+                                // Try multiple ways to get image URL
+                                let productImageUrl = getMainImageUrl(product);
+                                // If product is not populated, try to get image from liveProduct itself
+                                if (!productImageUrl && lp.image) {
+                                    productImageUrl = lp.image;
+                                }
+                                // Try getting from nested product object
+                                if (!productImageUrl && lp.product) {
+                                    productImageUrl = getMainImageUrl(lp.product);
+                                }
 
                                 return (
                                     <div
@@ -877,7 +971,7 @@ const LiveStreamProducts = ({ liveId }) => {
                                         {/* Product Info */}
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2 mb-1">
-                                                <span className="text-sm font-medium text-gray-900 truncate">{productName}</span>
+                                                <span className="text-sm font-medium text-gray-900 truncate" title={productName}>{productName}</span>
                                                 {lp.isPinned && (
                                                     <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-200 text-yellow-800 border border-yellow-400">
                                                         <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
