@@ -293,7 +293,12 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
 
             // Handle response format
             const commentsData = response?.data?.data || response?.data || [];
-            const sorted = commentsData.sort((a, b) => {
+            // Ensure isPinned is always a boolean for all comments
+            const normalizedComments = commentsData.map(comment => ({
+                ...comment,
+                isPinned: Boolean(comment.isPinned === true || comment.isPinned === 'true' || comment.isPinned === 1)
+            }));
+            const sorted = normalizedComments.sort((a, b) => {
                 if (a.isPinned !== b.isPinned) return b.isPinned - a.isPinned;
                 return new Date(a.createdAt) - new Date(b.createdAt);
             });
@@ -412,7 +417,9 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
             const normalizedComment = {
                 ...newComment,
                 senderId: newComment.sender || newComment.senderId,
-                sender: newComment.sender || newComment.senderId
+                sender: newComment.sender || newComment.senderId,
+                // Ensure isPinned is always a boolean
+                isPinned: Boolean(newComment.isPinned === true || newComment.isPinned === 'true' || newComment.isPinned === 1)
             };
 
             setComments(prev => {

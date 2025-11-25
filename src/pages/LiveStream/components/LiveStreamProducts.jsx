@@ -2,6 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import Api from '../../../common/SummaryAPI';
 import Loading from '../../../components/Loading';
 import { useToast } from '../../../hooks/useToast';
+import io from 'socket.io-client';
+
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const LiveStreamProducts = ({ liveId }) => {
     const { showToast } = useToast();
@@ -105,10 +108,26 @@ const LiveStreamProducts = ({ liveId }) => {
             if (productsArray.length > 0 || (resp && !Array.isArray(resp) && resp.success !== false)) {
                 // Filter to ensure only active products are shown
                 // Backend getActiveLiveProducts already filters isActive: true, but add extra safety check
-                const activeProducts = productsArray.filter(product => {
-                    // STRICT CHECK: Only show products where isActive === true
-                    return product.isActive === true;
-                });
+                const activeProducts = productsArray
+                    .filter(product => {
+                        // STRICT CHECK: Only show products where isActive === true
+                        return product.isActive === true;
+                    })
+                    .map(product => ({
+                        ...product,
+                        // Ensure isPinned is always a boolean
+                        isPinned: Boolean(product.isPinned === true || product.isPinned === 'true' || product.isPinned === 1)
+                    }))
+                    .sort((a, b) => {
+                        // Pinned products first
+                        if (a.isPinned !== b.isPinned) {
+                            return b.isPinned - a.isPinned; // true (1) comes before false (0)
+                        }
+                        // Then sort by addedAt (newest first)
+                        const aDate = a.addedAt ? new Date(a.addedAt) : new Date(0);
+                        const bDate = b.addedAt ? new Date(b.addedAt) : new Date(0);
+                        return bDate - aDate;
+                    });
 
                 setLiveProducts(activeProducts);
                 // Show success toast only when manually refreshed
@@ -134,6 +153,227 @@ const LiveStreamProducts = ({ liveId }) => {
     useEffect(() => {
         loadLiveProducts();
     }, [loadLiveProducts]);
+
+    // Realtime socket handlers
+    const handleProductAdded = useCallback((data) => {
+        const dataLiveId = data?.liveId?.toString?.() || data?.liveId;
+        const currentLiveId = liveId?.toString?.() || liveId;
+
+        if (dataLiveId === currentLiveId && data?.liveProduct) {
+            setLiveProducts(prev => {
+                // Check if product already exists
+                const exists = prev.some(p =>
+                    (p._id?.toString?.() || p._id) === (data.liveProduct._id?.toString?.() || data.liveProduct._id)
+                );
+                if (exists) return prev;
+
+                // Ensure isPinned is boolean
+                const newProduct = {
+                    ...data.liveProduct,
+                    isPinned: Boolean(data.liveProduct.isPinned),
+                    isActive: true
+                };
+                const updated = [...prev, newProduct].sort((a, b) => {
+                    // Pinned products first
+                    if (a.isPinned !== b.isPinned) {
+                        return b.isPinned - a.isPinned; // true (1) comes before false (0)
+                    }
+                    // Then sort by addedAt (newest first)
+                    const aDate = a.addedAt ? new Date(a.addedAt) : new Date(0);
+                    const bDate = b.addedAt ? new Date(b.addedAt) : new Date(0);
+                    return bDate - aDate;
+                });
+                return updated;
+            });
+        }
+    }, [liveId]);
+
+    const handleProductRemoved = useCallback((data) => {
+        const dataLiveId = data?.liveId?.toString?.() || data?.liveId;
+        const currentLiveId = liveId?.toString?.() || liveId;
+
+        if (dataLiveId === currentLiveId) {
+            setLiveProducts(prev => {
+                if (data?.liveProductId) {
+                    const productIdStr = data.liveProductId?.toString?.() || data.liveProductId;
+                    return prev.filter(p => {
+                        const pId = p._id?.toString?.() || p._id;
+                        return pId !== productIdStr;
+                    });
+                } else if (data?.productId) {
+                    const productIdStr = data.productId?.toString?.() || data.productId;
+                    return prev.filter(p => {
+                        const pProductId = p.productId?._id?.toString?.() || p.productId?._id || p.productId;
+                        return pProductId !== productIdStr;
+                    });
+                }
+                return prev;
+            });
+        }
+    }, [liveId]);
+
+    const handleProductPinned = useCallback((data) => {
+        const dataLiveId = data?.liveId?.toString?.() || data?.liveId;
+        const currentLiveId = liveId?.toString?.() || liveId;
+
+        if (dataLiveId === currentLiveId && data?.liveProduct) {
+            setLiveProducts(prev => {
+                const productId = data.liveProduct._id?.toString?.() || data.liveProduct._id;
+                const updated = prev.map(p => {
+                    const pId = p._id?.toString?.() || p._id;
+                    if (pId === productId) {
+                        return { ...p, isPinned: true };
+                    }
+                    return p;
+                });
+                // Sort: pinned products first, then by addedAt (newest first)
+                return updated.sort((a, b) => {
+                    if (a.isPinned !== b.isPinned) {
+                        return b.isPinned - a.isPinned; // true (1) comes before false (0)
+                    }
+                    const aDate = a.addedAt ? new Date(a.addedAt) : new Date(0);
+                    const bDate = b.addedAt ? new Date(b.addedAt) : new Date(0);
+                    return bDate - aDate;
+                });
+            });
+        }
+    }, [liveId]);
+
+    const handleProductUnpinned = useCallback((data) => {
+        const dataLiveId = data?.liveId?.toString?.() || data?.liveId;
+        const currentLiveId = liveId?.toString?.() || liveId;
+
+        if (dataLiveId === currentLiveId) {
+            setLiveProducts(prev => {
+                let updated = prev;
+                if (data?.liveProductId) {
+                    const productIdStr = data.liveProductId?.toString?.() || data.liveProductId;
+                    updated = prev.map(p => {
+                        const pId = p._id?.toString?.() || p._id;
+                        if (pId === productIdStr) {
+                            return { ...p, isPinned: false };
+                        }
+                        return p;
+                    });
+                } else if (data?.productId) {
+                    const productIdStr = data.productId?.toString?.() || data.productId;
+                    updated = prev.map(p => {
+                        const pProductId = p.productId?._id?.toString?.() || p.productId?._id || p.productId;
+                        if (pProductId === productIdStr) {
+                            return { ...p, isPinned: false };
+                        }
+                        return p;
+                    });
+                }
+                // Sort: pinned products first, then by addedAt (newest first)
+                return updated.sort((a, b) => {
+                    if (a.isPinned !== b.isPinned) {
+                        return b.isPinned - a.isPinned; // true (1) comes before false (0)
+                    }
+                    const aDate = a.addedAt ? new Date(a.addedAt) : new Date(0);
+                    const bDate = b.addedAt ? new Date(b.addedAt) : new Date(0);
+                    return bDate - aDate;
+                });
+            });
+        }
+    }, [liveId]);
+
+    // Setup Socket.IO for realtime updates
+    useEffect(() => {
+        if (!liveId) return;
+
+        // Ensure liveId is a string (handle ObjectId objects)
+        const liveIdStr = typeof liveId === 'string' ? liveId : (liveId?.toString?.() || String(liveId));
+
+        const socket = io(SOCKET_URL, {
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            timeout: 20000,
+            forceNew: false,
+            autoConnect: true,
+        });
+
+        let isJoined = false;
+        const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';
+
+        const joinRoom = () => {
+            if (socket.connected && !isJoined) {
+                isJoined = true;
+                socket.emit('joinLivestreamRoom', liveIdStr);
+                if (DEBUG) console.log('✅ [Products] Joined livestream room:', liveIdStr);
+            }
+        };
+
+        socket.on('connect', () => {
+            if (DEBUG) console.log('✅ [Products] Socket connected, joining room:', liveIdStr);
+            joinRoom();
+        });
+
+        socket.on('disconnect', (reason) => {
+            if (DEBUG) console.log('⚠️ [Products] Socket disconnected:', reason);
+            isJoined = false;
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('❌ [Products] Socket connection error:', error);
+            isJoined = false;
+        });
+
+        socket.on('reconnect', (attemptNumber) => {
+            if (DEBUG) console.log('🔄 [Products] Socket reconnected, attempt:', attemptNumber);
+            isJoined = false;
+            joinRoom();
+        });
+
+        // Setup event listeners
+        socket.on('product:added', (data) => {
+            if (DEBUG) {
+                console.log('📦 [Products] Received product:added event:', data);
+                console.log('📦 [Products] Current liveId:', liveIdStr);
+                console.log('📦 [Products] Event liveId:', data?.liveId);
+            }
+            handleProductAdded(data);
+        });
+
+        socket.on('product:removed', (data) => {
+            if (DEBUG) console.log('📦 [Products] Received product:removed event:', data);
+            handleProductRemoved(data);
+        });
+
+        socket.on('product:pinned', (data) => {
+            if (DEBUG) console.log('📦 [Products] Received product:pinned event:', data);
+            handleProductPinned(data);
+        });
+
+        socket.on('product:unpinned', (data) => {
+            if (DEBUG) console.log('📦 [Products] Received product:unpinned event:', data);
+            handleProductUnpinned(data);
+        });
+
+        // Join room immediately if already connected
+        if (socket.connected) {
+            joinRoom();
+        }
+
+        return () => {
+            if (DEBUG) console.log('🧹 [Products] Cleaning up socket connection');
+            if (socket.connected && isJoined) {
+                socket.emit('leaveLivestreamRoom', liveIdStr);
+            }
+            socket.off('connect');
+            socket.off('disconnect');
+            socket.off('connect_error');
+            socket.off('reconnect');
+            socket.off('product:added');
+            socket.off('product:removed');
+            socket.off('product:pinned');
+            socket.off('product:unpinned');
+            socket.close();
+        };
+    }, [liveId, handleProductAdded, handleProductRemoved, handleProductPinned, handleProductUnpinned]);
 
     // Load all products for dropdown
     const loadAllProducts = useCallback(async () => {
