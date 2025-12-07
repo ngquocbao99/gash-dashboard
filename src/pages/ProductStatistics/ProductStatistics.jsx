@@ -171,75 +171,75 @@ export default function ProductStatistics() {
      - fetch stats, categories, top products, sparkline
      --------------------------- */
   useEffect(() => {
-  let mounted = true;
+    let mounted = true;
 
-  async function fetchAll() {
-    try {
-      setLoading(true);
-      setError("");
+    async function fetchAll() {
+      try {
+        setLoading(true);
+        setError("");
 
-      const token = user?.token || localStorage.getItem("token");
-      if (!token) {
-        setError("You are not authenticated");
-        setLoading(false);
-        return;
-      }
+        const token = user?.token || localStorage.getItem("token");
+        if (!token) {
+          setError("You are not authenticated");
+          setLoading(false);
+          return;
+        }
 
-      // fetch main product statistics
-      const res = await fetch(
-  `http://localhost:5000/statistics/products?period=${period}&category=${categoryFilter}&status=${statusFilter}`,
-  {
-    headers: { Authorization: `Bearer ${token}` },
-  }
-);
+        // fetch main product statistics
+        const res = await fetch(
+          `http://localhost:5000/statistics/products?period=${period}&category=${categoryFilter}&status=${statusFilter}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
 
-      const j = await res.json();
-      if (res.ok && j.success && mounted) {
-        setStats({
-          totalProducts: j.data.totalProducts || 0,
-          inStock: j.data.activeProducts || 0,
-          outOfStock: j.data.inactiveProducts || 0,
-          lowStock: j.data.pendingProducts || 0,
-          newProducts: j.data.newProducts || 0,
+        const j = await res.json();
+        if (res.ok && j.success && mounted) {
+          setStats({
+            totalProducts: j.data.totalProducts || 0,
+            inStock: j.data.activeProducts || 0,
+            outOfStock: j.data.inactiveProducts || 0,
+            lowStock: j.data.pendingProducts || 0,
+            newProducts: j.data.newProducts || 0,
+          });
+        }
+
+        // fetch category distribution
+        const resCat = await fetch("http://localhost:5000/statistics/products/categories", {
+          headers: { Authorization: `Bearer ${token}` },
         });
-      }
+        const jc = await resCat.json();
+        if (resCat.ok && jc.success && mounted) {
+          setCategoryDistribution(jc.data);
+          setCategories(["All", ...jc.data.map((c) => c.name)]);
+        }
 
-      // fetch category distribution
-      const resCat = await fetch("http://localhost:5000/statistics/products/categories", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const jc = await resCat.json();
-      if (resCat.ok && jc.success && mounted) {
-        setCategoryDistribution(jc.data);
-        setCategories(["All", ...jc.data.map((c) => c.name)]);
-      }
+        // fetch top products
+        const resTop = await fetch("http://localhost:5000/statistics/products/top?limit=6", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const jt = await resTop.json();
+        if (resTop.ok && jt.success && mounted) {
+          setTopProducts(jt.data);
+        }
 
-      // fetch top products
-      const resTop = await fetch("http://localhost:5000/statistics/products/top?limit=6", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const jt = await resTop.json();
-      if (resTop.ok && jt.success && mounted) {
-        setTopProducts(jt.data);
+      } catch (err) {
+        console.error("❌ Error fetching stats:", err);
+        if (mounted) setError("Error fetching product statistics");
+      } finally {
+        if (mounted) setLoading(false);
       }
-
-    } catch (err) {
-      console.error("❌ Error fetching stats:", err);
-      if (mounted) setError("Error fetching product statistics");
-    } finally {
-      if (mounted) setLoading(false);
     }
-  }
 
-  fetchAll();
+    fetchAll();
 
-  return () => {
-    mounted = false;
-  };
-}, [user, period, categoryFilter, statusFilter]);
+    return () => {
+      mounted = false;
+    };
+  }, [user, period, categoryFilter, statusFilter]);
 
 
-    
+
   /* ---------------------------
      Export functions
      --------------------------- */
@@ -327,7 +327,7 @@ export default function ProductStatistics() {
       {/* HEADER */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4 mb-4 lg:mb-6 pt-2 lg:pt-3 pb-2 lg:pb-3">
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-2 leading-tight">📊 Product Statistics</h1>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-2 leading-tight">Product Statistics</h1>
         </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 lg:gap-4 shrink-0">
           <select
@@ -483,54 +483,54 @@ export default function ProductStatistics() {
               <h4 className="text-sm font-semibold text-gray-700 mb-2">Category Distribution</h4>
               <div style={{ height: 220 }}>
                 <div className="flex flex-col items-center justify-center">
-  <ResponsiveContainer width="100%" height={260}>
-    <PieChart>
-      <Pie
-        data={pieData}
-        dataKey="value"
-        nameKey="name"
-        cx="50%"
-        cy="50%"
-        innerRadius={60}
-        outerRadius={110}
-        paddingAngle={4}
-        labelLine={false}
-        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-      >
-        {pieData.map((c, i) => (
-          <Cell key={`slice-${i}`} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
-        ))}
-      </Pie>
-      <Tooltip
-        contentStyle={{
-          borderRadius: 10,
-          backgroundColor: "#fff",
-          border: "none",
-          boxShadow: "0 6px 18px rgba(15,23,42,0.06)",
-        }}
-      />
-    </PieChart>
-  </ResponsiveContainer>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={110}
+                        paddingAngle={4}
+                        labelLine={false}
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      >
+                        {pieData.map((c, i) => (
+                          <Cell key={`slice-${i}`} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          borderRadius: 10,
+                          backgroundColor: "#fff",
+                          border: "none",
+                          boxShadow: "0 6px 18px rgba(15,23,42,0.06)",
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
 
-  {/* ✅ Legend tách ra ngoài, không bị cắt */}
-  <div
-    className="flex flex-wrap justify-center gap-3 mt-3"
-    style={{ maxWidth: 400 }}
-  >
-    {pieData.map((entry, index) => (
-      <div
-        key={`legend-${index}`}
-        className="flex items-center text-sm font-medium text-gray-700"
-      >
-        <span
-          className="w-3 h-3 rounded-full mr-2"
-          style={{ backgroundColor: CATEGORY_COLORS[index % CATEGORY_COLORS.length] }}
-        ></span>
-        {entry.name}
-      </div>
-    ))}
-  </div>
-</div>
+                  {/* ✅ Legend tách ra ngoài, không bị cắt */}
+                  <div
+                    className="flex flex-wrap justify-center gap-3 mt-3"
+                    style={{ maxWidth: 400 }}
+                  >
+                    {pieData.map((entry, index) => (
+                      <div
+                        key={`legend-${index}`}
+                        className="flex items-center text-sm font-medium text-gray-700"
+                      >
+                        <span
+                          className="w-3 h-3 rounded-full mr-2"
+                          style={{ backgroundColor: CATEGORY_COLORS[index % CATEGORY_COLORS.length] }}
+                        ></span>
+                        {entry.name}
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
 
               </div>
@@ -559,65 +559,64 @@ export default function ProductStatistics() {
               </div>
 
               <div className="mt-4">
-                
+
               </div>
             </div>
           </div>
         </div>
 
         {/* Right column - Top products */}
-<div className="backdrop-blur-xl rounded-xl border p-4 lg:p-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(251, 191, 36, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}>
-  <div className="flex justify-between items-center mb-3">
-    <h4 className="text-lg font-semibold text-gray-800">Top Products</h4>
-    <button
-      onClick={handleExportTopCSV}
-      className="px-3 lg:px-4 py-2 lg:py-3 text-sm font-medium text-white bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-    >
-      Export CSV
-    </button>
-  </div>
-
-  <div className="overflow-x-auto">
-    <table className="w-full min-w-[400px]">
-      <thead className="backdrop-blur-sm border-b" style={{ borderColor: '#A86523' }}>
-        <tr>
-          <th className="px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Product</th>
-          <th className="px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">SKU</th>
-          <th className="px-2 lg:px-4 py-3 text-center text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Sold</th>
-          <th className="px-2 lg:px-4 py-3 text-center text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Stock</th>
-        </tr>
-      </thead>
-      <tbody>
-        {(topProducts && topProducts.length ? topProducts : MOCK_TOP_PRODUCTS).map((p) => (
-          <tr
-            key={p.id}
-            className="border-b-2 border-gray-200/40 hover:bg-gradient-to-r hover:from-yellow-50/50 hover:via-amber-50/50 hover:to-orange-50/50 transition-all duration-300"
-          >
-            <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm font-medium text-gray-800">{p.name}</td>
-            <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm text-gray-600">{p.sku ?? "-"}</td>
-            <td className="px-2 lg:px-4 py-3 text-center text-xs lg:text-sm text-blue-600 font-semibold">{p.sold ?? p.sales ?? 0}</td>
-            <td
-              className={`px-2 lg:px-4 py-3 text-center text-xs lg:text-sm font-semibold ${
-                (p.stock ?? p.quantity ?? 0) <= 5 ? "text-red-600" : "text-gray-700"
-              }`}
+        <div className="backdrop-blur-xl rounded-xl border p-4 lg:p-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(251, 191, 36, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}>
+          <div className="flex justify-between items-center mb-3">
+            <h4 className="text-lg font-semibold text-gray-800">Top Products</h4>
+            <button
+              onClick={handleExportTopCSV}
+              className="px-3 lg:px-4 py-2 lg:py-3 text-sm font-medium text-white bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
             >
-              {p.stock ?? p.quantity ?? 0}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
+              Export CSV
+            </button>
+          </div>
 
-  <p className="text-xs lg:text-sm text-gray-500 mt-3">
-    Showing top {(topProducts && topProducts.length) ? topProducts.length : MOCK_TOP_PRODUCTS.length} products.
-  </p>
-</div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[400px]">
+              <thead className="backdrop-blur-sm border-b" style={{ borderColor: '#A86523' }}>
+                <tr>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Product</th>
+                  <th className="px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">SKU</th>
+                  <th className="px-2 lg:px-4 py-3 text-center text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Sold</th>
+                  <th className="px-2 lg:px-4 py-3 text-center text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Stock</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(topProducts && topProducts.length ? topProducts : MOCK_TOP_PRODUCTS).map((p) => (
+                  <tr
+                    key={p.id}
+                    className="border-b-2 border-gray-200/40 hover:bg-gradient-to-r hover:from-yellow-50/50 hover:via-amber-50/50 hover:to-orange-50/50 transition-all duration-300"
+                  >
+                    <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm font-medium text-gray-800">{p.name}</td>
+                    <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm text-gray-600">{p.sku ?? "-"}</td>
+                    <td className="px-2 lg:px-4 py-3 text-center text-xs lg:text-sm text-blue-600 font-semibold">{p.sold ?? p.sales ?? 0}</td>
+                    <td
+                      className={`px-2 lg:px-4 py-3 text-center text-xs lg:text-sm font-semibold ${(p.stock ?? p.quantity ?? 0) <= 5 ? "text-red-600" : "text-gray-700"
+                        }`}
+                    >
+                      {p.stock ?? p.quantity ?? 0}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="text-xs lg:text-sm text-gray-500 mt-3">
+            Showing top {(topProducts && topProducts.length) ? topProducts.length : MOCK_TOP_PRODUCTS.length} products.
+          </p>
+        </div>
 
       </div>
 
       {/* FOOTER */}
-      
+
     </div>
   );
 }

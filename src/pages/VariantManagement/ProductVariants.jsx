@@ -285,6 +285,11 @@ const ProductVariants = () => {
     return matchesStatus && matchesProduct && matchesSearch;
   });
 
+  // Check if variant is discontinued
+  const isVariantDiscontinued = (variant) => {
+    return variant.variantStatus === 'discontinued';
+  };
+
   // Group variants by product
   const groupedVariants = filteredVariants.reduce((acc, variant) => {
     const productName = variant.productId?.productName || 'Unknown Product';
@@ -294,6 +299,22 @@ const ProductVariants = () => {
     acc[productName].push(variant);
     return acc;
   }, {});
+
+  // Sort variants within each product group: active first, discontinued last
+  Object.keys(groupedVariants).forEach((productName) => {
+    groupedVariants[productName].sort((a, b) => {
+      const aDiscontinued = isVariantDiscontinued(a);
+      const bDiscontinued = isVariantDiscontinued(b);
+
+      // Active variants come first
+      if (aDiscontinued !== bDiscontinued) {
+        return aDiscontinued ? 1 : -1;
+      }
+
+      // If both have same status, maintain original sort order
+      return 0;
+    });
+  });
 
   // Sort products (keys) for consistent display
   const sortedProductNames = Object.keys(groupedVariants).sort((a, b) =>
@@ -369,11 +390,6 @@ const ProductVariants = () => {
     setSortBy("color");
     setSortOrder("asc");
     setCurrentPage(1);
-  };
-
-  // Check if variant is inactive
-  const isVariantDiscontinued = (variant) => {
-    return variant.variantStatus === 'discontinued';
   };
 
   // Show more variants for a product (show all)
