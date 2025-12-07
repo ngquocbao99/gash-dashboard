@@ -625,12 +625,21 @@ const OrderDetails = ({ order, onClose, isOpen, autoOpenRefundModal = false }) =
                                         </p>
                                     </div>
                                 )}
-                                {/* Cancel Reason (only if cancelled) */}
+                                {/* Left Column - Cancel Reason (only if cancelled) */}
                                 {currentOrder?.order_status === 'cancelled' && (
-                                    <div className="sm:col-span-2 flex flex-col">
+                                    <div className="flex flex-col">
                                         <p className="text-xs text-gray-500 mb-0.5">Cancel Reason</p>
                                         <p className={`text-xs sm:text-sm font-medium ${currentOrder?.cancelReason ? 'text-yellow-600' : 'text-gray-600'}`}>
                                             {displayStatus(currentOrder?.cancelReason || "N/A")}
+                                        </p>
+                                    </div>
+                                )}
+                                {/* Right Column - Cancel Date (only if cancelled) */}
+                                {currentOrder?.order_status === 'cancelled' && (
+                                    <div className="flex flex-col">
+                                        <p className="text-xs text-gray-500 mb-0.5">Cancel Date</p>
+                                        <p className="text-xs sm:text-sm font-medium text-gray-900">
+                                            {formatDateTime(currentOrder?.updatedAt || currentOrder?.updated_at) || "N/A"}
                                         </p>
                                     </div>
                                 )}

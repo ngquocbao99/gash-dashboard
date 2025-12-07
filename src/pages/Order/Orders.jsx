@@ -12,7 +12,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { AuthContext } from "../../context/AuthContext";
 import { ToastContext } from "../../context/ToastContext";
 import { io } from "socket.io-client";
@@ -75,6 +75,8 @@ const Orders = () => {
     setShowOrderDetails(false);
     setSelectedOrder(null);
     setAutoOpenRefundModal(false);
+    // Reset auto-open flag when modal closes
+    hasAutoOpenedRef.current = false;
   };
 
   const { user, isAuthLoading } = useContext(AuthContext);
@@ -118,7 +120,9 @@ const Orders = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const socketRef = useRef(null);
+  const hasAutoOpenedRef = useRef(false); // Track if we've already auto-opened from URL
 
   const orderStatusOptions = [
     { value: "pending", label: "Pending" },
@@ -505,6 +509,61 @@ const Orders = () => {
       fetchOrders();
     }
   }, [user, isAuthLoading, navigate, fetchOrders]);
+
+  // Reset auto-open flag when orderId is removed from URL or when modal closes
+  useEffect(() => {
+    const orderIdFromUrl = searchParams.get("orderId");
+    if (!orderIdFromUrl) {
+      hasAutoOpenedRef.current = false;
+    }
+  }, [searchParams]);
+
+  // Auto-open Order Details modal when orderId is in URL
+  useEffect(() => {
+    const orderIdFromUrl = searchParams.get("orderId");
+
+    // Only auto-open once and if we have orders loaded
+    if (orderIdFromUrl && orders.length > 0 && !hasAutoOpenedRef.current && !showOrderDetails) {
+      // Find order in the list
+      const foundOrder = orders.find((order) => order._id === orderIdFromUrl);
+
+      if (foundOrder) {
+        // Order found in list, open modal
+        handleViewOrderDetails(foundOrder, false);
+        hasAutoOpenedRef.current = true;
+        // Clean up URL parameter
+        searchParams.delete("orderId");
+        setSearchParams(searchParams, { replace: true });
+      } else {
+        // Order not in list, fetch it separately
+        const fetchOrderDetails = async () => {
+          try {
+            const response = await Api.orders.getDetails(orderIdFromUrl);
+            if (response?.success && response?.data) {
+              handleViewOrderDetails(response.data, false);
+              hasAutoOpenedRef.current = true;
+              // Clean up URL parameter
+              searchParams.delete("orderId");
+              setSearchParams(searchParams, { replace: true });
+            } else {
+              showToast("Order not found", "error");
+              // Clean up URL parameter even if not found
+              searchParams.delete("orderId");
+              setSearchParams(searchParams, { replace: true });
+            }
+          } catch (error) {
+            console.error("Error fetching order details:", error);
+            showToast("Failed to load order details", "error");
+            // Clean up URL parameter on error
+            searchParams.delete("orderId");
+            setSearchParams(searchParams, { replace: true });
+          }
+        };
+
+        fetchOrderDetails();
+      }
+    }
+  }, [orders, searchParams, setSearchParams, showOrderDetails, showToast, handleViewOrderDetails]);
 
   useEffect(() => {
     if (!user?._id) return;
@@ -898,7 +957,7 @@ const Orders = () => {
     } catch (err) {
       // Extract error message from response
       let errorMessage = "Failed to update order";
-      
+
       if (err?.response?.data?.message) {
         errorMessage = err.response.data.message;
       } else if (err?.message) {
@@ -906,7 +965,7 @@ const Orders = () => {
       } else if (!err.response) {
         errorMessage = "Failed to update order. Please try again later.";
       }
-      
+
       showToast(errorMessage, "error");
       setUpdateError(errorMessage);
       if (err?.response?.data) {
