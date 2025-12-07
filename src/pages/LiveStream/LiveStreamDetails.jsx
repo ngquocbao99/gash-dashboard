@@ -308,7 +308,7 @@ const LiveStreamDetails = () => {
                             <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
                                 <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
                                     <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
-                                    <span className="text-xs font-medium">Peak Viewers</span>
+                                    <span className="text-xs font-medium">Total Viewers</span>
                                 </div>
                                 <p className="text-sm sm:text-base font-semibold text-gray-900">{viewerStats.peak} viewers</p>
                             </div>
