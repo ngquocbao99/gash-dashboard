@@ -52,18 +52,23 @@ const EditProfileModal = ({
       case 'image': {
         const hasImage = Boolean(currentFormData.image?.trim() || selectedFile || profile?.image);
         if (!hasImage) return 'Please fill in all required fields';
-        // Check if image is PNG or JPG when it's a URL
+        // Check if image is a valid image format when it's a URL
         if (currentFormData.image?.trim() && !selectedFile) {
           const imageUrl = currentFormData.image.trim().toLowerCase();
-          if (!imageUrl.match(/\.(png|jpg|jpeg)$/i) && !imageUrl.startsWith('data:image/')) {
-            return 'Profile picture must be a PNG or JPG image';
+          const validImageExtensions = /\.(png|jpg|jpeg|gif|webp|svg|bmp|ico|tiff|tif)$/i;
+          if (!validImageExtensions.test(imageUrl) && !imageUrl.startsWith('data:image/')) {
+            return 'Profile picture must be a valid image file';
           }
         }
-        // Check file type when a file is selected
+        // Check file type when a file is selected - allow all image types
         if (selectedFile) {
-          const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+          const validTypes = [
+            'image/png', 'image/jpeg', 'image/jpg', 'image/gif',
+            'image/webp', 'image/svg+xml', 'image/bmp',
+            'image/x-icon', 'image/tiff', 'image/x-tiff'
+          ];
           if (!validTypes.includes(selectedFile.type.toLowerCase())) {
-            return 'Profile picture must be a PNG or JPG image';
+            return 'Profile picture must be a valid image file';
           }
         }
         return null;
@@ -194,14 +199,18 @@ const EditProfileModal = ({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/png,image/jpeg,image/jpg"
+              accept="image/*"
               className="hidden"
               onChange={(e) => {
                 handleFileChange(e);
                 // Revalidate image after file change
                 if (e.target.files && e.target.files.length > 0) {
                   const file = e.target.files[0];
-                  const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+                  const validTypes = [
+                    'image/png', 'image/jpeg', 'image/jpg', 'image/gif',
+                    'image/webp', 'image/svg+xml', 'image/bmp',
+                    'image/x-icon', 'image/tiff', 'image/x-tiff'
+                  ];
                   if (validTypes.includes(file.type.toLowerCase())) {
                     setValidationErrors(prevErrors => {
                       const newErrors = { ...prevErrors };
@@ -211,7 +220,7 @@ const EditProfileModal = ({
                   } else {
                     setValidationErrors(prevErrors => ({
                       ...prevErrors,
-                      image: 'Profile picture must be a PNG or JPG image'
+                      image: 'Profile picture must be a valid image file'
                     }));
                   }
                 }
