@@ -77,7 +77,10 @@ const Feedbacks = () => {
         (feedback) =>
           feedback.order?._id &&
           feedback.variant?.variant_id &&
-          feedback.customer?._id
+          feedback.customer?._id &&
+          feedback.feedback?.rating != null &&
+          feedback.feedback.rating >= 1 &&
+          feedback.feedback.rating <= 5
       );
 
       const sortedFeedbacks = feedbacksData.sort((a, b) => {
