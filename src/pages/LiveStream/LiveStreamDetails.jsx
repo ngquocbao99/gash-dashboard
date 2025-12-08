@@ -60,9 +60,9 @@ const LiveStreamDetails = () => {
                     createdAt: livestreamData.createdAt,
                     updatedAt: livestreamData.updatedAt,
                     peakViewers: livestreamData.peakViewers || 0,
-                    peakViewersAt: livestreamData.peakViewersAt || null,
+                    peakViewersAt: livestreamData.peakViewersAt !== undefined ? livestreamData.peakViewersAt : null,
                     minViewers: livestreamData.minViewers || 0,
-                    minViewersAt: livestreamData.minViewersAt || null,
+                    minViewersAt: livestreamData.minViewersAt !== undefined ? livestreamData.minViewersAt : null,
                     currentViewers: livestreamData.currentViewers || 0,
                     duration: livestreamData.duration // Duration in milliseconds (null if still live)
                 });
@@ -120,6 +120,69 @@ const LiveStreamDetails = () => {
         } catch (error) {
             return dateString;
         }
+    };
+
+    // Helper: Get main product image URL - Always prioritize isMain=true
+    const getMainImageUrl = (liveProduct) => {
+        if (!liveProduct) return null;
+
+        // Try to get images from multiple possible locations
+        let images = [];
+
+        // 1. Check productId.productImageIds (most common from populated data)
+        if (liveProduct.productId?.productImageIds && Array.isArray(liveProduct.productId.productImageIds)) {
+            images = liveProduct.productId.productImageIds;
+        }
+        // 2. Check images array (alternative structure)
+        else if (liveProduct.productId?.images && Array.isArray(liveProduct.productId.images)) {
+            images = liveProduct.productId.images;
+        }
+        // 3. Check if liveProduct has a nested product object with images
+        else if (liveProduct.product?.productImageIds && Array.isArray(liveProduct.product.productImageIds)) {
+            images = liveProduct.product.productImageIds;
+        }
+        else if (liveProduct.product?.images && Array.isArray(liveProduct.product.images)) {
+            images = liveProduct.product.images;
+        }
+
+        if (images.length > 0) {
+            // PRIORITY 1: Find image with isMain === true (strict check)
+            const mainImage = images.find(img => img && img.isMain === true && img.imageUrl);
+            if (mainImage?.imageUrl) {
+                return mainImage.imageUrl;
+            }
+
+            // PRIORITY 2: If no main image, use first image with valid imageUrl
+            const firstImage = images.find(img => img && img.imageUrl);
+            if (firstImage?.imageUrl) {
+                return firstImage.imageUrl;
+            }
+        }
+
+        // PRIORITY 3: Check if there's a direct image URL (from WebSocket/realtime data)
+        if (liveProduct.image && typeof liveProduct.image === 'string') {
+            return liveProduct.image;
+        }
+
+        // PRIORITY 4: Try to get image from product variants (variantImage)
+        if (liveProduct.productId?.productVariantIds && Array.isArray(liveProduct.productId.productVariantIds)) {
+            for (const variant of liveProduct.productId.productVariantIds) {
+                if (variant?.variantImage && typeof variant.variantImage === 'string') {
+                    return variant.variantImage;
+                }
+            }
+        }
+
+        // PRIORITY 5: Check nested product.product for variants
+        if (liveProduct.product?.productVariantIds && Array.isArray(liveProduct.product.productVariantIds)) {
+            for (const variant of liveProduct.product.productVariantIds) {
+                if (variant?.variantImage && typeof variant.variantImage === 'string') {
+                    return variant.variantImage;
+                }
+            }
+        }
+
+        return null;
     };
 
     // Calculate duration
@@ -313,15 +376,15 @@ const LiveStreamDetails = () => {
                                 <p className="text-sm sm:text-base font-semibold text-gray-900">{viewerStats.peak} viewers</p>
                             </div>
 
-                            {livestream.peakViewersAt && (
-                                <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
-                                    <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
-                                        <Schedule className="w-3 h-3 sm:w-4 sm:h-4" />
-                                        <span className="text-xs font-medium">Peak At</span>
-                                    </div>
-                                    <p className="text-xs sm:text-sm font-semibold text-gray-900">{formatDate(livestream.peakViewersAt)}</p>
+                            <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
+                                <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
+                                    <Schedule className="w-3 h-3 sm:w-4 sm:h-4" />
+                                    <span className="text-xs font-medium">Peak At</span>
                                 </div>
-                            )}
+                                <p className="text-xs sm:text-sm font-semibold text-gray-900">
+                                    {livestream.peakViewersAt && livestream.peakViewersAt !== null ? formatDate(livestream.peakViewersAt) : 'N/A'}
+                                </p>
+                            </div>
 
                             <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
                                 <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
@@ -331,15 +394,15 @@ const LiveStreamDetails = () => {
                                 <p className="text-sm sm:text-base font-semibold text-gray-900">{viewerStats.min} viewers</p>
                             </div>
 
-                            {livestream.minViewersAt && (
-                                <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
-                                    <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
-                                        <Schedule className="w-3 h-3 sm:w-4 sm:h-4" />
-                                        <span className="text-xs font-medium">Min At</span>
-                                    </div>
-                                    <p className="text-xs sm:text-sm font-semibold text-gray-900">{formatDate(livestream.minViewersAt)}</p>
+                            <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
+                                <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
+                                    <Schedule className="w-3 h-3 sm:w-4 sm:h-4" />
+                                    <span className="text-xs font-medium">Min At</span>
                                 </div>
-                            )}
+                                <p className="text-xs sm:text-sm font-semibold text-gray-900">
+                                    {livestream.minViewersAt && livestream.minViewersAt !== null ? formatDate(livestream.minViewersAt) : 'N/A'}
+                                </p>
+                            </div>
 
                             <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
                                 <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
@@ -526,21 +589,41 @@ const LiveStreamDetails = () => {
                                 return (
                                     <div key={liveProduct._id} className={`bg-gray-50 rounded-lg border p-2.5 sm:p-3 hover:shadow-md transition-shadow flex items-center gap-3 sm:gap-4 ${!isActive ? 'opacity-60' : ''}`} style={{ borderColor: '#A86523' }}>
                                         {/* Product Image */}
-                                        {liveProduct.productId?.productImageIds && liveProduct.productId.productImageIds.length > 0 ? (
-                                            <div className="flex-shrink-0">
-                                                <img
-                                                    src={liveProduct.productId.productImageIds[0]?.imageUrl || ''}
-                                                    alt={liveProduct.productId.productName}
-                                                    className="w-20 h-20 object-cover rounded-lg"
-                                                />
-                                            </div>
-                                        ) : (
-                                            <div className="flex-shrink-0 w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center">
-                                                <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                                </svg>
-                                            </div>
-                                        )}
+                                        {(() => {
+                                            const productImageUrl = getMainImageUrl(liveProduct);
+                                            const productName = liveProduct.productId?.productName || 'Product';
+
+                                            if (productImageUrl) {
+                                                return (
+                                                    <div className="shrink-0 relative w-20 h-20">
+                                                        <img
+                                                            src={productImageUrl}
+                                                            alt={productName}
+                                                            className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                                                            onError={(e) => {
+                                                                e.target.style.display = 'none';
+                                                                if (e.target.nextSibling) {
+                                                                    e.target.nextSibling.style.display = 'flex';
+                                                                }
+                                                            }}
+                                                        />
+                                                        <div className="hidden w-20 h-20 bg-gray-200 rounded-lg items-center justify-center border border-gray-200">
+                                                            <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                            </svg>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <div className="shrink-0 w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center border border-gray-200">
+                                                    <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                    </svg>
+                                                </div>
+                                            );
+                                        })()}
 
                                         {/* Product Info */}
                                         <div className="flex-1 min-w-0">
