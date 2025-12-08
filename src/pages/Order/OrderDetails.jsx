@@ -442,6 +442,7 @@ const OrderDetails = ({ order, onClose, isOpen, autoOpenRefundModal = false }) =
                                         <table className="min-w-full divide-y divide-gray-200">
                                             <thead className="bg-gray-50">
                                                 <tr>
+                                                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Order ID</th>
                                                     <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Order Status</th>
                                                     <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Payment Method</th>
                                                     <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Payment Status</th>
@@ -450,6 +451,9 @@ const OrderDetails = ({ order, onClose, isOpen, autoOpenRefundModal = false }) =
                                             </thead>
                                             <tbody className="bg-white divide-y divide-gray-200">
                                                 <tr>
+                                                    <td className="px-3 py-2 text-xs sm:text-sm font-medium text-gray-900 font-mono">
+                                                        {currentOrder?._id || 'N/A'}
+                                                    </td>
                                                     <td className="px-3 py-2 text-xs sm:text-sm font-medium text-gray-900">
                                                         {displayStatus(currentOrder?.order_status)}
                                                     </td>

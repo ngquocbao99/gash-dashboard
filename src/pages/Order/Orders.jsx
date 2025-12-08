@@ -376,7 +376,7 @@ const Orders = () => {
         // Check if order status update is allowed
         if (!isOrderStatusUpdateAllowed(originalOrder.order_status, originalOrder.payment_method, originalOrder.pay_status)) {
           showToast(
-            "Order status cannot be updated for cancelled or delivered orders, or VNPAY unpaid orders",
+            "Order status cannot be updated for cancelled or delivered orders, or VNPAY unpaid orders, or refunded orders",
             "error"
           );
           return;
@@ -744,7 +744,7 @@ const Orders = () => {
       )
     ) {
       showToast(
-        "Order status cannot be updated for cancelled or delivered orders, or VNPAY unpaid orders",
+        "Order status cannot be updated for cancelled or delivered orders, or VNPAY unpaid orders, or refunded orders",
         "error"
       );
       return;
@@ -876,7 +876,7 @@ const Orders = () => {
       )
     ) {
       showToast(
-        "Order status cannot be updated for cancelled or delivered orders, or VNPAY unpaid orders",
+        "Order status cannot be updated for cancelled or delivered orders, or VNPAY unpaid orders, or refunded orders",
         "error"
       );
       return;
@@ -1456,7 +1456,7 @@ const Orders = () => {
                                     order.payment_method,
                                     order.pay_status
                                   )
-                                    ? "Order status cannot be updated for cancelled or delivered orders, or VNPAY unpaid orders"
+                                    ? "Order status cannot be updated for cancelled or delivered orders, or VNPAY unpaid orders, or refunded orders"
                                     : shouldDisableUpdate(
                                       order.payment_method,
                                       order.order_status,
