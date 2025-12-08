@@ -1612,6 +1612,17 @@ const LiveStreamDashboard = () => {
             return;
         }
 
+        // Check if user is the owner (host)
+        const isOwner = currentLivestream.hostId && (
+            (typeof currentLivestream.hostId === 'object' && (currentLivestream.hostId._id === user?._id || currentLivestream.hostId.id === user?._id)) ||
+            (typeof currentLivestream.hostId === 'string' && currentLivestream.hostId === user?._id)
+        );
+
+        if (!isOwner) {
+            showToast('Only the livestream owner can end the stream', 'error');
+            return;
+        }
+
         // Check if livestream is already ended
         if (currentLivestream.status === 'ended') {
             showToast('Livestream is already ended.', 'info');
@@ -1979,15 +1990,23 @@ const LiveStreamDashboard = () => {
                                 <span>{isLive ? 'LIVE' : 'Offline'}</span>
                             </div>
 
-                            {/* End Stream Button */}
-                            <button
-                                onClick={handleEndLivestream}
-                                disabled={isLoading || !isLive}
-                                className="flex items-center gap-2 px-4 py-1.5 text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed transition-all font-semibold text-sm shadow-md hover:shadow-lg bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 transform hover:scale-105 disabled:transform-none"
-                            >
-                                <Stop className="w-4 h-4" />
-                                {isLoading ? 'Stopping...' : 'End Stream'}
-                            </button>
+                            {/* End Stream Button - Only show for owner */}
+                            {currentLivestream && (() => {
+                                const isOwner = currentLivestream.hostId && (
+                                    (typeof currentLivestream.hostId === 'object' && (currentLivestream.hostId._id === user?._id || currentLivestream.hostId.id === user?._id)) ||
+                                    (typeof currentLivestream.hostId === 'string' && currentLivestream.hostId === user?._id)
+                                );
+                                return isOwner ? (
+                                    <button
+                                        onClick={handleEndLivestream}
+                                        disabled={isLoading || !isLive}
+                                        className="flex items-center gap-2 px-4 py-1.5 text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed transition-all font-semibold text-sm shadow-md hover:shadow-lg bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 transform hover:scale-105 disabled:transform-none"
+                                    >
+                                        <Stop className="w-4 h-4" />
+                                        {isLoading ? 'Stopping...' : 'End Stream'}
+                                    </button>
+                                ) : null;
+                            })()}
                         </div>
                     </div>
                 </div>
@@ -2064,7 +2083,7 @@ const LiveStreamDashboard = () => {
                                     <svg className="w-4 h-4 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                                     </svg>
-                                    Engagement
+                                    Reaction
                                 </h3>
                                 <div className="flex-1 min-h-0 overflow-hidden">
                                     <LiveStreamReactions liveId={currentLivestream._id} />
@@ -2112,7 +2131,7 @@ const LiveStreamDashboard = () => {
                             </div>
                             {/* Products Management */}
                             <div className="col-span-12 lg:col-span-3 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-120px)] max-h-[900px]">
-                                <div className="p-3 border-b border-gray-200 bg-gray-50 rounded-t-lg flex-shrink-0">
+                                <div className="p-3 border-b border-gray-200 bg-gray-50 rounded-t-lg shrink-0">
                                     <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wide flex items-center gap-2">
                                         <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -2120,8 +2139,8 @@ const LiveStreamDashboard = () => {
                                         Products Management
                                     </h3>
                                 </div>
-                                <div className="flex-1 overflow-y-auto">
-                                    <div className="p-3">
+                                <div className="flex-1 min-h-0 overflow-hidden">
+                                    <div className="p-3 h-full">
                                         <LiveStreamProducts liveId={currentLivestream._id} />
                                     </div>
                                 </div>
@@ -2132,7 +2151,7 @@ const LiveStreamDashboard = () => {
                     {/* Products Management - When comments are hidden */}
                     {currentLivestream && !showComments && (
                         <div className="col-span-12 lg:col-span-3 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-120px)] max-h-[900px]">
-                            <div className="p-3 border-b border-gray-200 bg-gray-50 rounded-t-lg flex-shrink-0">
+                            <div className="p-3 border-b border-gray-200 bg-gray-50 rounded-t-lg shrink-0">
                                 <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wide flex items-center gap-2">
                                     <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -2140,8 +2159,8 @@ const LiveStreamDashboard = () => {
                                     Products Management
                                 </h3>
                             </div>
-                            <div className="flex-1 overflow-y-auto">
-                                <div className="p-3">
+                            <div className="flex-1 min-h-0 overflow-hidden">
+                                <div className="p-3 h-full">
                                     <LiveStreamProducts liveId={currentLivestream._id} />
                                 </div>
                             </div>

@@ -685,12 +685,14 @@ const LiveStreamManagement = () => {
                 }
                 return null;
             case 'description':
-                // Description is optional, but if provided, must be valid
-                if (value && value.trim() !== '') {
-                    const trimmedDescription = value.trim();
-                    if (trimmedDescription.length > 100) {
-                        return 'Livestream description must be at most 100 characters';
-                    }
+                // Description is required
+                if (!value || value.trim() === '') {
+                    return 'Please fill in all required fields';
+                }
+                const trimmedDescription = value.trim();
+                if (trimmedDescription.length < 10 || trimmedDescription.length > 100) {
+                    return 'Livestream description must be between 10 and 100 characters';
+
                 }
                 return null;
             default:
@@ -1351,7 +1353,7 @@ const LiveStreamManagement = () => {
 
                                         <div>
                                             <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                                Stream Description
+                                                Stream Description <span className="text-red-500">*</span>
                                             </label>
                                             <textarea
                                                 value={startForm.description}

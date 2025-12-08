@@ -351,11 +351,11 @@ const Profile = () => {
 
       await Api.passkeys.verifyRegistration(verifyData, token);
 
-      showToast('Biometric authentication set up successfully!', 'success', 2000);
+      showToast('Passkey authentication set up successfully!', 'success', 2000);
       fetchPasskeys();
     } catch (err) {
       console.error('Passkey setup error:', err);
-      const errorMsg = err.response?.data?.message || 'Failed to set up biometric authentication';
+      const errorMsg = err.response?.data?.message || 'Failed to set up passkey authentication';
       showToast(errorMsg, 'error', 3000);
     } finally {
       setIsSettingUpPasskey(false);
@@ -379,13 +379,13 @@ const Profile = () => {
       }
 
       await Api.passkeys.deletePasskey(passkeyToDelete, token);
-      showToast('Biometric authentication removed successfully!', 'success', 2000);
+      showToast('Passkey authentication removed successfully!', 'success', 2000);
       fetchPasskeys();
       setShowDeletePasskeyModal(false);
       setPasskeyToDelete(null);
     } catch (err) {
       console.error('Delete passkey error:', err);
-      const errorMsg = err.response?.data?.message || 'Failed to remove biometric authentication';
+      const errorMsg = err.response?.data?.message || 'Failed to remove passkey authentication';
       showToast(errorMsg, 'error', 3000);
     } finally {
       setIsDeletingPasskey(false);
@@ -517,8 +517,8 @@ const Profile = () => {
                         {isSettingUpPasskey
                           ? 'Setting up...'
                           : passkeys.length > 0
-                            ? 'Biometrics Already Set Up'
-                            : 'Set Up Biometrics'}
+                            ? 'Passkeys Already Set Up'
+                            : 'Set Up Passkeys'}
                       </button>
                     </div>
                   ) : (
@@ -671,7 +671,7 @@ const Profile = () => {
 
                       {/* Passkeys Section */}
                       <div className="mt-6 space-y-3">
-                        <h3 className="text-lg font-medium text-gray-900">Biometric Authentication</h3>
+                        <h3 className="text-lg font-medium text-gray-900">Passkey Authentication</h3>
                         {passkeys.length > 0 ? (
                           <div className="space-y-2">
                             {passkeys.map((passkey) => (
@@ -692,7 +692,7 @@ const Profile = () => {
                                 <button
                                   onClick={() => handleDeletePasskey(passkey.id)}
                                   className="text-red-600 hover:text-red-800 text-sm font-medium"
-                                  aria-label="Remove biometric authentication"
+                                  aria-label="Remove passkey authentication"
                                 >
                                   Remove
                                 </button>
@@ -701,7 +701,7 @@ const Profile = () => {
                           </div>
                         ) : (
                           <div className="p-4 bg-gray-50 rounded-md border border-gray-200 text-center">
-                            <p className="text-sm text-gray-600">No biometric authentication set up yet. Click "Set Up Biometrics" to use Touch ID, Face ID, or Windows Hello.</p>
+                            <p className="text-sm text-gray-600">No passkey authentication set up yet. Click "Set Up Passkey" to use Touch ID, Face ID, or Windows Hello.</p>
                           </div>
                         )}
                       </div>
@@ -735,12 +735,12 @@ const Profile = () => {
 
       <DeleteConfirmModal
         isOpen={showDeletePasskeyModal && !!passkeyToDelete}
-        title="Remove Biometric Authentication"
+        title="Remove Passkey Authentication"
         message={
           <>
-            Are you sure you want to remove this biometric device?
+            Are you sure you want to remove this passkey device?
             <br />
-            <span className="text-sm text-gray-500">You will need to set it up again to use biometric login.</span>
+            <span className="text-sm text-gray-500">You will need to set it up again to use passkey login.</span>
           </>
         }
         onConfirm={confirmDeletePasskey}

@@ -2,6 +2,14 @@ import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import Api from '../../../common/SummaryAPI';
 import Loading from '../../../components/Loading';
 import { useToast } from '../../../hooks/useToast';
+import io from 'socket.io-client';
+
+// Normalize socket URL
+const getSocketURL = () => {
+    const url = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    return url.replace(/\/$/, '');
+};
+const SOCKET_URL = getSocketURL();
 
 const LiveStreamProducts = ({ liveId }) => {
     const { showToast } = useToast();
@@ -50,12 +58,91 @@ const LiveStreamProducts = ({ liveId }) => {
     };
 
     // Helper: Get main product image URL
+    // Handles multiple data structures from backend
     const getMainImageUrl = (product) => {
         if (!product) return null;
-        const images = product.productImageIds || product.images || [];
+
+        // Try multiple possible paths for images array
+        let images = [];
+
+        // Path 1: productImageIds (most common) - check if it's an array
+        if (product.productImageIds) {
+            if (Array.isArray(product.productImageIds)) {
+                images = product.productImageIds;
+            }
+            // If it's an object (nested), try to extract array
+            else if (typeof product.productImageIds === 'object' && product.productImageIds !== null) {
+                if (Array.isArray(product.productImageIds.data)) {
+                    images = product.productImageIds.data;
+                } else if (Array.isArray(product.productImageIds.images)) {
+                    images = product.productImageIds.images;
+                }
+            }
+        }
+
+        // Path 2: images (alternative) - only if we haven't found images yet
+        if (images.length === 0 && product.images) {
+            if (Array.isArray(product.images)) {
+                images = product.images;
+            } else if (typeof product.images === 'object' && product.images !== null) {
+                if (Array.isArray(product.images.data)) {
+                    images = product.images.data;
+                }
+            }
+        }
+
+        // Path 3: Check if product has a populated productId with images
+        if (images.length === 0 && product.productId && typeof product.productId === 'object' && product.productId !== null) {
+            // Try productImageIds first
+            if (Array.isArray(product.productId.productImageIds)) {
+                images = product.productId.productImageIds;
+            }
+            // Try productIdImageIds (alternative field name)
+            else if (Array.isArray(product.productId.productIdImageIds)) {
+                images = product.productId.productIdImageIds;
+            }
+            // Try images
+            else if (Array.isArray(product.productId.images)) {
+                images = product.productId.images;
+            }
+            // Try nested structure
+            else if (product.productId.productImageIds && typeof product.productId.productImageIds === 'object') {
+                if (Array.isArray(product.productId.productImageIds.data)) {
+                    images = product.productId.productImageIds.data;
+                }
+            }
+            else if (product.productId.productIdImageIds && typeof product.productId.productIdImageIds === 'object') {
+                if (Array.isArray(product.productId.productIdImageIds.data)) {
+                    images = product.productId.productIdImageIds.data;
+                }
+            }
+        }
+
         if (images.length === 0) return null;
-        const mainImage = images.find(img => img.isMain === true);
-        return mainImage?.imageUrl || images[0]?.imageUrl || null;
+
+        // Filter out invalid images (null, undefined, empty strings)
+        const validImages = images.filter(img => {
+            if (!img || typeof img !== 'object') return false;
+            const url = img.imageUrl || img.url;
+            return url && typeof url === 'string' && url.trim().length > 0;
+        });
+
+        if (validImages.length === 0) return null;
+
+        // Find main image or use first image
+        const mainImage = validImages.find(img => {
+            const isMain = img.isMain === true || img.isMain === 'true' || img.isMain === 1;
+            return isMain;
+        });
+
+        const imageUrl = mainImage?.imageUrl || mainImage?.url || validImages[0]?.imageUrl || validImages[0]?.url;
+
+        // Ensure it's a valid URL string
+        if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim().length > 0) {
+            return imageUrl.trim();
+        }
+
+        return null;
     };
 
     // Helper: Format date/time
@@ -134,6 +221,66 @@ const LiveStreamProducts = ({ liveId }) => {
     useEffect(() => {
         loadLiveProducts();
     }, [loadLiveProducts]);
+
+    // Setup Socket.IO for realtime product updates
+    useEffect(() => {
+        if (!liveId || !hasLiveId) return;
+
+        const socket = io(SOCKET_URL, {
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000,
+        });
+
+        socket.on('connect', () => {
+            socket.emit('joinLivestreamRoom', liveId);
+        });
+
+        socket.on('disconnect', () => {
+            // Socket will auto-reconnect
+        });
+
+        // Listen for product events
+        socket.on('product:added', (data) => {
+            if (data?.liveId === liveId) {
+                loadLiveProducts();
+            }
+        });
+
+        socket.on('product:removed', (data) => {
+            if (data?.liveId === liveId) {
+                loadLiveProducts();
+            }
+        });
+
+        socket.on('product:pinned', (data) => {
+            if (data?.liveId === liveId) {
+                loadLiveProducts();
+            }
+        });
+
+        socket.on('product:unpinned', (data) => {
+            if (data?.liveId === liveId) {
+                loadLiveProducts();
+            }
+        });
+
+        // Cleanup
+        return () => {
+            if (socket.connected) {
+                socket.emit('leaveLivestreamRoom', liveId);
+            }
+            socket.off('connect');
+            socket.off('disconnect');
+            socket.off('product:added');
+            socket.off('product:removed');
+            socket.off('product:pinned');
+            socket.off('product:unpinned');
+            socket.close();
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [liveId, hasLiveId]);
 
     // Load all products for dropdown
     const loadAllProducts = useCallback(async () => {
@@ -375,7 +522,7 @@ const LiveStreamProducts = ({ liveId }) => {
     return (
         <div className="bg-transparent rounded-lg p-0 flex flex-col h-full">
             {/* Header with stats and refresh */}
-            <div className="flex items-center justify-between mb-4 pb-3 pt-2 border-b border-gray-200 flex-shrink-0">
+            <div className="flex items-center justify-between mb-4 pb-3 pt-2 border-b border-gray-200 shrink-0">
                 <div className="flex items-center gap-3">
                     <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Products</h3>
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-300 shadow-sm">
@@ -398,7 +545,7 @@ const LiveStreamProducts = ({ liveId }) => {
             </div>
 
             {/* Add product section - Compact */}
-            <div className="mb-3 p-3 bg-white rounded-lg border border-gray-200 shadow-sm flex-shrink-0">
+            <div className="mb-3 p-3 bg-white rounded-lg border border-gray-200 shadow-sm shrink-0">
                 <div className="space-y-3">
                     {/* Search input - inline */}
                     <div className="relative">
@@ -523,63 +670,143 @@ const LiveStreamProducts = ({ liveId }) => {
                 </div>
             </div>
 
-            {/* List live products - Compact */}
-            <div className="flex-1 min-h-0 flex flex-col">
-                {isLoading ? (
-                    <div className="grid gap-2 flex-1">
-                        {[...Array(3)].map((_, i) => (
-                            <div key={i} className="p-3 rounded-lg border border-gray-200 bg-gray-50 animate-pulse h-16" />
-                        ))}
-                    </div>
-                ) : liveProducts.length === 0 ? (
-                    <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300 flex-1 flex flex-col items-center justify-center">
-                        <svg className="w-10 h-10 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            {/* Pinned Products Section - Fixed, no scroll */}
+            {!isLoading && liveProducts.some(lp => lp.isPinned === true) && (
+                <div className="bg-gradient-to-br from-yellow-50 via-amber-50 to-yellow-50 border border-yellow-300 rounded-lg p-3 mb-4 shrink-0">
+                    <div className="flex items-center gap-2 mb-2">
+                        <svg className="w-4 h-4 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" />
                         </svg>
-                        <p className="text-sm text-gray-600 font-medium">No products in livestream</p>
-                        <p className="text-xs text-gray-500 mt-1">Add products using the form above</p>
+                        <span className="text-yellow-700 text-xs font-bold uppercase tracking-wide">
+                            Pinned Products
+                        </span>
                     </div>
-                ) : (
-                    <>
-                        {liveProducts.length > 20 && (
-                            <div className="flex justify-end mb-2 flex-shrink-0">
-                                <button
-                                    onClick={() => setShowAllProducts(!showAllProducts)}
-                                    className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
-                                >
-                                    {showAllProducts ? 'Show Less' : `View All (${liveProducts.length})`}
-                                </button>
-                            </div>
-                        )}
-                        <div className={`flex-1 overflow-y-auto space-y-2 pr-1 ${showAllProducts ? '' : ''}`}>
-                            {(showAllProducts ? liveProducts : liveProducts.slice(0, 20)).map((lp) => {
-                                const product = lp.productId || lp.product || {};
+                    <div className="space-y-2">
+                        {liveProducts
+                            .filter(lp => lp.isPinned === true)
+                            .map((lp, index) => {
+                                // Try multiple paths to get product data
+                                let product = null;
+
+                                // Path 1: productId is populated object
+                                if (lp.productId && typeof lp.productId === 'object' && lp.productId !== null && !Array.isArray(lp.productId)) {
+                                    product = lp.productId;
+                                }
+                                // Path 2: product (alternative field)
+                                else if (lp.product && typeof lp.product === 'object' && lp.product !== null) {
+                                    product = lp.product;
+                                }
+                                // Path 3: productId is string, need to find from allProducts
+                                else if (lp.productId && typeof lp.productId === 'string') {
+                                    product = allProducts.find(p => {
+                                        const pId = p?._id || p?.id;
+                                        return pId && String(pId) === String(lp.productId);
+                                    }) || {};
+                                }
+                                // Path 4: Fallback to empty object
+                                else {
+                                    product = {};
+                                }
+
                                 const productName = getProductName(product);
-                                const productId = product._id || lp.productId?._id || lp.productId || '';
-                                const productImageUrl = getMainImageUrl(product);
+                                const productId = product._id || product.id || lp.productId?._id || (typeof lp.productId === 'string' ? lp.productId : '') || '';
+                                const uniqueKey = lp._id || `${productId}_${index}` || `product_${index}`;
+                                let productImageUrl = getMainImageUrl(product);
+
+                                // Image handling logic (same as below)
+                                if (!productImageUrl && lp.productId) {
+                                    if (typeof lp.productId === 'object' && lp.productId !== null) {
+                                        let directImages = lp.productId.productImageIds;
+                                        if (!Array.isArray(directImages) || directImages.length === 0) {
+                                            directImages = lp.productId.productIdImageIds;
+                                        }
+                                        if (Array.isArray(directImages) && directImages.length > 0) {
+                                            let validImg = directImages.find(img => {
+                                                const isMain = img?.isMain === true || img?.isMain === 'true' || img?.isMain === 1;
+                                                if (!isMain) return false;
+                                                const url = img?.imageUrl || img?.url;
+                                                return url && typeof url === 'string' && url.trim().length > 0;
+                                            });
+                                            if (!validImg) {
+                                                validImg = directImages.find(img => {
+                                                    const url = img?.imageUrl || img?.url;
+                                                    return url && typeof url === 'string' && url.trim().length > 0;
+                                                });
+                                            }
+                                            if (validImg) {
+                                                productImageUrl = validImg.imageUrl || validImg.url;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (!productImageUrl && lp.productId) {
+                                    let searchId = null;
+                                    if (typeof lp.productId === 'string') {
+                                        searchId = lp.productId;
+                                    } else if (typeof lp.productId === 'object' && lp.productId?._id) {
+                                        searchId = lp.productId._id;
+                                    }
+                                    if (searchId) {
+                                        const fullProduct = allProducts.find(p => {
+                                            const pId = p?._id || p?.id;
+                                            return pId && String(pId) === String(searchId);
+                                        });
+                                        if (fullProduct) {
+                                            productImageUrl = getMainImageUrl(fullProduct);
+                                        }
+                                    }
+                                }
+
+                                if (!productImageUrl && lp.productImageIds) {
+                                    if (Array.isArray(lp.productImageIds) && lp.productImageIds.length > 0) {
+                                        const validImg = lp.productImageIds.find(img => {
+                                            if (typeof img === 'string') return img.trim().length > 0;
+                                            const url = img?.imageUrl || img?.url;
+                                            return url && typeof url === 'string' && url.trim().length > 0;
+                                        });
+                                        if (validImg) {
+                                            productImageUrl = typeof validImg === 'string'
+                                                ? validImg
+                                                : (validImg.imageUrl || validImg.url);
+                                        }
+                                    }
+                                }
 
                                 return (
                                     <div
-                                        key={lp._id || productId}
-                                        className={`group p-3 rounded-lg border transition-all flex items-center gap-3 ${lp.isPinned
-                                            ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-300 shadow-md'
-                                            : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'
-                                            }`}
+                                        key={uniqueKey}
+                                        className="group p-3 rounded-lg border transition-all flex items-center gap-3 min-h-[80px] bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-300 shadow-md"
                                     >
                                         {/* Product Image */}
-                                        <div className="flex-shrink-0">
+                                        <div className="flex-shrink-0 relative">
                                             {productImageUrl ? (
                                                 <img
+                                                    key={`img-${uniqueKey}-${productImageUrl}`}
                                                     src={productImageUrl}
-                                                    alt={productName}
+                                                    alt={productName || 'Product image'}
                                                     className="w-12 h-12 object-cover rounded-lg border border-gray-200"
+                                                    loading="lazy"
                                                     onError={(e) => {
-                                                        e.target.style.display = 'none';
-                                                        e.target.nextSibling.style.display = 'flex';
+                                                        const imgElement = e.target;
+                                                        imgElement.style.display = 'none';
+                                                        const placeholder = imgElement.nextElementSibling;
+                                                        if (placeholder) {
+                                                            placeholder.style.display = 'flex';
+                                                        }
+                                                    }}
+                                                    onLoad={(e) => {
+                                                        const placeholder = e.target.nextElementSibling;
+                                                        if (placeholder) {
+                                                            placeholder.style.display = 'none';
+                                                        }
                                                     }}
                                                 />
                                             ) : null}
-                                            <div className={`w-12 h-12 bg-gray-100 rounded-lg border border-gray-200 items-center justify-center ${productImageUrl ? 'hidden' : 'flex'}`}>
+                                            <div
+                                                className={`w-12 h-12 bg-gray-100 rounded-lg border border-gray-200 items-center justify-center ${productImageUrl ? 'hidden' : 'flex'}`}
+                                                style={{ display: productImageUrl ? 'none' : 'flex' }}
+                                            >
                                                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                                 </svg>
@@ -590,16 +817,13 @@ const LiveStreamProducts = ({ liveId }) => {
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2 mb-1">
                                                 <span className="text-sm font-medium text-gray-900 truncate">{productName}</span>
-                                                {lp.isPinned && (
-                                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-200 text-yellow-800 border border-yellow-400">
-                                                        <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
-                                                            <path d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" />
-                                                        </svg>
-                                                        PINNED
-                                                    </span>
-                                                )}
+                                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-200 text-yellow-800 border border-yellow-400">
+                                                    <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" />
+                                                    </svg>
+                                                    PINNED
+                                                </span>
                                             </div>
-                                            {/* AddBy and time info */}
                                             {lp.addedAt && (
                                                 <div className="flex items-center gap-1.5 text-xs text-gray-500">
                                                     {lp.addBy && (
@@ -613,54 +837,273 @@ const LiveStreamProducts = ({ liveId }) => {
                                             )}
                                         </div>
 
-                                        {/* Actions - Compact */}
+                                        {/* Actions */}
                                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                                            {lp.isPinned ? (
-                                                <button
-                                                    onClick={() => handleUnpin(lp)}
-                                                    disabled={isSubmitting}
-                                                    className="p-1.5 text-yellow-700 hover:bg-gradient-to-r hover:from-yellow-50 hover:to-amber-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
-                                                    title="Unpin product"
-                                                >
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7l4-4m0 0l4 4m-4-4v18" />
-                                                    </svg>
-                                                </button>
-                                            ) : (
-                                                <button
-                                                    onClick={() => handlePin(lp)}
-                                                    disabled={isSubmitting}
-                                                    className="p-1.5 text-yellow-600 hover:bg-gradient-to-r hover:from-yellow-50 hover:to-amber-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
-                                                    title="Pin product"
-                                                >
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                                                    </svg>
-                                                </button>
-                                            )}
+                                            <button
+                                                onClick={() => handleUnpin(lp)}
+                                                disabled={isSubmitting}
+                                                className="p-1.5 text-yellow-700 hover:bg-gradient-to-r hover:from-yellow-50 hover:to-amber-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
+                                                title="Unpin product"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7l4-4m0 0l4 4m-4-4v18" />
+                                                </svg>
+                                            </button>
                                             <button
                                                 onClick={() => handleRemoveFromLive(lp)}
                                                 disabled={isSubmitting}
-                                                className="p-1.5 text-red-600 hover:bg-gradient-to-r hover:from-red-50 hover:to-rose-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
-                                                title="Remove product from live"
+                                                className="p-1.5 text-red-600 hover:bg-red-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
+                                                title="Remove product"
                                             >
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                                 </svg>
                                             </button>
                                         </div>
                                     </div>
                                 );
                             })}
-                        </div>
-                        {!showAllProducts && liveProducts.length > 20 && (
-                            <p className="text-xs text-gray-500 mt-2 text-center">
-                                Showing 20 of {liveProducts.length} products
-                            </p>
-                        )}
-                    </>
-                )}
-            </div>
+                    </div>
+                </div>
+            )}
+
+            {/* List live products - Compact - Only unpinned products scroll */}
+            {isLoading ? (
+                <div className="grid gap-2 overflow-y-auto pr-1" style={{ maxHeight: 'calc(5 * 80px)' }}>
+                    {[...Array(3)].map((_, i) => (
+                        <div key={i} className="p-3 rounded-lg border border-gray-200 bg-gray-50 animate-pulse h-16" />
+                    ))}
+                </div>
+            ) : liveProducts.length === 0 ? (
+                <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300 flex flex-col items-center justify-center">
+                    <svg className="w-10 h-10 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                    <p className="text-sm text-gray-600 font-medium">No products in livestream</p>
+                    <p className="text-xs text-gray-500 mt-1">Add products using the form above</p>
+                </div>
+            ) : (
+                <div className="overflow-y-auto pr-1" style={{ maxHeight: 'calc(5 * 80px)' }}>
+                    <div className="space-y-2">
+                        {liveProducts.filter(lp => !lp.isPinned).map((lp, index) => {
+                            // Try multiple paths to get product data
+                            let product = null;
+
+                            // Path 1: productId is populated object
+                            if (lp.productId && typeof lp.productId === 'object' && lp.productId !== null && !Array.isArray(lp.productId)) {
+                                product = lp.productId;
+                            }
+                            // Path 2: product (alternative field)
+                            else if (lp.product && typeof lp.product === 'object' && lp.product !== null) {
+                                product = lp.product;
+                            }
+                            // Path 3: productId is string, need to find from allProducts
+                            else if (lp.productId && typeof lp.productId === 'string') {
+                                product = allProducts.find(p => {
+                                    const pId = p?._id || p?.id;
+                                    return pId && String(pId) === String(lp.productId);
+                                }) || {};
+                            }
+                            // Path 4: Fallback to empty object
+                            else {
+                                product = {};
+                            }
+
+                            const productName = getProductName(product);
+                            // Ensure unique key for each product
+                            const productId = product._id || product.id || lp.productId?._id || (typeof lp.productId === 'string' ? lp.productId : '') || '';
+                            const uniqueKey = lp._id || `${productId}_${index}` || `product_${index}`;
+
+                            // Try to get image from multiple sources
+                            let productImageUrl = getMainImageUrl(product);
+
+                            // If no image found, try direct access to productImageIds in liveProduct.productId
+                            if (!productImageUrl && lp.productId) {
+                                // Try if productId is an object with productImageIds
+                                if (typeof lp.productId === 'object' && lp.productId !== null) {
+                                    // Try productImageIds first
+                                    let directImages = lp.productId.productImageIds;
+                                    // Try productIdImageIds (alternative field name)
+                                    if (!Array.isArray(directImages) || directImages.length === 0) {
+                                        directImages = lp.productId.productIdImageIds;
+                                    }
+
+                                    if (Array.isArray(directImages) && directImages.length > 0) {
+                                        // Find main image first
+                                        let validImg = directImages.find(img => {
+                                            const isMain = img?.isMain === true || img?.isMain === 'true' || img?.isMain === 1;
+                                            if (!isMain) return false;
+                                            const url = img?.imageUrl || img?.url;
+                                            return url && typeof url === 'string' && url.trim().length > 0;
+                                        });
+
+                                        // If no main image, use first valid image
+                                        if (!validImg) {
+                                            validImg = directImages.find(img => {
+                                                const url = img?.imageUrl || img?.url;
+                                                return url && typeof url === 'string' && url.trim().length > 0;
+                                            });
+                                        }
+
+                                        if (validImg) {
+                                            productImageUrl = validImg.imageUrl || validImg.url;
+                                        }
+                                    }
+                                }
+                            }
+
+                            // If no image found, try getting from allProducts if productId is a string
+                            if (!productImageUrl && lp.productId) {
+                                let searchId = null;
+                                if (typeof lp.productId === 'string') {
+                                    searchId = lp.productId;
+                                } else if (typeof lp.productId === 'object' && lp.productId?._id) {
+                                    searchId = lp.productId._id;
+                                }
+
+                                if (searchId) {
+                                    const fullProduct = allProducts.find(p => {
+                                        const pId = p?._id || p?.id;
+                                        return pId && String(pId) === String(searchId);
+                                    });
+                                    if (fullProduct) {
+                                        productImageUrl = getMainImageUrl(fullProduct);
+                                    }
+                                }
+                            }
+
+                            // Last resort: try to get image from liveProduct directly (if backend structure is different)
+                            if (!productImageUrl && lp.productImageIds) {
+                                if (Array.isArray(lp.productImageIds) && lp.productImageIds.length > 0) {
+                                    const validImg = lp.productImageIds.find(img => {
+                                        if (typeof img === 'string') return img.trim().length > 0;
+                                        const url = img?.imageUrl || img?.url;
+                                        return url && typeof url === 'string' && url.trim().length > 0;
+                                    });
+                                    if (validImg) {
+                                        productImageUrl = typeof validImg === 'string'
+                                            ? validImg
+                                            : (validImg.imageUrl || validImg.url);
+                                    }
+                                }
+                            }
+
+                            return (
+                                <div
+                                    key={uniqueKey}
+                                    className={`group p-3 rounded-lg border transition-all flex items-center gap-3 min-h-[80px] ${lp.isPinned
+                                        ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-300 shadow-md'
+                                        : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'
+                                        }`}
+                                >
+                                    {/* Product Image */}
+                                    <div className="flex-shrink-0 relative">
+                                        {productImageUrl ? (
+                                            <img
+                                                key={`img-${uniqueKey}-${productImageUrl}`}
+                                                src={productImageUrl}
+                                                alt={productName || 'Product image'}
+                                                className="w-12 h-12 object-cover rounded-lg border border-gray-200"
+                                                loading="lazy"
+                                                onError={(e) => {
+                                                    console.warn('❌ Image failed to load:', productImageUrl, 'for product:', productName);
+                                                    // Hide the broken image
+                                                    const imgElement = e.target;
+                                                    imgElement.style.display = 'none';
+                                                    // Show placeholder
+                                                    const placeholder = imgElement.nextElementSibling;
+                                                    if (placeholder) {
+                                                        placeholder.style.display = 'flex';
+                                                    }
+                                                }}
+                                                onLoad={(e) => {
+                                                    // Ensure placeholder is hidden when image loads successfully
+                                                    const placeholder = e.target.nextElementSibling;
+                                                    if (placeholder) {
+                                                        placeholder.style.display = 'none';
+                                                    }
+                                                }}
+                                            />
+                                        ) : null}
+                                        <div
+                                            className={`w-12 h-12 bg-gray-100 rounded-lg border border-gray-200 items-center justify-center ${productImageUrl ? 'hidden' : 'flex'}`}
+                                            style={{ display: productImageUrl ? 'none' : 'flex' }}
+                                        >
+                                            <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                            </svg>
+                                        </div>
+                                    </div>
+
+                                    {/* Product Info */}
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-sm font-medium text-gray-900 truncate">{productName}</span>
+                                            {lp.isPinned && (
+                                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-200 text-yellow-800 border border-yellow-400">
+                                                    <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" />
+                                                    </svg>
+                                                    PINNED
+                                                </span>
+                                            )}
+                                        </div>
+                                        {/* AddBy and time info */}
+                                        {lp.addedAt && (
+                                            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                                {lp.addBy && (
+                                                    <>
+                                                        <span>by {lp.addBy.name || lp.addBy.username || 'Unknown'}</span>
+                                                        <span>•</span>
+                                                    </>
+                                                )}
+                                                <span>{formatDateTime(lp.addedAt)}</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Actions - Compact */}
+                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                        {lp.isPinned ? (
+                                            <button
+                                                onClick={() => handleUnpin(lp)}
+                                                disabled={isSubmitting}
+                                                className="p-1.5 text-yellow-700 hover:bg-gradient-to-r hover:from-yellow-50 hover:to-amber-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
+                                                title="Unpin product"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7l4-4m0 0l4 4m-4-4v18" />
+                                                </svg>
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={() => handlePin(lp)}
+                                                disabled={isSubmitting}
+                                                className="p-1.5 text-yellow-600 hover:bg-gradient-to-r hover:from-yellow-50 hover:to-amber-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
+                                                title="Pin product"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                                                </svg>
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => handleRemoveFromLive(lp)}
+                                            disabled={isSubmitting}
+                                            className="p-1.5 text-red-600 hover:bg-gradient-to-r hover:from-red-50 hover:to-rose-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
+                                            title="Remove product from live"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
