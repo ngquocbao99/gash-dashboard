@@ -29,6 +29,7 @@ import { AuthContext } from "../../context/AuthContext";
 import Loading from "../../components/Loading";
 import { motion } from "framer-motion";
 import axios from "axios";
+import { useToast } from "../../hooks/useToast";
 
 // icons
 import {
@@ -131,6 +132,7 @@ const CATEGORY_COLORS = [
    =========================== */
 export default function ProductStatistics() {
   const { user, isAuthLoading } = useContext(AuthContext);
+  const { showToast } = useToast();
   const printRef = useRef(null);
 
   // loading & error
@@ -224,7 +226,7 @@ export default function ProductStatistics() {
       }
 
     } catch (err) {
-      console.error("❌ Error fetching stats:", err);
+      console.error("Error fetching stats:", err);
       if (mounted) setError("Error fetching product statistics");
     } finally {
       if (mounted) setLoading(false);
@@ -259,13 +261,13 @@ export default function ProductStatistics() {
       link.remove();
     } catch (err) {
       console.error("Export Excel failed", err);
-      alert("❌ Failed to export Excel");
+      showToast("Failed to export Excel", "error");
     }
   };
 
   const handleExportTopCSV = () => {
     if (!topProducts || topProducts.length === 0) {
-      alert("No top products to export");
+      showToast("No top products to export", "info");
       return;
     }
     const header = ["Name", "SKU", "Sold", "Stock"];
@@ -512,7 +514,7 @@ export default function ProductStatistics() {
     </PieChart>
   </ResponsiveContainer>
 
-  {/* ✅ Legend tách ra ngoài, không bị cắt */}
+  {/* Legend tách ra ngoài, không bị cắt */}
   <div
     className="flex flex-wrap justify-center gap-3 mt-3"
     style={{ maxWidth: 400 }}

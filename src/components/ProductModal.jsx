@@ -376,7 +376,7 @@ const ProductModal = ({
         // Validate all files are images
         const allImagesValid = files.every(file => file.type.startsWith('image/'));
         if (!allImagesValid) {
-            alert('All files must be images');
+            showToast('All files must be images', 'error');
             e.target.value = '';
             return;
         }

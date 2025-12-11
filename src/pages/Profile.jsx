@@ -280,7 +280,7 @@ const Profile = () => {
             }
           })
           .catch((err) => {
-            console.error("❌ Upload failed details:", {
+            console.error("Upload failed details:", {
               message: err.message,
               status: err.response?.status,
               data: err.response?.data,

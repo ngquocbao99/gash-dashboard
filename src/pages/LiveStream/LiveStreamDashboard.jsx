@@ -426,7 +426,7 @@ const LiveStreamDashboard = () => {
                             setIsAudioEnabled(true);
                         }
                         await startMediaStream();
-                        // console.log('✅ Media stream started successfully');
+                        // console.log('Media stream started successfully');
 
                         // Verify audio track exists and is enabled
                         const audioTrack = streamRef.current?.getAudioTracks()[0];
@@ -436,7 +436,7 @@ const LiveStreamDashboard = () => {
                             setIsAudioPlaying(true);
                         }
                     } catch (error) {
-                        console.error('❌ Failed to start media stream:', error);
+                        console.error('Failed to start media stream:', error);
                         autoConnectAttemptedRef.current = false;
                         showToast('Unable to access camera/microphone', 'error');
                         return;
@@ -455,15 +455,15 @@ const LiveStreamDashboard = () => {
                 try {
                     const tokenResponse = await Api.livestream.getToken({ roomName: currentLivestream.roomName });
                     if (tokenResponse.success) {
-                        // console.log('✅ Token obtained, connecting to LiveKit...');
+                        // console.log('Token obtained, connecting to LiveKit...');
                         await connectToLiveKit(currentLivestream.roomName, tokenResponse.data.token);
                     } else {
-                        console.error('❌ Failed to get token:', tokenResponse);
+                        console.error('Failed to get token:', tokenResponse);
                         showToast('Unable to get token', 'error');
                         autoConnectAttemptedRef.current = false; // Reset on error to allow retry
                     }
                 } catch (error) {
-                    console.error('❌ Error getting token:', error);
+                    console.error('Error getting token:', error);
                     showToast('Error getting token', 'error');
                     autoConnectAttemptedRef.current = false; // Reset on error to allow retry
                 }
@@ -555,7 +555,7 @@ const LiveStreamDashboard = () => {
 
                 // Always ensure audio track is enabled
                 track.enabled = true;
-                // console.log(`✅ Audio track ${index} enabled:`, track.enabled);
+                // console.log(`Audio track ${index} enabled:`, track.enabled);
 
                 // Ensure audio track is not muted
                 if (track.muted) {
@@ -580,14 +580,14 @@ const LiveStreamDashboard = () => {
                 } catch (playError) {
                     // Ignore AbortError - it happens when play is interrupted by a new load
                     if (playError.name !== 'AbortError') {
-                        console.error('❌ Error playing video:', playError);
+                        console.error('Error playing video:', playError);
                     }
                 }
             }
 
             return stream;
         } catch (error) {
-            console.error('❌ Error starting media stream:', error);
+            console.error('Error starting media stream:', error);
             setMediaError('Unable to access camera/microphone: ' + error.message);
             showToast('Unable to access camera/microphone', 'error');
             throw error;
@@ -705,7 +705,7 @@ const LiveStreamDashboard = () => {
                                 videoTrack.enabled = newValue;
                                 setIsPublishing(true);
                             } else {
-                                console.error('❌ Error publishing video track:', publishError);
+                                console.error('Error publishing video track:', publishError);
                                 showToast('Unable to enable camera', 'error');
                                 // Revert state
                                 setIsVideoEnabled(false);
@@ -828,7 +828,7 @@ const LiveStreamDashboard = () => {
 
                                 setIsPublishing(true);
                                 isPublishingRef.current = true;
-                                console.log('✅ Audio track published via toggle');
+                                console.log('Audio track published via toggle');
                             } else {
                                 console.warn('⚠️ Audio track not ready for publishing:', audioTrack.readyState);
                                 audioTrack.enabled = newValue;
@@ -847,7 +847,7 @@ const LiveStreamDashboard = () => {
                                 setIsPublishing(true);
                                 isPublishingRef.current = true;
                             } else {
-                                console.error('❌ Error publishing audio track:', publishError);
+                                console.error('Error publishing audio track:', publishError);
                                 showToast('Unable to enable microphone', 'error');
                                 // Revert state
                                 setIsAudioEnabled(false);
@@ -864,7 +864,7 @@ const LiveStreamDashboard = () => {
                     try {
                         await startMediaStream();
                     } catch (error) {
-                        console.error('❌ Error restarting media stream for audio:', error);
+                        console.error('Error restarting media stream for audio:', error);
                         showToast('Unable to enable microphone', 'error');
                         setIsAudioEnabled(false);
                         setIsAudioPlaying(false);
@@ -876,7 +876,7 @@ const LiveStreamDashboard = () => {
                 try {
                     await startMediaStream();
                 } catch (error) {
-                    console.error('❌ Error restarting media stream for audio:', error);
+                    console.error('Error restarting media stream for audio:', error);
                     showToast('Unable to enable microphone', 'error');
                     setIsAudioEnabled(false);
                     setIsAudioPlaying(false);
@@ -929,7 +929,7 @@ const LiveStreamDashboard = () => {
 
         // Validate inputs
         if (!roomName || !hostToken) {
-            console.error('❌ Invalid connection parameters:', { roomName, hasToken: !!hostToken });
+            console.error('Invalid connection parameters:', { roomName, hasToken: !!hostToken });
             setLivekitError('Room name and token are required');
             autoConnectAttemptedRef.current = false;
             showToast('Missing connection information (room name or token)', 'error');
@@ -938,7 +938,7 @@ const LiveStreamDashboard = () => {
 
         // Validate token format (basic check - LiveKit tokens are JWT)
         if (typeof hostToken !== 'string' || hostToken.length < 10) {
-            console.error('❌ Invalid token format:', { tokenLength: hostToken?.length });
+            console.error('Invalid token format:', { tokenLength: hostToken?.length });
             setLivekitError('Invalid token');
             autoConnectAttemptedRef.current = false;
             showToast('Invalid token. Please try again.', 'error');
@@ -947,7 +947,7 @@ const LiveStreamDashboard = () => {
 
         // Check LiveKit server URL
         if (!LIVEKIT_CONFIG.serverUrl || LIVEKIT_CONFIG.serverUrl.includes('example.com')) {
-            console.error('❌ LiveKit server URL not configured:', LIVEKIT_CONFIG.serverUrl);
+            console.error('LiveKit server URL not configured:', LIVEKIT_CONFIG.serverUrl);
             setLivekitError('LiveKit server URL not configured. Please set VITE_LIVEKIT_SERVER_URL in .env');
             showToast('LiveKit server not configured. Please check configuration.', 'error');
             autoConnectAttemptedRef.current = false;
@@ -956,7 +956,7 @@ const LiveStreamDashboard = () => {
 
         // Validate server URL format
         if (!LIVEKIT_CONFIG.serverUrl.startsWith('wss://') && !LIVEKIT_CONFIG.serverUrl.startsWith('ws://')) {
-            console.error('❌ Invalid server URL format (must start with wss:// or ws://):', LIVEKIT_CONFIG.serverUrl);
+            console.error('Invalid server URL format (must start with wss:// or ws://):', LIVEKIT_CONFIG.serverUrl);
             setLivekitError('Server URL format invalid (must start with wss:// or ws://)');
             showToast('LiveKit server URL format is incorrect.', 'error');
             autoConnectAttemptedRef.current = false;
@@ -1056,7 +1056,7 @@ const LiveStreamDashboard = () => {
             const newRoom = new Room(roomOptions);
 
             newRoom.on(RoomEvent.Connected, async () => {
-                // console.log('✅ Connected to LiveKit room');
+                // console.log('Connected to LiveKit room');
                 setIsConnected(true);
                 setConnectionState('connected');
                 setLocalParticipant(newRoom.localParticipant);
@@ -1081,7 +1081,7 @@ const LiveStreamDashboard = () => {
 
                             // Verify stream was created
                             if (!streamRef.current) {
-                                console.error('❌ Failed to start media stream');
+                                console.error('Failed to start media stream');
                                 showToast('Unable to access camera/microphone', 'error');
                                 return;
                             }
@@ -1101,7 +1101,7 @@ const LiveStreamDashboard = () => {
 
                     // Final check - stream must exist and have active tracks
                     if (!streamRef.current) {
-                        console.error('❌ Media stream still not available after restart attempt');
+                        console.error('Media stream still not available after restart attempt');
                         return;
                     }
 
@@ -1117,11 +1117,11 @@ const LiveStreamDashboard = () => {
                             await startMediaStream();
 
                             if (!streamRef.current) {
-                                console.error('❌ Failed to restart media stream');
+                                console.error('Failed to restart media stream');
                                 return;
                             }
                         } catch (error) {
-                            console.error('❌ Error restarting media stream:', error);
+                            console.error('Error restarting media stream:', error);
                             return;
                         }
                     }
@@ -1156,7 +1156,7 @@ const LiveStreamDashboard = () => {
                                     if (publishError.message?.includes('already been published') ||
                                         publishError.message?.includes('same ID')) {
                                     } else {
-                                        console.error('❌ Error publishing video track:', publishError);
+                                        console.error('Error publishing video track:', publishError);
                                         throw publishError;
                                     }
                                 }
@@ -1171,7 +1171,7 @@ const LiveStreamDashboard = () => {
 
                         // Publish audio - Simplified and more reliable approach
                         if (!audioTrack) {
-                            console.error('❌ No audio track found in stream! Cannot publish audio.');
+                            console.error('No audio track found in stream! Cannot publish audio.');
                             // Try to restart stream with audio if missing
                             try {
                                 setIsAudioEnabled(true);
@@ -1197,7 +1197,7 @@ const LiveStreamDashboard = () => {
                                             publication.setEnabled(true);
                                         }
                                     } catch (restartPublishError) {
-                                        console.error('❌ Error publishing audio after restart:', restartPublishError);
+                                        console.error('Error publishing audio after restart:', restartPublishError);
                                     }
                                 }
                             } catch (restartError) {
@@ -1331,7 +1331,7 @@ const LiveStreamDashboard = () => {
                                         await Promise.race([publishPromise, timeoutPromise]);
                                         audioTrack.enabled = true;
                                     } catch (retryError) {
-                                        console.error('❌ Retry audio publish failed:', retryError);
+                                        console.error('Retry audio publish failed:', retryError);
                                     }
                                 }
                             }
@@ -1339,7 +1339,7 @@ const LiveStreamDashboard = () => {
 
                         setIsPublishing(true);
                     } catch (error) {
-                        console.error('❌ Error during publishing:', error);
+                        console.error('Error during publishing:', error);
                         isPublishingRef.current = false; // Reset on error to allow retry
                         showToast('Error publishing media. Please try refreshing.', 'error');
                     }
@@ -1347,7 +1347,7 @@ const LiveStreamDashboard = () => {
             });
 
             newRoom.on(RoomEvent.Disconnected, async (reason) => {
-                console.log('❌ Disconnected from LiveKit room:', reason);
+                console.log('Disconnected from LiveKit room:', reason);
                 setIsConnected(false);
                 setConnectionState('disconnected');
                 setLocalParticipant(null);
@@ -1453,7 +1453,7 @@ const LiveStreamDashboard = () => {
                 await Promise.race([connectPromise, timeoutPromise]);
 
             } catch (error) {
-                console.error('❌ Connection failed:', error.message);
+                console.error('Connection failed:', error.message);
 
                 // Clean up room on timeout or error
                 try {
@@ -1492,7 +1492,7 @@ const LiveStreamDashboard = () => {
                 console.error = originalConsoleError;
             }
 
-            console.error('❌ Error connecting to LiveKit:', error);
+            console.error('Error connecting to LiveKit:', error);
             setLivekitError(error.message);
             setConnectionState('error');
             isReconnectingRef.current = false; // Reset reconnecting flag on error
@@ -1587,9 +1587,9 @@ const LiveStreamDashboard = () => {
                 });
             }
 
-            // console.log('✅ Disconnected from LiveKit');
+            // console.log('Disconnected from LiveKit');
         } catch (error) {
-            console.error('❌ Error disconnecting from LiveKit:', error.message);
+            console.error('Error disconnecting from LiveKit:', error.message);
         } finally {
             // Always force cleanup
             if (roomRef.current === roomToDisconnect) {
@@ -1677,7 +1677,7 @@ const LiveStreamDashboard = () => {
             }
 
             if (!idToSend) {
-                console.error('❌ No livestream ID found:', {
+                console.error('No livestream ID found:', {
                     hasCurrentLivestream: !!currentLivestream,
                     currentLivestreamId: currentLivestream?._id,
                     currentLivestreamLivestreamId: currentLivestream?.livestreamId,
@@ -1701,7 +1701,7 @@ const LiveStreamDashboard = () => {
             // Check if it's a valid ObjectId format (24 hex characters)
             const objectIdRegex = /^[0-9a-fA-F]{24}$/;
             if (!objectIdRegex.test(livestreamIdStr)) {
-                console.error('❌ Invalid livestream ID format:', {
+                console.error('Invalid livestream ID format:', {
                     received: livestreamIdStr,
                     length: livestreamIdStr.length,
                     type: typeof idToSend,
@@ -1725,11 +1725,11 @@ const LiveStreamDashboard = () => {
                 navigate('/livestream');
             } else {
                 const errorMessage = response.message || 'Unable to stop livestream';
-                console.error('❌ Failed to end livestream:', response);
+                console.error('Failed to end livestream:', response);
                 showToast(errorMessage, 'error');
             }
         } catch (error) {
-            console.error('❌ Error ending livestream:', error);
+            console.error('Error ending livestream:', error);
 
             // Extract backend response data if available
             const backendResponse = error?.response?.data;
@@ -1867,14 +1867,14 @@ const LiveStreamDashboard = () => {
                                 if (newPublication?.track) {
                                     newPublication.track.enabled = true;
                                 } else {
-                                    console.error('❌ Republished but still no track instance!');
+                                    console.error('Republished but still no track instance!');
                                 }
                                 if (typeof newPublication?.setEnabled === 'function') {
                                     newPublication.setEnabled(true);
                                 }
 
                             } catch (republishError) {
-                                console.error('❌ Error republishing audio:', republishError);
+                                console.error('Error republishing audio:', republishError);
                             }
                         })();
                     } else if (!actualEnabled || !audio.enabled) {

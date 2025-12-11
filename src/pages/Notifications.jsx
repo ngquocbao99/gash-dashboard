@@ -12,8 +12,10 @@ import {
 import { io } from "socket.io-client"; // 🧩 SOCKET ADDED
 import Loading from "../components/Loading";
 import DeleteConfirmModal from "../components/DeleteConfirmModal";
+import { useToast } from "../hooks/useToast";
 
 export default function Notifications() {
+  const { showToast } = useToast();
   const [tab, setTab] = useState("notifications");
   const [notifications, setNotifications] = useState([]);
   const [templates, setTemplates] = useState([]);
@@ -88,7 +90,7 @@ export default function Notifications() {
         if (s && s.disconnect) s.disconnect();
       };
     } catch (err) {
-      console.error("❌ Failed to init admin socket:", err);
+      console.error("Failed to init admin socket:", err);
     }
   }, []);
 
@@ -154,7 +156,7 @@ export default function Notifications() {
   // ===== CREATE NOTIFICATION =====
   const handleSendNotification = async () => {
     if (!newNotification.title || !newNotification.message)
-      return alert("Please enter both title and message.");
+      return showToast("Please enter both title and message.", "error");
 
     try {
       setSending(true);
@@ -170,7 +172,7 @@ export default function Notifications() {
         payload.recipientType = "specific";
         // for single we accept userId string in userId field
         if (!newNotification.userId || newNotification.userId.trim() === "") {
-          alert("Please enter the user ID for single recipient.");
+          showToast("Please enter the user ID for single recipient.", "error");
           setSending(false);
           return;
         }
@@ -182,7 +184,7 @@ export default function Notifications() {
           .map((u) => u.trim())
           .filter((u) => u);
         if (!payload.userIds.length) {
-          alert("Please enter at least one user ID for multiple recipients.");
+          showToast("Please enter at least one user ID for multiple recipients.", "error");
           setSending(false);
           return;
         }
@@ -191,7 +193,7 @@ export default function Notifications() {
   payload.recipientType = "multiple";
   payload.userIds = selectedUsers.slice(); // array of _id
   if (!payload.userIds || payload.userIds.length === 0) {
-    alert("Please select at least one user.");
+    showToast("Please select at least one user.", "error");
     setSending(false);
     return;
   }
@@ -199,7 +201,7 @@ export default function Notifications() {
 
 
       const res = await axios.post("http://localhost:5000/notifications/admin/create", payload);
-      alert("✅ Notification sent successfully!");
+      showToast("Notification sent successfully!", "success");
       setNewNotification({ title: "", message: "", recipient: "all", userId: "" });
       // reset selections
       setSelectedUsers([]);
@@ -215,11 +217,11 @@ export default function Notifications() {
           console.warn("⚠️ Admin socket not connected — cannot emit realtime");
         }
       } catch (emitErr) {
-        console.error("❌ Error emitting adminSentNotification:", emitErr);
+        console.error("Error emitting adminSentNotification:", emitErr);
       }
     } catch (err) {
       console.error(err);
-      alert("❌ Failed to send notification.");
+      showToast("Failed to send notification.", "error");
     } finally {
       setSending(false);
     }
@@ -256,7 +258,7 @@ export default function Notifications() {
           console.warn("⚠️ Admin socket not connected — cannot emit realtime deletion");
         }
       } catch (emitErr) {
-        console.error("❌ Error emitting adminDeletedNotification:", emitErr);
+        console.error("Error emitting adminDeletedNotification:", emitErr);
       }
 
       fetchNotifications();
@@ -265,7 +267,7 @@ export default function Notifications() {
       setNotificationDeleteMessage("");
     } catch (err) {
       console.error(err);
-      alert("Failed to delete notification(s).");
+      showToast("Failed to delete notification(s).", "error");
     } finally {
       setNotificationDeleteLoading(false);
     }
@@ -308,12 +310,12 @@ export default function Notifications() {
           type: editingTemplate.type || "system",
         }
       );
-      alert("✅ Template updated!");
+      showToast("Template updated!", "success");
       setShowEditTemplate(false);
       fetchTemplates();
     } catch (err) {
       console.error(err);
-      alert("❌ Failed to update template.");
+      showToast("Failed to update template.", "error");
     }
   };
 
@@ -333,7 +335,7 @@ export default function Notifications() {
       setTemplateToDelete(null);
     } catch (err) {
       console.error(err);
-      alert("Failed to delete template.");
+      showToast("Failed to delete template.", "error");
     } finally {
       setTemplateDeleteLoading(false);
     }
@@ -347,7 +349,7 @@ export default function Notifications() {
 
   const handleCreateTemplate = async () => {
     if (!newTemplate.name || !newTemplate.title || !newTemplate.message)
-      return alert("Please fill all fields.");
+      return showToast("Please fill all fields.", "error");
     try {
       setSavingTemplate(true);
       await axios.post("http://localhost:5000/notifications/admin/templates", {
@@ -356,13 +358,13 @@ export default function Notifications() {
         message: newTemplate.message,
         type: "system",
       });
-      alert("✅ Template created successfully!");
+      showToast("Template created successfully!", "success");
       setShowCreateTemplate(false);
       setNewTemplate({ name: "", title: "", message: "" });
       fetchTemplates();
     } catch (err) {
       console.error(err);
-      alert("❌ Failed to create template.");
+      showToast("Failed to create template.", "error");
     } finally {
       setSavingTemplate(false);
     }

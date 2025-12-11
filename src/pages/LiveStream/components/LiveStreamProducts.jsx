@@ -1006,7 +1006,7 @@ const LiveStreamProducts = ({ liveId }) => {
                                                 className="w-12 h-12 object-cover rounded-lg border border-gray-200"
                                                 loading="lazy"
                                                 onError={(e) => {
-                                                    console.warn('❌ Image failed to load:', productImageUrl, 'for product:', productName);
+                                                    console.warn('Image failed to load:', productImageUrl, 'for product:', productName);
                                                     // Hide the broken image
                                                     const imgElement = e.target;
                                                     imgElement.style.display = 'none';

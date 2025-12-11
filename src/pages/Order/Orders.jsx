@@ -525,7 +525,7 @@ const Orders = () => {
 
     // Connect and authenticate
     socket.on("connect", () => {
-      console.log("✅ Dashboard Orders Socket connected:", socket.id);
+      console.log("Dashboard Orders Socket connected:", socket.id);
       // Emit user connection
       socket.emit("userConnected", user._id);
       // Also authenticate with token
@@ -590,7 +590,7 @@ const Orders = () => {
     });
 
     socket.on("connect_error", (err) => {
-      console.error("❌ Dashboard Orders Socket connection error:", err.message);
+      console.error("Dashboard Orders Socket connection error:", err.message);
     });
 
     socket.on("disconnect", (reason) => {
