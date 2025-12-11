@@ -741,7 +741,7 @@ const LiveStreamProducts = ({ liveId }) => {
     return (
         <div className="bg-transparent rounded-lg p-0 flex flex-col h-full">
             {/* Header with stats and refresh */}
-            <div className="flex items-center justify-between mb-4 pb-3 pt-2 border-b border-gray-200 shrink-0">
+            <div className="flex items-center justify-between mb-4 pb-3 pt-2 border-b border-gray-200 flex-shrink-0">
                 <div className="flex items-center gap-3">
                     <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Products</h3>
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-300 shadow-sm">
@@ -764,7 +764,7 @@ const LiveStreamProducts = ({ liveId }) => {
             </div>
 
             {/* Add product section - Compact */}
-            <div className="mb-3 p-3 bg-white rounded-lg border border-gray-200 shadow-sm shrink-0">
+            <div className="mb-3 p-3 bg-white rounded-lg border border-gray-200 shadow-sm flex-shrink-0">
                 <div className="space-y-3">
                     {/* Search input - inline */}
                     <div className="relative">
@@ -952,45 +952,26 @@ const LiveStreamProducts = ({ liveId }) => {
 
                                 return (
                                     <div
-                                        key={uniqueKey}
-                                        className={`group p-3 rounded-lg border transition-all flex items-center gap-3 min-h-[80px] ${lp.isPinned
+                                        key={lp._id || productId}
+                                        className={`group p-3 rounded-lg border transition-all flex items-center gap-3 ${lp.isPinned
                                             ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-300 shadow-md'
                                             : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'
                                             }`}
                                     >
                                         {/* Product Image */}
-                                        <div className="flex-shrink-0 relative">
+                                        <div className="flex-shrink-0">
                                             {productImageUrl ? (
                                                 <img
-                                                    key={`img-${uniqueKey}-${productImageUrl}`}
                                                     src={productImageUrl}
-                                                    alt={productName || 'Product image'}
+                                                    alt={productName}
                                                     className="w-12 h-12 object-cover rounded-lg border border-gray-200"
-                                                    loading="lazy"
                                                     onError={(e) => {
-                                                        console.warn('❌ Image failed to load:', productImageUrl, 'for product:', productName);
-                                                        // Hide the broken image
-                                                        const imgElement = e.target;
-                                                        imgElement.style.display = 'none';
-                                                        // Show placeholder
-                                                        const placeholder = imgElement.nextElementSibling;
-                                                        if (placeholder) {
-                                                            placeholder.style.display = 'flex';
-                                                        }
-                                                    }}
-                                                    onLoad={(e) => {
-                                                        // Ensure placeholder is hidden when image loads successfully
-                                                        const placeholder = e.target.nextElementSibling;
-                                                        if (placeholder) {
-                                                            placeholder.style.display = 'none';
-                                                        }
+                                                        e.target.style.display = 'none';
+                                                        e.target.nextSibling.style.display = 'flex';
                                                     }}
                                                 />
                                             ) : null}
-                                            <div
-                                                className={`w-12 h-12 bg-gray-100 rounded-lg border border-gray-200 items-center justify-center ${productImageUrl ? 'hidden' : 'flex'}`}
-                                                style={{ display: productImageUrl ? 'none' : 'flex' }}
-                                            >
+                                            <div className={`w-12 h-12 bg-gray-100 rounded-lg border border-gray-200 items-center justify-center ${productImageUrl ? 'hidden' : 'flex'}`}>
                                                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                                 </svg>
@@ -1064,10 +1045,16 @@ const LiveStreamProducts = ({ liveId }) => {
                                 );
                             })}
                         </div>
-                    </div>
-            )}
+                        {!showAllProducts && liveProducts.length > 20 && (
+                            <p className="text-xs text-gray-500 mt-2 text-center">
+                                Showing 20 of {liveProducts.length} products
+                            </p>
+                        )}
+                    </>
+                )}
             </div>
-            );
+        </div>
+    );
 };
 
-            export default LiveStreamProducts;
+export default LiveStreamProducts;
