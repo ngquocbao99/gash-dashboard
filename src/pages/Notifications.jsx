@@ -14,6 +14,11 @@ import Loading from "../components/Loading";
 import DeleteConfirmModal from "../components/DeleteConfirmModal";
 import { useToast } from "../hooks/useToast";
 
+const MAX_TITLE_LENGTH = 100;
+const MAX_MESSAGE_LENGTH = 500;
+const MAX_TEMPLATE_NAME_LENGTH = 100;
+const MAX_SEARCH_LENGTH = 50;
+
 export default function Notifications() {
   const { showToast } = useToast();
   const [tab, setTab] = useState("notifications");
@@ -155,8 +160,18 @@ export default function Notifications() {
 
   // ===== CREATE NOTIFICATION =====
   const handleSendNotification = async () => {
-    if (!newNotification.title || !newNotification.message)
+    const titleTrimmed = newNotification.title?.trim();
+    const messageTrimmed = newNotification.message?.trim();
+    
+    if (!titleTrimmed || !messageTrimmed) {
       return showToast("Please enter both title and message.", "error");
+    }
+    if (titleTrimmed.length > MAX_TITLE_LENGTH) {
+      return showToast(`Title must be at most ${MAX_TITLE_LENGTH} characters.`, "error");
+    }
+    if (messageTrimmed.length > MAX_MESSAGE_LENGTH) {
+      return showToast(`Message must be at most ${MAX_MESSAGE_LENGTH} characters.`, "error");
+    }
 
     try {
       setSending(true);
@@ -170,13 +185,18 @@ export default function Notifications() {
         payload.recipientType = "all";
       } else if (newNotification.recipient === "single") {
         payload.recipientType = "specific";
-        // for single we accept userId string in userId field
-        if (!newNotification.userId || newNotification.userId.trim() === "") {
+        const userId = newNotification.userId?.trim();
+        if (!userId) {
           showToast("Please enter the user ID for single recipient.", "error");
           setSending(false);
           return;
         }
-        payload.userId = newNotification.userId.trim();
+        if (userId.length > 50) {
+          showToast("User ID is too long (max 50 characters).", "error");
+          setSending(false);
+          return;
+        }
+        payload.userId = userId;
       } else if (newNotification.recipient === "multiple") {
         payload.recipientType = "multiple";
         payload.userIds = newNotification.userId
@@ -184,9 +204,21 @@ export default function Notifications() {
           .map((u) => u.trim())
           .filter((u) => u);
         if (!payload.userIds.length) {
-          showToast("Please enter at least one user ID for multiple recipients.", "error");
+          showToast("Please enter at least one user ID.", "error");
           setSending(false);
           return;
+        }
+        if (payload.userIds.length > 1000) {
+          showToast("Too many user IDs (max 1000).", "error");
+          setSending(false);
+          return;
+        }
+        for (const id of payload.userIds) {
+          if (id.length > 50) {
+            showToast("One or more user IDs are too long (max 50 characters each).", "error");
+            setSending(false);
+            return;
+          }
         }
       } else if (newNotification.recipient === "specific") {
   // admin chọn nhiều user => gửi kiểu "multiple"
@@ -300,6 +332,27 @@ export default function Notifications() {
 
   const handleSaveTemplate = async () => {
     if (!editingTemplate) return;
+    
+    const nameTrimmed = editingTemplate.name?.trim();
+    const titleTrimmed = editingTemplate.title?.trim();
+    const messageTrimmed = editingTemplate.message?.trim();
+    
+    if (!nameTrimmed || !titleTrimmed || !messageTrimmed) {
+      return showToast("Please fill all fields.", "error");
+    }
+    if (nameTrimmed.length > MAX_TEMPLATE_NAME_LENGTH) {
+      return showToast(`Template name must be at most ${MAX_TEMPLATE_NAME_LENGTH} characters.`, "error");
+      return;
+    }
+    if (titleTrimmed.length > MAX_TITLE_LENGTH) {
+      return showToast(`Title must be at most ${MAX_TITLE_LENGTH} characters.`, "error");
+      return;
+    }
+    if (messageTrimmed.length > MAX_MESSAGE_LENGTH) {
+      return showToast(`Message must be at most ${MAX_MESSAGE_LENGTH} characters.`, "error");
+      return;
+    }
+    
     try {
       await axios.patch(
         `http://localhost:5000/notifications/admin/templates/${editingTemplate._id}`,
@@ -348,8 +401,22 @@ export default function Notifications() {
   };
 
   const handleCreateTemplate = async () => {
-    if (!newTemplate.name || !newTemplate.title || !newTemplate.message)
+    const nameTrimmed = newTemplate.name?.trim();
+    const titleTrimmed = newTemplate.title?.trim();
+    const messageTrimmed = newTemplate.message?.trim();
+    
+    if (!nameTrimmed || !titleTrimmed || !messageTrimmed) {
       return showToast("Please fill all fields.", "error");
+    }
+    if (nameTrimmed.length > MAX_TEMPLATE_NAME_LENGTH) {
+      return showToast(`Template name must be at most ${MAX_TEMPLATE_NAME_LENGTH} characters.`, "error");
+    }
+    if (titleTrimmed.length > MAX_TITLE_LENGTH) {
+      return showToast(`Title must be at most ${MAX_TITLE_LENGTH} characters.`, "error");
+    }
+    if (messageTrimmed.length > MAX_MESSAGE_LENGTH) {
+      return showToast(`Message must be at most ${MAX_MESSAGE_LENGTH} characters.`, "error");
+    }
     try {
       setSavingTemplate(true);
       await axios.post("http://localhost:5000/notifications/admin/templates", {
@@ -585,9 +652,11 @@ export default function Notifications() {
                 className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
                 value={searchKeyword}
                 onChange={(e) => {
-                  setSearchKeyword(e.target.value);
-                  setDisplayedItems(10); // Reset to initial display count
+                  const trimmed = e.target.value.slice(0, MAX_SEARCH_LENGTH);
+                  setSearchKeyword(trimmed);
+                  setDisplayedItems(10);
                 }}
+                maxLength={MAX_SEARCH_LENGTH}
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:gap-4">
@@ -729,26 +798,28 @@ export default function Notifications() {
           <div className="p-4 lg:p-6 flex flex-col flex-1 overflow-y-auto">
             <div className="flex flex-col gap-4">
               <div>
-                <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Title</label>
+                <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Title ({newNotification.title?.length || 0}/{MAX_TITLE_LENGTH})</label>
                 <input
                   type="text"
                   placeholder="Title"
                   className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
                   value={newNotification.title}
                   onChange={(e) =>
-                    setNewNotification({ ...newNotification, title: e.target.value })
+                    setNewNotification({ ...newNotification, title: e.target.value.slice(0, MAX_TITLE_LENGTH) })
                   }
+                  maxLength={MAX_TITLE_LENGTH}
                 />
               </div>
               <div>
-                <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Message</label>
+                <label className="block text-xs lg:text-sm font-medium text-gray-700 mb-2">Message ({newNotification.message?.length || 0}/{MAX_MESSAGE_LENGTH})</label>
                 <textarea
                   placeholder="Message"
-                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60 min-h-[120px]"
+                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60 min-h-[20em]"
                   value={newNotification.message}
                   onChange={(e) =>
-                    setNewNotification({ ...newNotification, message: e.target.value })
+                    setNewNotification({ ...newNotification, message: e.target.value.slice(0, MAX_MESSAGE_LENGTH) })
                   }
+                  maxLength={MAX_MESSAGE_LENGTH}
                 />
               </div>
               <div>
@@ -907,23 +978,33 @@ export default function Notifications() {
               </h2>
 
               <div className="flex flex-col gap-3">
-                <input
-                  type="text"
-                  placeholder="Title"
-                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
-                  value={newNotification.title}
-                  onChange={(e) =>
-                    setNewNotification({ ...newNotification, title: e.target.value })
-                  }
-                />
-                <textarea
-                  placeholder="Message"
-                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60 min-h-[120px]"
-                  value={newNotification.message}
-                  onChange={(e) =>
-                    setNewNotification({ ...newNotification, message: e.target.value })
-                  }
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Title ({newNotification.title?.length || 0}/{MAX_TITLE_LENGTH})
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
+                    value={newNotification.title}
+                    onChange={(e) =>
+                      setNewNotification({ ...newNotification, title: e.target.value.slice(0, MAX_TITLE_LENGTH) })
+                    }
+                    maxLength={MAX_TITLE_LENGTH}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Message ({newNotification.message?.length || 0}/{MAX_MESSAGE_LENGTH})
+                  </label>
+                  <textarea
+                    className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60 min-h-[20em]"
+                    value={newNotification.message}
+                    onChange={(e) =>
+                      setNewNotification({ ...newNotification, message: e.target.value.slice(0, MAX_MESSAGE_LENGTH) })
+                    }
+                    maxLength={MAX_MESSAGE_LENGTH}
+                  />
+                </div>
                 <select
                   className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
                   value={newNotification.recipient}
@@ -931,7 +1012,9 @@ export default function Notifications() {
                     setNewNotification({ ...newNotification, recipient: e.target.value })
                   }
                 >
-                  
+                  <option value="all">All Users</option>
+                  <option value="single">Single User</option>
+                  <option value="multiple">Multiple Users</option>
                   <option value="specific">Specific Users (choose)</option>
                 </select>
 
@@ -1028,7 +1111,8 @@ export default function Notifications() {
             placeholder="Search users by name, username, or email..."
             className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
             value={searchUser}
-            onChange={(e) => setSearchUser(e.target.value)}
+            onChange={(e) => setSearchUser(e.target.value.slice(0, MAX_SEARCH_LENGTH))}
+            maxLength={MAX_SEARCH_LENGTH}
           />
         </div>
 
@@ -1153,26 +1237,41 @@ export default function Notifications() {
               </h2>
 
               <div className="flex flex-col gap-3">
-                <input
-                  type="text"
-                  placeholder="Template Name"
-                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
-                  value={editingTemplate.name || ""}
-                  onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
-                />
-                <input
-                  type="text"
-                  placeholder="Title"
-                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
-                  value={editingTemplate.title || ""}
-                  onChange={(e) => setEditingTemplate({ ...editingTemplate, title: e.target.value })}
-                />
-                <textarea
-                  placeholder="Message"
-                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60 min-h-[120px]"
-                  value={editingTemplate.message || ""}
-                  onChange={(e) => setEditingTemplate({ ...editingTemplate, message: e.target.value })}
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Template Name ({editingTemplate.name?.length || 0}/{MAX_TEMPLATE_NAME_LENGTH})
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
+                    value={editingTemplate.name || ""}
+                    onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value.slice(0, MAX_TEMPLATE_NAME_LENGTH) })}
+                    maxLength={MAX_TEMPLATE_NAME_LENGTH}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Title ({editingTemplate.title?.length || 0}/{MAX_TITLE_LENGTH})
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
+                    value={editingTemplate.title || ""}
+                    onChange={(e) => setEditingTemplate({ ...editingTemplate, title: e.target.value.slice(0, MAX_TITLE_LENGTH) })}
+                    maxLength={MAX_TITLE_LENGTH}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Message ({editingTemplate.message?.length || 0}/{MAX_MESSAGE_LENGTH})
+                  </label>
+                  <textarea
+                    className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60 min-h-[20em]"
+                    value={editingTemplate.message || ""}
+                    onChange={(e) => setEditingTemplate({ ...editingTemplate, message: e.target.value.slice(0, MAX_MESSAGE_LENGTH) })}
+                    maxLength={MAX_MESSAGE_LENGTH}
+                  />
+                </div>
                 <button
                   onClick={handleSaveTemplate}
                   className="mt-2 bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] text-white px-4 py-2 rounded-xl shadow-lg hover:shadow-xl flex items-center justify-center gap-2 transition-all duration-300 transform hover:scale-105"
@@ -1213,26 +1312,41 @@ export default function Notifications() {
               </h2>
 
               <div className="flex flex-col gap-3">
-                <input
-                  type="text"
-                  placeholder="Template Name"
-                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
-                  value={newTemplate.name}
-                  onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
-                />
-                <input
-                  type="text"
-                  placeholder="Title"
-                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
-                  value={newTemplate.title}
-                  onChange={(e) => setNewTemplate({ ...newTemplate, title: e.target.value })}
-                />
-                <textarea
-                  placeholder="Message"
-                  className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60 min-h-[120px]"
-                  value={newTemplate.message}
-                  onChange={(e) => setNewTemplate({ ...newTemplate, message: e.target.value })}
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Template Name ({newTemplate.name?.length || 0}/{MAX_TEMPLATE_NAME_LENGTH})
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
+                    value={newTemplate.name}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value.slice(0, MAX_TEMPLATE_NAME_LENGTH) })}
+                    maxLength={MAX_TEMPLATE_NAME_LENGTH}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Title ({newTemplate.title?.length || 0}/{MAX_TITLE_LENGTH})
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
+                    value={newTemplate.title}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, title: e.target.value.slice(0, MAX_TITLE_LENGTH) })}
+                    maxLength={MAX_TITLE_LENGTH}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Message ({newTemplate.message?.length || 0}/{MAX_MESSAGE_LENGTH})
+                  </label>
+                  <textarea
+                    className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60 min-h-[20em]"
+                    value={newTemplate.message}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, message: e.target.value.slice(0, MAX_MESSAGE_LENGTH) })}
+                    maxLength={MAX_MESSAGE_LENGTH}
+                  />
+                </div>
                 <button
                   onClick={handleCreateTemplate}
                   disabled={savingTemplate}
