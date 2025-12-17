@@ -251,10 +251,10 @@ const Layout = ({ children }) => {
                 to={user?.role === "manager" ? "/orders" : "/statistics/order"}
                 className="flex items-center transition-all duration-300 opacity-100"
                 onClick={handleLogoClick}
-                aria-label="Gash homepage"
+                aria-label="GASH homepage"
               >
                 <h1 className="text-xl font-bold text-white font-sans whitespace-nowrap">
-                  Gash Dashboard
+                  GASH Dashboard
                 </h1>
               </Link>
             ) : (
