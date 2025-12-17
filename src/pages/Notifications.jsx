@@ -721,7 +721,7 @@ export default function Notifications() {
             </div>
           </div>
           ) : (
-          <ul ref={scrollContainerRef} className="notification-list-container divide-y divide-gray-100 flex-1 overflow-y-auto" style={{ maxHeight: '600px' }}>
+          <ul ref={scrollContainerRef} className="notification-list-container divide-y divide-gray-100 flex-1 overflow-y-auto" style={{ maxHeight: '52em' }}>
             {currentItems.map((n) => (
               <li
                 key={n._id}
