@@ -162,7 +162,7 @@ const LiveStreamDetails = () => {
         if (products.length === 0) return;
 
         products.slice(0, 3).forEach((liveProduct, index) => {
-            const productImageUrl = getProductImageUrl(liveProduct, index);
+            const productImageUrl = getMainImageUrl(liveProduct);
             if (!productImageUrl && liveProduct.productId) {
                 const productId = typeof liveProduct.productId === 'string'
                     ? liveProduct.productId
@@ -689,7 +689,7 @@ const LiveStreamDetails = () => {
                                 const productName = liveProduct.productId?.productName || liveProduct.product?.productName || 'Unknown Product';
 
                                 // Get main image URL using helper function (pass index for debugging)
-                                let productImageUrl = getProductImageUrl(liveProduct, index);
+                                let productImageUrl = getMainImageUrl(liveProduct);
 
                                 // Additional fallback: if productId is a string (not populated), we can't get images
                                 // But if it's an object and we still don't have images, try direct access
