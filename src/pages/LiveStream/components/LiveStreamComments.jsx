@@ -119,6 +119,7 @@ const CommentInput = ({ onSendComment, isSending }) => {
 
 // CommentItem Component
 const CommentItem = ({ comment, currentUserId, hostId, onHideComment, onPinComment, onUnpinComment, canModerate, isAdmin }) => {
+    const { showToast } = useToast();
     const [showMenu, setShowMenu] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const senderData = comment.sender || comment.senderId;
@@ -146,7 +147,7 @@ const CommentItem = ({ comment, currentUserId, hostId, onHideComment, onPinComme
     const handleDeleteClick = () => {
         if (comment.isPinned) {
             console.warn('⚠️ Cannot delete a pinned comment. Unpin it first.');
-            alert('Cannot delete a pinned comment. Please unpin it first.');
+            showToast('Cannot delete a pinned comment. Please unpin it first.', 'error');
             return;
         }
         setShowMenu(false);
@@ -307,7 +308,7 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
             isInitialLoadRef.current = false;
             previousCommentsLengthRef.current = sorted.length;
         } catch (error) {
-            console.error('❌ Error fetching comments:', error);
+            console.error('Error fetching comments:', error);
         }
     }, [liveId, user, isAdmin]);
 
@@ -332,7 +333,7 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
                 }
             }
         } catch (error) {
-            console.error('❌ Error sending comment:', error);
+            console.error('Error sending comment:', error);
             const errorMsg = error?.response?.data?.message || error?.message || 'Error sending comment';
             if (errorMsg.includes('at most 100') || errorMsg.includes('100 characters')) {
                 setError('Comment must be at most 100 characters');
@@ -380,7 +381,7 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
             }
         } catch (error) {
             const errorMsg = error?.response?.data?.message || error?.message || 'Error pinning comment';
-            console.error('❌ Error pinning comment:', error);
+            console.error('Error pinning comment:', error);
             setError(errorMsg);
             showToast(errorMsg, 'error');
         }

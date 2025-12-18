@@ -72,12 +72,18 @@ const Feedbacks = () => {
         throw new Error("Unexpected response format");
       }
 
-      // Filter out invalid feedback entries
+      // Filter out invalid feedback entries and feedbacks with no rating and no content
       feedbacksData = feedbacksData.filter(
-        (feedback) =>
-          feedback.order?._id &&
-          feedback.variant?.variant_id &&
-          feedback.customer?._id
+        (feedback) => {
+          // Basic validation
+          if (!feedback.order?._id || !feedback.variant?.variant_id || !feedback.customer?._id) {
+            return false;
+          }
+          // Filter out feedbacks with no rating and no content
+          const hasRating = feedback.feedback?.rating !== null && feedback.feedback?.rating !== undefined && feedback.feedback.rating >= 1 && feedback.feedback.rating <= 5;
+          const hasContent = feedback.feedback?.content && feedback.feedback.content.trim() !== '';
+          return hasRating || hasContent;
+        }
       );
 
       const sortedFeedbacks = feedbacksData.sort((a, b) => {

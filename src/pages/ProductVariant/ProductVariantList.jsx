@@ -46,7 +46,7 @@ const ProductVariantList = ({
 
         try {
             await Api.newVariants.delete(variantId);
-            showToast("Variant deleted successfully!", "success");
+            showToast("Variant deleted successfully", "success");
             setShowDeleteConfirm(false);
             setVariantToDelete(null);
 

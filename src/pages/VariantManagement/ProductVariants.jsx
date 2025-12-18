@@ -181,7 +181,7 @@ const ProductVariants = () => {
 
     try {
       await Api.newVariants.update(variantToDelete._id, { variantStatus: 'inactive' });
-      showToast("Variant deactivated successfully!", "success");
+      showToast("Variant deactivated successfully", "success");
       fetchVariants();
     } catch (err) {
       console.error(err);

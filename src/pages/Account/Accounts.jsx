@@ -148,7 +148,7 @@ export default function Accounts() {
                 return;
             }
             await SummaryAPI.accounts.disable(accountId);
-            showToast("Account disabled successfully!", "success");
+            showToast("Account disabled successfully", "success");
             fetchAccounts();
             setShowDeleteConfirm(false);
             setAccountToDelete(null);

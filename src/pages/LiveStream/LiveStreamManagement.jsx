@@ -497,7 +497,7 @@ const LiveStreamManagement = () => {
             if (typeof originalConsoleError !== 'undefined') {
             }
 
-            console.error('❌ Error connecting to LiveKit:', error);
+            console.error('Error connecting to LiveKit:', error);
             setLivekitError(error.message);
             setConnectionState('error');
 
@@ -550,9 +550,9 @@ const LiveStreamManagement = () => {
                 setLocalParticipant(null);
                 setRemoteParticipants([]);
                 setIsPublishing(false);
-                console.log('✅ Disconnected from LiveKit');
+                console.log('Disconnected from LiveKit');
             } catch (error) {
-                console.error('❌ Error disconnecting from LiveKit:', error);
+                console.error('Error disconnecting from LiveKit:', error);
                 // Force cleanup even if disconnect fails
                 setRoom(null);
                 setIsConnected(false);
@@ -567,12 +567,12 @@ const LiveStreamManagement = () => {
     // Publish media to LiveKit
     const publishMediaToLiveKit = async () => {
         if (!room || !isConnected) {
-            console.log('❌ Not connected to LiveKit room yet');
+            console.log('Not connected to LiveKit room yet');
             return;
         }
 
         if (!streamRef.current) {
-            console.log('❌ No media stream available');
+            console.log('No media stream available');
             return;
         }
 
@@ -593,7 +593,7 @@ const LiveStreamManagement = () => {
             setIsPublishing(true);
             console.log('🎉 Media published successfully');
         } catch (error) {
-            console.error('❌ Error publishing media:', error);
+            console.error('Error publishing media:', error);
             setLivekitError(error.message);
         }
     };
@@ -789,7 +789,7 @@ const LiveStreamManagement = () => {
             console.log('🎥 Requesting media with constraints (both required):', constraints);
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
             streamRef.current = stream;
-            console.log('✅ Media stream obtained:', {
+            console.log('Media stream obtained:', {
                 videoTracks: stream.getVideoTracks().length,
                 audioTracks: stream.getAudioTracks().length
             });
@@ -1049,7 +1049,7 @@ const LiveStreamManagement = () => {
                     checkMediaStatus();
                 })
                 .catch((error) => {
-                    console.error('❌ Video play() failed:', error);
+                    console.error('Video play() failed:', error);
                 });
         }
     };
