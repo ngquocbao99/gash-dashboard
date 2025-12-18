@@ -55,7 +55,7 @@ const Profile = () => {
     if (file) {
       const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
       if (!validTypes.includes(file.type.toLowerCase())) {
-        showToast("Profile picture must be a PNG or JPG image", "error", 3000);
+        showToast("Please select a valid image type", "error", 3000);
         setInvalidFile(true);
         setSelectedFile(null);
         setPreviewUrl("");
@@ -175,12 +175,12 @@ const Profile = () => {
       if (selectedFile) {
         const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
         if (!validTypes.includes(selectedFile.type.toLowerCase())) {
-          newErrors.image = "Profile picture must be a PNG or JPG image";
+          newErrors.image = "Please select a valid image type";
         }
       } else if (formData.image?.trim()) {
         const imageUrl = formData.image.trim().toLowerCase();
         if (!imageUrl.match(/\.(png|jpg|jpeg)$/i) && !imageUrl.startsWith('data:image/')) {
-          newErrors.image = "Profile picture must be a PNG or JPG image";
+          newErrors.image = "Please select a valid image type";
         }
       }
     }
@@ -258,7 +258,7 @@ const Profile = () => {
       if (!validateForm()) return;
 
       if (invalidFile) {
-        showToast("Profile picture must be a PNG or JPG image", "error", 3000);
+        showToast("Please select a valid image type", "error", 3000);
         return;
       }
 

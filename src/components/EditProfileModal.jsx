@@ -57,14 +57,14 @@ const EditProfileModal = ({
         if (currentFormData.image?.trim() && !selectedFile) {
           const imageUrl = currentFormData.image.trim().toLowerCase();
           if (!imageUrl.match(/\.(png|jpg|jpeg)$/i) && !imageUrl.startsWith('data:image/')) {
-            return 'Profile picture must be a PNG or JPG image';
+            return 'Please select a valid image type';
           }
         }
         // Check file type when a file is selected
         if (selectedFile) {
           const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
           if (!validTypes.includes(selectedFile.type.toLowerCase())) {
-            return 'Profile picture must be a PNG or JPG image';
+            return 'Please select a valid image type';
           }
         }
         return null;
@@ -212,7 +212,7 @@ const EditProfileModal = ({
                   } else {
                     setValidationErrors(prevErrors => ({
                       ...prevErrors,
-                      image: 'Profile picture must be a PNG or JPG image'
+                      image: 'Please select a valid image type'
                     }));
                   }
                 }
