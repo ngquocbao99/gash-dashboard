@@ -16,12 +16,14 @@ import EmojiPicker from "emoji-picker-react";
 import { AuthContext } from "../context/AuthContext";
 import SummaryAPI from "../common/SummaryAPI";
 import Loading from "../components/Loading";
+import { useToast } from "../hooks/useToast";
 
 const SOCKET_URL = "http://localhost:5000";
 const API_URL = "http://localhost:5000";
 
 export default function AdminChat() {
   const { user } = useContext(AuthContext) || {};
+  const { showToast } = useToast();
   const adminId = user?._id ? String(user._id) : "admin-fallback-id";
 
   const [conversations, setConversations] = useState([]);
@@ -59,7 +61,7 @@ export default function AdminChat() {
     socketRef.current = io(SOCKET_URL, { transports: ["websocket"] });
 
     socketRef.current.on("connect", () => {
-      console.info("✅ Socket connected:", socketRef.current.id);
+      console.info("Socket connected:", socketRef.current.id);
     });
 
 socketRef.current.on("new_message", (msg) => {
@@ -496,9 +498,9 @@ socketRef.current.on("conversation_updated", (updatedConvo) => {
           imageUrl: data.url,
           createdAt: new Date().toISOString(),
         });
-      } else alert("Upload thất bại!");
+      } else showToast("Upload thất bại!", "error");
     } catch (err) {
-      alert("Lỗi upload ảnh!");
+      showToast("Lỗi upload ảnh!", "error");
     }
   };
 
@@ -675,7 +677,7 @@ socketRef.current.on("conversation_updated", (updatedConvo) => {
                           if (canOpenChat(c)) {
                             loadMessages(c);
                           } else {
-                            alert("This conversation is assigned to another staff.");
+                            showToast("This conversation is assigned to another staff.", "error");
                           }
                         }}
                         className={`cursor-pointer flex items-center justify-between p-3 rounded-xl border-2 transition-all duration-300 ${

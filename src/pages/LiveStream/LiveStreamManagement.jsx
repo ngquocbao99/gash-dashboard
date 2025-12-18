@@ -500,7 +500,7 @@ const LiveStreamManagement = () => {
             if (typeof originalConsoleError !== 'undefined') {
             }
 
-            console.error('❌ Error connecting to LiveKit:', error);
+            console.error('Error connecting to LiveKit:', error);
             setLivekitError(error.message);
             setConnectionState('error');
 
@@ -553,9 +553,9 @@ const LiveStreamManagement = () => {
                 setLocalParticipant(null);
                 setRemoteParticipants([]);
                 setIsPublishing(false);
-                console.log('✅ Disconnected from LiveKit');
+                console.log('Disconnected from LiveKit');
             } catch (error) {
-                console.error('❌ Error disconnecting from LiveKit:', error);
+                console.error('Error disconnecting from LiveKit:', error);
                 // Force cleanup even if disconnect fails
                 setRoom(null);
                 setIsConnected(false);
@@ -570,12 +570,12 @@ const LiveStreamManagement = () => {
     // Publish media to LiveKit
     const publishMediaToLiveKit = async () => {
         if (!room || !isConnected) {
-            console.log('❌ Not connected to LiveKit room yet');
+            console.log('Not connected to LiveKit room yet');
             return;
         }
 
         if (!streamRef.current) {
-            console.log('❌ No media stream available');
+            console.log('No media stream available');
             return;
         }
 
@@ -596,7 +596,7 @@ const LiveStreamManagement = () => {
             setIsPublishing(true);
             console.log('🎉 Media published successfully');
         } catch (error) {
-            console.error('❌ Error publishing media:', error);
+            console.error('Error publishing media:', error);
             setLivekitError(error.message);
         }
     };
@@ -685,12 +685,14 @@ const LiveStreamManagement = () => {
                 }
                 return null;
             case 'description':
-                // Description is optional, but if provided, must be valid
-                if (value && value.trim() !== '') {
-                    const trimmedDescription = value.trim();
-                    if (trimmedDescription.length > 100) {
-                        return 'Livestream description must be at most 100 characters';
-                    }
+                // Description is required
+                if (!value || value.trim() === '') {
+                    return 'Please fill in all required fields';
+                }
+                const trimmedDescription = value.trim();
+                if (trimmedDescription.length < 10 || trimmedDescription.length > 100) {
+                    return 'Livestream description must be between 10 and 100 characters';
+
                 }
                 return null;
             default:
@@ -790,7 +792,7 @@ const LiveStreamManagement = () => {
             console.log('🎥 Requesting media with constraints (both required):', constraints);
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
             streamRef.current = stream;
-            console.log('✅ Media stream obtained:', {
+            console.log('Media stream obtained:', {
                 videoTracks: stream.getVideoTracks().length,
                 audioTracks: stream.getAudioTracks().length
             });
@@ -1050,7 +1052,7 @@ const LiveStreamManagement = () => {
                     checkMediaStatus();
                 })
                 .catch((error) => {
-                    console.error('❌ Video play() failed:', error);
+                    console.error('Video play() failed:', error);
                 });
         }
     };
@@ -1351,7 +1353,7 @@ const LiveStreamManagement = () => {
 
                                         <div>
                                             <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                                Stream Description
+                                                Stream Description <span className="text-red-500">*</span>
                                             </label>
                                             <textarea
                                                 value={startForm.description}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext, useRef } from "react";
 import { AuthContext } from "../../context/AuthContext";
 import Loading from "../../components/Loading";
+import { useToast } from "../../hooks/useToast";
 import {
   FaUsers,
   FaUserCheck,
@@ -54,6 +55,7 @@ import axios from "axios";
  */
 
 const CustomerStatistics = () => {
+  const { showToast } = useToast();
   const { user, isAuthLoading } = useContext(AuthContext);
   const printRef = useRef();
   const [loading, setLoading] = useState(false);
@@ -224,14 +226,14 @@ const CustomerStatistics = () => {
       link.remove();
     } catch (err) {
       console.error("Export Excel error:", err);
-      alert("❌ Failed to export Excel");
+      showToast("Failed to export Excel", "error");
     }
   };
 
   // Export Top Customers as CSV (client-side)
   const handleExportCSV = () => {
     if (!topCustomers || topCustomers.length === 0) {
-      alert("No data to export");
+      showToast("No data to export", "info");
       return;
     }
     const header = ["Name", "Email", "Orders", "Total Spent"];

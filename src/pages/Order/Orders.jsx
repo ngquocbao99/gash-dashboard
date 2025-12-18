@@ -118,6 +118,7 @@ const Orders = () => {
   const [rowsPerPage] = useState(10);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [dateFilterError, setDateFilterError] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -479,6 +480,34 @@ const Orders = () => {
   );
 
   const handleFilterChange = useCallback((field, value) => {
+    if (field === 'startDate') {
+      setFilters((prev) => {
+        const next = { ...prev, startDate: value };
+        if (next.endDate && value && next.endDate < value) {
+          setDateFilterError('Start date cannot be later than end date');
+        } else {
+          setDateFilterError('');
+        }
+        return next;
+      });
+      setCurrentPage(1);
+      return;
+    }
+
+    if (field === 'endDate') {
+      setFilters((prev) => {
+        const next = { ...prev, endDate: value };
+        if (next.startDate && value && value < next.startDate) {
+          setDateFilterError('End date cannot be earlier than start date');
+        } else {
+          setDateFilterError('');
+        }
+        return next;
+      });
+      setCurrentPage(1);
+      return;
+    }
+
     setFilters((prev) => ({ ...prev, [field]: value }));
     setCurrentPage(1);
   }, []);
@@ -584,7 +613,7 @@ const Orders = () => {
 
     // Connect and authenticate
     socket.on("connect", () => {
-      console.log("✅ Dashboard Orders Socket connected:", socket.id);
+      console.log("Dashboard Orders Socket connected:", socket.id);
       // Emit user connection
       socket.emit("userConnected", user._id);
       // Also authenticate with token
@@ -649,7 +678,7 @@ const Orders = () => {
     });
 
     socket.on("connect_error", (err) => {
-      console.error("❌ Dashboard Orders Socket connection error:", err.message);
+      console.error("Dashboard Orders Socket connection error:", err.message);
     });
 
     socket.on("disconnect", (reason) => {
@@ -1193,6 +1222,11 @@ const Orders = () => {
                 className="w-full px-3 py-2 lg:px-4 lg:py-3 border-2 border-gray-300/60 rounded-xl focus:ring-2 focus:ring-offset-2 transition-all duration-300 backdrop-blur-sm text-sm lg:text-base focus:border-amber-500 focus:ring-amber-500/30 shadow-md hover:shadow-lg hover:border-yellow-400/60"
               />
             </div>
+            {dateFilterError && (
+              <div className="col-span-full text-sm text-red-600 bg-red-50 border border-red-100 rounded p-2 mt-2">
+                {dateFilterError}
+              </div>
+            )}
           </div>
         </div>
       )}

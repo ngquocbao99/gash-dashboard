@@ -11,6 +11,7 @@ const EditProfileModal = ({
   handleCancel,
   selectedFile,
   profile,
+  loading,
 }) => {
   const { showToast } = useContext(ToastContext);
   const fileInputRef = useRef(null);
@@ -55,9 +56,8 @@ const EditProfileModal = ({
         // Check if image is a valid image format when it's a URL
         if (currentFormData.image?.trim() && !selectedFile) {
           const imageUrl = currentFormData.image.trim().toLowerCase();
-          const validImageExtensions = /\.(png|jpg|jpeg|gif|webp|svg|bmp|ico|tiff|tif)$/i;
-          if (!validImageExtensions.test(imageUrl) && !imageUrl.startsWith('data:image/')) {
-            return 'Profile picture must be a valid image file';
+          if (!imageUrl.match(/\.(png|jpg|jpeg)$/i) && !imageUrl.startsWith('data:image/')) {
+            return 'Please select a valid image type';
           }
         }
         // Check file type when a file is selected - allow all image types
@@ -68,7 +68,7 @@ const EditProfileModal = ({
             'image/x-icon', 'image/tiff', 'image/x-tiff'
           ];
           if (!validTypes.includes(selectedFile.type.toLowerCase())) {
-            return 'Profile picture must be a valid image file';
+            return 'Please select a valid image type';
           }
         }
         return null;
@@ -220,7 +220,7 @@ const EditProfileModal = ({
                   } else {
                     setValidationErrors(prevErrors => ({
                       ...prevErrors,
-                      image: 'Profile picture must be a valid image file'
+                      image: 'Please select a valid image type'
                     }));
                   }
                 }
@@ -299,18 +299,27 @@ const EditProfileModal = ({
             onClick={handleCancel}
             className="px-5 py-2.5 text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-all duration-200 font-medium text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-offset-2"
             style={{ '--tw-ring-color': '#A86523' }}
+            disabled={loading}
           >
             Cancel
           </button>
           <button
             type="submit"
             onClick={handleSubmitWithValidation}
-            className="px-6 py-2.5 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg font-medium text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-offset-2 bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A]"
+            disabled={loading}
+            className="px-6 py-2.5 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm lg:text-base focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:hover:shadow-md bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] disabled:hover:from-[#E9A319] disabled:hover:to-[#A86523]"
             style={{
               '--tw-ring-color': '#A86523'
             }}
           >
-            Edit
+            {loading ? (
+              <div className="flex items-center justify-center space-x-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                <span>Editing...</span>
+              </div>
+            ) : (
+              'Edit'
+            )}
           </button>
         </div>
       </motion.div>

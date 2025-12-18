@@ -755,7 +755,7 @@ const ProductSpecifications = () => {
         }
         return item;
       }));
-      showToast(response.message || `${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully!`, 'success');
+      showToast(response.message || `${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully`, 'success');
       if (editingItem) {
         const editingId = editingItem._id || editingItem.id;
         if (editingId === id) {
@@ -838,7 +838,7 @@ const ProductSpecifications = () => {
     // Backend validates both length and pattern together, returning a single message
     if (type === 'color') {
       // Color: pattern validation (only letters, numbers, Vietnamese characters - NO spaces)
-      const colorNamePattern = /^[a-zA-ZÀ-Ỵà-ỹ0-9]+$/;
+      const colorNamePattern = /^[a-zA-ZÀ-Ỵà-ỹ0-9]+(?: [a-zA-ZÀ-Ỵà-ỹ0-9]+)*$/;
       if (trimmed.length < 2 || trimmed.length > 30 || !colorNamePattern.test(trimmed)) {
         return 'Color name must be 2-30 characters and contain only letters and numbers';
       }
@@ -861,8 +861,11 @@ const ProductSpecifications = () => {
     else if (type === 'category') {
       // Category: pattern validation (letters, numbers, Vietnamese characters, hyphen - NO spaces except hyphen)
       // Must contain at least one letter (cannot be only numbers)
-      const categoryNamePattern = /^[a-zA-ZÀ-Ỵà-ỹ0-9\-]+$/;
-      const hasLetter = /[a-zA-ZÀ-Ỵà-ỹ]/.test(trimmed);
+    const categoryNamePattern =
+      /^[a-zA-ZÀ-Ỵà-ỹ0-9\-]+(?:[ -][a-zA-ZÀ-Ỵà-ỹ0-9\-]+)*$/;
+
+    const hasLetter = /[a-zA-ZÀ-Ỵà-ỹ]/.test(trimmed);
+
       if (trimmed.length < 3 || trimmed.length > 30 || !categoryNamePattern.test(trimmed) || !hasLetter) {
         return 'Category name must be 3–30 characters and contain only letters, numbers, and hyphens';
       }

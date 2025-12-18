@@ -59,7 +59,7 @@ const Profile = () => {
         'image/x-icon', 'image/tiff', 'image/x-tiff'
       ];
       if (!validTypes.includes(file.type.toLowerCase())) {
-        showToast("Profile picture must be a valid image file", "error", 3000);
+        showToast("Please select a valid image type", "error", 3000);
         setInvalidFile(true);
         setSelectedFile(null);
         setPreviewUrl("");
@@ -90,7 +90,7 @@ const Profile = () => {
         phone: response.phone || "",
         address: response.address || "",
         gender: response.gender || "",
-        dob: response.dob || "",
+        dob: response.dob ? new Date(response.dob).toISOString().split('T')[0] : "",
         image: response.image || "",
       });
     } catch (err) {
@@ -183,13 +183,12 @@ const Profile = () => {
           'image/x-icon', 'image/tiff', 'image/x-tiff'
         ];
         if (!validTypes.includes(selectedFile.type.toLowerCase())) {
-          newErrors.image = "Please select a valid image file";
+          newErrors.image = "Please select a valid image type";
         }
       } else if (formData.image?.trim()) {
         const imageUrl = formData.image.trim().toLowerCase();
-        const validImageExtensions = /\.(png|jpg|jpeg|gif|webp|svg|bmp|ico|tiff|tif)$/i;
-        if (!validImageExtensions.test(imageUrl) && !imageUrl.startsWith('data:image/')) {
-          newErrors.image = "PPlease select a valid image file";
+        if (!imageUrl.match(/\.(png|jpg|jpeg)$/i) && !imageUrl.startsWith('data:image/')) {
+          newErrors.image = "Please select a valid image type";
         }
       }
     }
@@ -217,7 +216,7 @@ const Profile = () => {
         image: formData.image,
       };
       const response = await Api.accounts.updateProfile(user._id, updateData);
-      setProfile(response.account);
+      await fetchProfile();
       setEditMode(false);
       showToast("Profile edited successfully", "success", 2000);
     } catch (err) {
@@ -230,11 +229,10 @@ const Profile = () => {
     } finally {
       setLoading(false);
     }
-  }, [formData, user, showToast]);
+  }, [formData, user, showToast, fetchProfile]);
 
   const updateProfileWithImage = useCallback(
     (imageUrl) => {
-      setLoading(true);
       const updateData = {
         ...formData,
         image: imageUrl,
@@ -243,8 +241,8 @@ const Profile = () => {
       };
       Api.accounts
         .updateProfile(user._id, updateData)
-        .then((response) => {
-          setProfile(response.account);
+        .then(async (response) => {
+          await fetchProfile();
           setEditMode(false);
           showToast("Profile edited successfully", "success", 2000);
         })
@@ -259,7 +257,7 @@ const Profile = () => {
         })
         .finally(() => setLoading(false));
     },
-    [formData, user, showToast]
+    [formData, user, showToast, fetchProfile]
   );
 
   const handleSubmit = useCallback(
@@ -268,9 +266,11 @@ const Profile = () => {
       if (!validateForm()) return;
 
       if (invalidFile) {
-        showToast("Please select a valid image file", "error", 3000);
+        showToast("Please select a valid image type", "error", 3000);
         return;
       }
+
+      setLoading(true);
 
       if (selectedFile) {
         Api.upload
@@ -278,7 +278,7 @@ const Profile = () => {
           .then((response) => {
             const imageUrl = response.data?.url || response.data?.imageUrl;
             if (imageUrl) {
-              showToast("Image uploaded successfully!", "success", 2000);
+              showToast("Image uploaded successfully", "success", 2000);
               updateProfileWithImage(imageUrl);
             } else {
               showToast(
@@ -286,16 +286,18 @@ const Profile = () => {
                 "error",
                 3000
               );
+              setLoading(false);
             }
           })
           .catch((err) => {
-            console.error("❌ Upload failed details:", {
+            console.error("Upload failed details:", {
               message: err.message,
               status: err.response?.status,
               data: err.response?.data,
               config: err.config
             });
             showToast(`Upload failed: ${err.response?.data?.message || err.message}`, "error", 5000);
+            setLoading(false);
           });
       } else {
         updateProfile();
@@ -360,11 +362,11 @@ const Profile = () => {
 
       await Api.passkeys.verifyRegistration(verifyData, token);
 
-      showToast('Biometric authentication set up successfully!', 'success', 2000);
+      showToast('Passkey authentication set up successfully', 'success', 2000);
       fetchPasskeys();
     } catch (err) {
       console.error('Passkey setup error:', err);
-      const errorMsg = err.response?.data?.message || 'Failed to set up biometric authentication';
+      const errorMsg = err.response?.data?.message || 'Failed to set up passkey authentication';
       showToast(errorMsg, 'error', 3000);
     } finally {
       setIsSettingUpPasskey(false);
@@ -388,13 +390,13 @@ const Profile = () => {
       }
 
       await Api.passkeys.deletePasskey(passkeyToDelete, token);
-      showToast('Biometric authentication removed successfully!', 'success', 2000);
+      showToast('Passkey authentication removed successfully', 'success', 2000);
       fetchPasskeys();
       setShowDeletePasskeyModal(false);
       setPasskeyToDelete(null);
     } catch (err) {
       console.error('Delete passkey error:', err);
-      const errorMsg = err.response?.data?.message || 'Failed to remove biometric authentication';
+      const errorMsg = err.response?.data?.message || 'Failed to remove passkey authentication';
       showToast(errorMsg, 'error', 3000);
     } finally {
       setIsDeletingPasskey(false);
@@ -526,8 +528,8 @@ const Profile = () => {
                         {isSettingUpPasskey
                           ? 'Setting up...'
                           : passkeys.length > 0
-                            ? 'Biometrics Already Set Up'
-                            : 'Set Up Biometrics'}
+                            ? 'Passkeys Already Set Up'
+                            : 'Set Up Passkeys'}
                       </button>
                     </div>
                   ) : (
@@ -680,7 +682,7 @@ const Profile = () => {
 
                       {/* Passkeys Section */}
                       <div className="mt-6 space-y-3">
-                        <h3 className="text-lg font-medium text-gray-900">Biometric Authentication</h3>
+                        <h3 className="text-lg font-medium text-gray-900">Passkey Authentication</h3>
                         {passkeys.length > 0 ? (
                           <div className="space-y-2">
                             {passkeys.map((passkey) => (
@@ -701,7 +703,7 @@ const Profile = () => {
                                 <button
                                   onClick={() => handleDeletePasskey(passkey.id)}
                                   className="text-red-600 hover:text-red-800 text-sm font-medium"
-                                  aria-label="Remove biometric authentication"
+                                  aria-label="Remove passkey authentication"
                                 >
                                   Remove
                                 </button>
@@ -710,7 +712,7 @@ const Profile = () => {
                           </div>
                         ) : (
                           <div className="p-4 bg-gray-50 rounded-md border border-gray-200 text-center">
-                            <p className="text-sm text-gray-600">No biometric authentication set up yet. Click "Set Up Biometrics" to use Touch ID, Face ID, or Windows Hello.</p>
+                            <p className="text-sm text-gray-600">No passkey authentication set up yet. Click "Set Up Passkey" to use Touch ID, Face ID, or Windows Hello.</p>
                           </div>
                         )}
                       </div>
@@ -734,6 +736,7 @@ const Profile = () => {
           handleCancel={handleCancel}
           selectedFile={selectedFile}
           profile={profile}
+          loading={loading}
         />
       )}
 
@@ -744,12 +747,12 @@ const Profile = () => {
 
       <DeleteConfirmModal
         isOpen={showDeletePasskeyModal && !!passkeyToDelete}
-        title="Remove Biometric Authentication"
+        title="Remove Passkey Authentication"
         message={
           <>
-            Are you sure you want to remove this biometric device?
+            Are you sure you want to remove this passkey device?
             <br />
-            <span className="text-sm text-gray-500">You will need to set it up again to use biometric login.</span>
+            <span className="text-sm text-gray-500">You will need to set it up again to use passkey login.</span>
           </>
         }
         onConfirm={confirmDeletePasskey}

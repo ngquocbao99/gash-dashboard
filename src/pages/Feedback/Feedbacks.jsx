@@ -72,7 +72,7 @@ const Feedbacks = () => {
         throw new Error("Unexpected response format");
       }
 
-      // Filter out invalid feedback entries
+      // Filter out invalid feedback entries and feedbacks with no rating and no content
       feedbacksData = feedbacksData.filter(
         (feedback) =>
           feedback.order?._id &&

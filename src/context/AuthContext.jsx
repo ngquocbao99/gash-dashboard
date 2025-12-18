@@ -170,7 +170,7 @@ export const AuthProvider = ({ children }) => {
         handleForcedLogout('Your session has expired. You will be logged out.');
       }, 24 * 60 * 60 * 1000);
 
-      showToast('Account created successfully!', 'success');
+      showToast('Account created successfully', 'success');
       navigate('/');
     } catch (err) {
       const msg = err.response?.data?.message ?? 'Signup failed';
@@ -218,7 +218,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('loginTime', loginTime);
       setUser(account);
 
-      showToast('Passkey login successful!', 'success');
+      showToast('Passkey logged in successfully', 'success');
 
       setTimeout(() => {
         handleForcedLogout('Your session has expired. You will be logged out.');
