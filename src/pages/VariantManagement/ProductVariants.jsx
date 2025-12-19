@@ -188,6 +188,11 @@ const ProductVariants = () => {
       let errorMessage = "Failed to deactivate variant";
       if (err.response?.data?.message) {
         errorMessage = err.response.data.message;
+
+        // Improve error message for active orders
+        if (errorMessage.includes('active orders') || errorMessage.includes('pending, confirmed, or shipping')) {
+          errorMessage = "Cannot delete variant because it still contains active orders.";
+        }
       } else if (err.response?.status === 403) {
         errorMessage = "Access denied. Only admin and manager can deactivate variants";
       } else if (err.response?.status === 404) {
@@ -196,11 +201,18 @@ const ProductVariants = () => {
         errorMessage = "Server error. Please try again later";
       } else if (err.message) {
         errorMessage = `Failed to deactivate variant: ${err.message}`;
+
+        // Improve error message for active orders
+        if (errorMessage.includes('active orders') || errorMessage.includes('pending, confirmed, or shipping')) {
+          errorMessage = "Cannot delete variant because it still contains active orders.";
+        }
       }
+      // Only show toast, don't set error state (error state is for fetch operations)
       showToast(errorMessage, "error");
     } finally {
       setShowDeleteConfirm(false);
       setVariantToDelete(null);
+      // Note: No error state to clear here as we don't use error state for delete operations
     }
   };
 
@@ -285,6 +297,11 @@ const ProductVariants = () => {
     return matchesStatus && matchesProduct && matchesSearch;
   });
 
+  // Check if variant is discontinued
+  const isVariantDiscontinued = (variant) => {
+    return variant.variantStatus === 'discontinued';
+  };
+
   // Group variants by product
   const groupedVariants = filteredVariants.reduce((acc, variant) => {
     const productName = variant.productId?.productName || 'Unknown Product';
@@ -294,6 +311,22 @@ const ProductVariants = () => {
     acc[productName].push(variant);
     return acc;
   }, {});
+
+  // Sort variants within each product group: active first, discontinued last
+  Object.keys(groupedVariants).forEach((productName) => {
+    groupedVariants[productName].sort((a, b) => {
+      const aDiscontinued = isVariantDiscontinued(a);
+      const bDiscontinued = isVariantDiscontinued(b);
+
+      // Active variants come first
+      if (aDiscontinued !== bDiscontinued) {
+        return aDiscontinued ? 1 : -1;
+      }
+
+      // If both have same status, maintain original sort order
+      return 0;
+    });
+  });
 
   // Sort products (keys) for consistent display
   const sortedProductNames = Object.keys(groupedVariants).sort((a, b) =>
@@ -369,11 +402,6 @@ const ProductVariants = () => {
     setSortBy("color");
     setSortOrder("asc");
     setCurrentPage(1);
-  };
-
-  // Check if variant is inactive
-  const isVariantDiscontinued = (variant) => {
-    return variant.variantStatus === 'discontinued';
   };
 
   // Show more variants for a product (show all)

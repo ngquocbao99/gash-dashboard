@@ -1,7 +1,10 @@
 import axios from 'axios';
 
 const axiosClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
+  baseURL: import.meta.env.VITE_API_URL ||
+    (/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)
+      ? "http://localhost:5000"
+      : "https://gash-be.onrender.com"),
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',

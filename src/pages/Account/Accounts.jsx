@@ -177,12 +177,22 @@ export default function Accounts() {
         setAccountToDelete(null);
     };
 
-    // Sort accounts - Priority: status, then username, then role
+    // Get status priority: active = 0, suspended = 1, inactive = 2, others = 3
+    const getStatusPriority = (status) => {
+        switch (status) {
+            case 'active': return 0;
+            case 'suspended': return 1;
+            case 'inactive': return 2;
+            default: return 3;
+        }
+    };
+
+    // Sort accounts - Priority: status (active -> suspended -> inactive), then username, then role
     const sortedAccounts = [...(accounts || [])].sort((a, b) => {
-        // First sort by status
-        const aStatus = a.acc_status || '';
-        const bStatus = b.acc_status || '';
-        const statusComparison = aStatus.localeCompare(bStatus);
+        // First sort by status priority
+        const aStatusPriority = getStatusPriority(a.acc_status);
+        const bStatusPriority = getStatusPriority(b.acc_status);
+        const statusComparison = aStatusPriority - bStatusPriority;
 
         // If statuses are different, return the status comparison
         if (statusComparison !== 0) {

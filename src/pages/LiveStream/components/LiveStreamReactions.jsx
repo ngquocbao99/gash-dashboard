@@ -77,8 +77,16 @@ const LiveStreamReactions = ({ liveId }) => {
     }, [liveId]);
 
     const handleReactionAdded = useCallback((data) => {
-        if (data?.liveId === liveId && data?.reaction) {
+        // Normalize liveId comparison (handle both string and ObjectId)
+        const dataLiveId = data?.liveId?.toString?.() || data?.liveId;
+        const currentLiveId = liveId?.toString?.() || liveId;
+
+        if (dataLiveId === currentLiveId && data?.reaction) {
             const reactionType = data.reaction.reactionType;
+            if (!reactionType) return;
+
+            // Use functional update to ensure we're working with latest state
+            // This prevents race conditions when multiple reactions arrive quickly
             setReactionCounts(prev => ({
                 ...prev,
                 [reactionType]: (prev[reactionType] || 0) + 1,
@@ -90,36 +98,89 @@ const LiveStreamReactions = ({ liveId }) => {
         fetchReactions();
     }, [fetchReactions]);
 
+    // Periodic sync to ensure we don't miss reactions (fallback for high traffic)
     useEffect(() => {
         if (!liveId) return;
 
+        // Sync every 10 seconds to catch any missed reactions
+        const syncInterval = setInterval(() => {
+            fetchReactions();
+        }, 10000); // 10 seconds
+
+        return () => {
+            clearInterval(syncInterval);
+        };
+    }, [liveId, fetchReactions]);
+
+    useEffect(() => {
+        if (!liveId) return;
+
+        // Ensure liveId is a string (handle ObjectId objects)
+        const liveIdStr = typeof liveId === 'string' ? liveId : (liveId?.toString?.() || String(liveId));
+
         const socket = io(SOCKET_URL, {
-            transports: ['websocket'],
+            transports: ['websocket', 'polling'], // Add polling as fallback
             reconnection: true,
             reconnectionAttempts: 5,
             reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            timeout: 20000,
+            forceNew: false,
+            autoConnect: true,
         });
+
+        let isJoined = false;
+        const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';
+
+        const joinRoom = () => {
+            if (socket.connected && !isJoined) {
+                isJoined = true;
+                // Join livestream room (same as comments) to receive reaction events
+                socket.emit('joinLivestreamRoom', liveIdStr);
+                if (DEBUG) console.log('✅ Joined livestream room for reactions:', liveIdStr);
+            }
+        };
 
         socket.on('connect', () => {
-            socket.emit('joinLiveProductRoom', liveId);
+            if (DEBUG) console.log('✅ Socket connected for reactions, joining room:', liveIdStr);
+            joinRoom();
         });
 
-        socket.on('disconnect', () => {
+        socket.on('disconnect', (reason) => {
+            if (DEBUG) console.log('⚠️ Socket disconnected (reactions):', reason);
+            isJoined = false;
         });
 
         socket.on('connect_error', (error) => {
+            console.error('❌ Socket connection error (reactions):', error);
+            isJoined = false;
+        });
+
+        socket.on('reconnect', (attemptNumber) => {
+            if (DEBUG) console.log('🔄 Socket reconnected (reactions), attempt:', attemptNumber);
+            isJoined = false;
+            joinRoom();
         });
 
         socket.on('reaction:added', (data) => {
-            if (data?.reaction && data?.liveId === liveId) {
-                handleReactionAdded(data);
-            }
+            if (DEBUG) console.log('📨 Received reaction:added event:', data);
+            handleReactionAdded(data);
         });
 
+        // Join room immediately if already connected
+        if (socket.connected) {
+            joinRoom();
+        }
+
         return () => {
+            if (DEBUG) console.log('🧹 Cleaning up socket connection (reactions)');
+            if (socket.connected && isJoined) {
+                socket.emit('leaveLivestreamRoom', liveIdStr);
+            }
             socket.off('connect');
             socket.off('disconnect');
             socket.off('connect_error');
+            socket.off('reconnect');
             socket.off('reaction:added');
             socket.close();
         };

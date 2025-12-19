@@ -222,12 +222,9 @@ const LiveStreamManagement = () => {
                 previewVideoRef.current.srcObject = stream;
 
                 try {
-                    // Ensure audio is not muted if audio is enabled
-                    if (isAudioEnabled && stream.getAudioTracks().length > 0) {
-                        previewVideoRef.current.muted = false;
-                    } else {
-                        previewVideoRef.current.muted = true;
-                    }
+                    // Always mute preview to prevent audio feedback/echo
+                    // Preview is only for visual check, audio will be streamed to viewers
+                    previewVideoRef.current.muted = true;
 
                     await previewVideoRef.current.play();
                     setIsVideoPlaying(true);

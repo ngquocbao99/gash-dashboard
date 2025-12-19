@@ -89,8 +89,8 @@ const BulkVariantModal = ({
 
         if (bulkForm.stockQuantity === '' || bulkForm.stockQuantity < 0) {
             errors.stockQuantity = 'Stock quantity must be 0 or greater';
-        } else if (bulkForm.stockQuantity > 10000) {
-            errors.stockQuantity = 'Stock quantity must be less than 10,000';
+        } else if (bulkForm.stockQuantity > 1000) {
+            errors.stockQuantity = 'The stock quantity must not exceed 1000';
         }
 
         // Image validation
@@ -106,13 +106,38 @@ const BulkVariantModal = ({
     const handleFieldChange = useCallback((field, value) => {
         setBulkForm(prev => ({ ...prev, [field]: value }));
 
-        // Clear validation error for this field
-        if (validationErrors[field]) {
-            setValidationErrors(prev => {
-                const newErrors = { ...prev };
-                delete newErrors[field];
-                return newErrors;
-            });
+        // Real-time validation for stockQuantity
+        if (field === 'stockQuantity') {
+            if (value === '' || value === null || value === undefined) {
+                setValidationErrors(prev => {
+                    const newErrors = { ...prev };
+                    delete newErrors[field];
+                    return newErrors;
+                });
+            } else {
+                const stock = parseInt(value);
+                if (isNaN(stock) || stock < 0) {
+                    setValidationErrors(prev => ({ ...prev, [field]: 'Stock quantity must be 0 or greater' }));
+                } else if (stock > 1000) {
+                    setValidationErrors(prev => ({ ...prev, [field]: 'The stock quantity must not exceed 1000' }));
+                } else {
+                    // Clear error if valid
+                    setValidationErrors(prev => {
+                        const newErrors = { ...prev };
+                        delete newErrors[field];
+                        return newErrors;
+                    });
+                }
+            }
+        } else {
+            // Clear validation error for other fields
+            if (validationErrors[field]) {
+                setValidationErrors(prev => {
+                    const newErrors = { ...prev };
+                    delete newErrors[field];
+                    return newErrors;
+                });
+            }
         }
     }, [validationErrors]);
 
@@ -121,7 +146,7 @@ const BulkVariantModal = ({
         setBulkForm(prev => {
             const currentSizes = prev.selectedSizeIds || [];
             const isSelected = currentSizes.includes(sizeId);
-            
+
             if (isSelected) {
                 // Remove size
                 return {
@@ -158,7 +183,7 @@ const BulkVariantModal = ({
             }
             setVariantImageFile(file);
             setVariantImagePreview(URL.createObjectURL(file));
-            
+
             // Clear validation error
             if (validationErrors.variantImage) {
                 setValidationErrors(prev => {
@@ -204,6 +229,11 @@ const BulkVariantModal = ({
 
         if (isNaN(stock) || stock < 0) {
             showToast("Stock quantity must be a non-negative number", 'error');
+            setLoading(false);
+            return;
+        }
+        if (stock > 1000) {
+            showToast("The stock quantity must not exceed 1000", 'error');
             setLoading(false);
             return;
         }
@@ -351,11 +381,10 @@ const BulkVariantModal = ({
                                 id="productColorId"
                                 value={bulkForm.productColorId}
                                 onChange={(e) => handleFieldChange("productColorId", e.target.value)}
-                                className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 transition-all duration-200 text-sm lg:text-base ${
-                                    validationErrors.productColorId
-                                        ? 'border-red-400 bg-white focus:ring-red-500 focus:border-red-500'
-                                        : 'border-gray-300 bg-white hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
-                                }`}
+                                className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 transition-all duration-200 text-sm lg:text-base ${validationErrors.productColorId
+                                    ? 'border-red-400 bg-white focus:ring-red-500 focus:border-red-500'
+                                    : 'border-gray-300 bg-white hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
+                                    }`}
                                 required
                             >
                                 <option value="">Select Color</option>
@@ -378,21 +407,19 @@ const BulkVariantModal = ({
                                     ({bulkForm.selectedSizeIds?.length || 0} selected)
                                 </span>
                             </label>
-                            <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 p-4 border rounded-lg ${
-                                validationErrors.selectedSizeIds
-                                    ? 'border-red-400 bg-red-50'
-                                    : 'border-gray-300 bg-gray-50'
-                            }`}>
+                            <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 p-4 border rounded-lg ${validationErrors.selectedSizeIds
+                                ? 'border-red-400 bg-red-50'
+                                : 'border-gray-300 bg-gray-50'
+                                }`}>
                                 {sizes?.filter(size => size.isDeleted !== true).map((size) => {
                                     const isSelected = bulkForm.selectedSizeIds?.includes(size._id);
                                     return (
                                         <label
                                             key={size._id}
-                                            className={`flex items-center space-x-2 p-3 rounded-lg cursor-pointer transition-all duration-200 border-2 ${
-                                                isSelected
-                                                    ? 'bg-[#A86523] text-white border-[#A86523] shadow-md'
-                                                    : 'bg-white text-gray-700 border-gray-300 hover:border-[#A86523] hover:bg-yellow-50'
-                                            }`}
+                                            className={`flex items-center space-x-2 p-3 rounded-lg cursor-pointer transition-all duration-200 border-2 ${isSelected
+                                                ? 'bg-[#A86523] text-white border-[#A86523] shadow-md'
+                                                : 'bg-white text-gray-700 border-gray-300 hover:border-[#A86523] hover:bg-yellow-50'
+                                                }`}
                                         >
                                             <input
                                                 type="checkbox"
@@ -426,11 +453,10 @@ const BulkVariantModal = ({
                                     min="0"
                                     value={bulkForm.variantPrice}
                                     onChange={(e) => handleFieldChange("variantPrice", e.target.value)}
-                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base ${
-                                        validationErrors.variantPrice
-                                            ? 'border-red-400 bg-white focus:ring-red-500 focus:border-red-500'
-                                            : 'border-gray-300 bg-white hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
-                                    }`}
+                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base ${validationErrors.variantPrice
+                                        ? 'border-red-400 bg-white focus:ring-red-500 focus:border-red-500'
+                                        : 'border-gray-300 bg-white hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
+                                        }`}
                                     placeholder="Enter price"
                                     required
                                 />
@@ -449,11 +475,10 @@ const BulkVariantModal = ({
                                     min="0"
                                     value={bulkForm.stockQuantity}
                                     onChange={(e) => handleFieldChange("stockQuantity", e.target.value)}
-                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base ${
-                                        validationErrors.stockQuantity
-                                            ? 'border-red-400 bg-white focus:ring-red-500 focus:border-red-500'
-                                            : 'border-gray-300 bg-white hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
-                                    }`}
+                                    className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 transition-all duration-200 bg-white text-sm lg:text-base ${validationErrors.stockQuantity
+                                        ? 'border-red-400 bg-white focus:ring-red-500 focus:border-red-500'
+                                        : 'border-gray-300 bg-white hover:border-gray-400 focus:border-[#A86523] focus:ring-[#A86523]'
+                                        }`}
                                     placeholder="Enter stock quantity"
                                     required
                                 />
@@ -478,11 +503,10 @@ const BulkVariantModal = ({
                                 />
                                 <label
                                     htmlFor="variant-image"
-                                    className={`flex flex-col items-center justify-center w-full aspect-square border-2 border-dashed rounded-lg cursor-pointer transition-all duration-200 bg-white hover:bg-gray-50 ${
-                                        validationErrors.variantImage
-                                            ? 'border-red-400 bg-red-50'
-                                            : 'border-gray-300'
-                                    }`}
+                                    className={`flex flex-col items-center justify-center w-full aspect-square border-2 border-dashed rounded-lg cursor-pointer transition-all duration-200 bg-white hover:bg-gray-50 ${validationErrors.variantImage
+                                        ? 'border-red-400 bg-red-50'
+                                        : 'border-gray-300'
+                                        }`}
                                 >
                                     <svg
                                         className={`w-7 h-7 mb-1 ${validationErrors.variantImage ? 'text-red-500' : 'text-gray-400'}`}

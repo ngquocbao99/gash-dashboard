@@ -202,10 +202,7 @@ const StreamsList = ({
 
                                         {/* Viewers */}
                                         <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm text-gray-900">
-                                            {stream.currentViewers || 0}
-                                            {stream.peakViewers > 0 && (
-                                                <span className="text-gray-500 ml-1">(Peak: {stream.peakViewers})</span>
-                                            )}
+                                            {stream.peakViewers || stream.currentViewers || 0}
                                         </td>
 
                                         {/* Start Time */}

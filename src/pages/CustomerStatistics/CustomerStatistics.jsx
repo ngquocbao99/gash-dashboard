@@ -288,7 +288,7 @@ const CustomerStatistics = () => {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4 mb-4 lg:mb-6 pt-2 lg:pt-3 pb-2 lg:pb-3">
         <div className="flex-1 min-w-0">
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 lg:mb-2 leading-tight">
-            👥 Customer Statistics
+            Customer Statistics
           </h1>
         </div>
 
@@ -521,58 +521,58 @@ const CustomerStatistics = () => {
           </div>
 
           <div className="backdrop-blur-xl rounded-xl border p-4 lg:p-6" style={{ borderColor: '#A86523', boxShadow: '0 25px 70px rgba(168, 101, 35, 0.3), 0 15px 40px rgba(251, 191, 36, 0.25), 0 5px 15px rgba(168, 101, 35, 0.2)' }}>
-  <h4 className="text-lg lg:text-xl font-semibold mb-4 text-gray-800 flex items-center gap-2">
-    🏆 Top Customers
-  </h4>
+            <h4 className="text-lg lg:text-xl font-semibold mb-4 text-gray-800 flex items-center gap-2">
+              🏆 Top Customers
+            </h4>
 
-  <div className="overflow-x-auto">
-    <table className="w-full min-w-[500px]">
-      <thead className="backdrop-blur-sm border-b" style={{ borderColor: '#A86523' }}>
-        <tr>
-          <th className="px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Name</th>
-          <th className="px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Email</th>
-          <th className="px-2 lg:px-4 py-3 text-center text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Orders</th>
-          <th className="px-2 lg:px-4 py-3 text-center text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Spent ($)</th>
-        </tr>
-      </thead>
-      <tbody>
-        {topCustomers && topCustomers.length > 0 ? (
-          topCustomers.map((c, index) => (
-            <tr
-              key={c.id || index}
-              className="border-b-2 border-gray-200/40 hover:bg-gradient-to-r hover:from-yellow-50/50 hover:via-amber-50/50 hover:to-orange-50/50 transition-all duration-300"
-            >
-              <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm font-medium text-gray-800">{c.name}</td>
-              <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm text-gray-600">{c.email}</td>
-              <td className="px-2 lg:px-4 py-3 text-center text-xs lg:text-sm font-semibold text-blue-600">{c.orders}</td>
-              <td className="px-2 lg:px-4 py-3 text-center text-xs lg:text-sm font-semibold text-gray-700">
-                ${c.spent?.toLocaleString() || 0}
-              </td>
-            </tr>
-          ))
-        ) : (
-          <tr>
-            <td
-              colSpan="4"
-              className="py-4 text-center text-gray-500 italic"
-            >
-              No top customers available
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-  </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[500px]">
+                <thead className="backdrop-blur-sm border-b" style={{ borderColor: '#A86523' }}>
+                  <tr>
+                    <th className="px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Name</th>
+                    <th className="px-2 lg:px-4 py-3 text-left text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Email</th>
+                    <th className="px-2 lg:px-4 py-3 text-center text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Orders</th>
+                    <th className="px-2 lg:px-4 py-3 text-center text-xs font-bold text-gray-800 uppercase tracking-wider whitespace-nowrap">Spent ($)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topCustomers && topCustomers.length > 0 ? (
+                    topCustomers.map((c, index) => (
+                      <tr
+                        key={c.id || index}
+                        className="border-b-2 border-gray-200/40 hover:bg-gradient-to-r hover:from-yellow-50/50 hover:via-amber-50/50 hover:to-orange-50/50 transition-all duration-300"
+                      >
+                        <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm font-medium text-gray-800">{c.name}</td>
+                        <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm text-gray-600">{c.email}</td>
+                        <td className="px-2 lg:px-4 py-3 text-center text-xs lg:text-sm font-semibold text-blue-600">{c.orders}</td>
+                        <td className="px-2 lg:px-4 py-3 text-center text-xs lg:text-sm font-semibold text-gray-700">
+                          ${c.spent?.toLocaleString() || 0}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan="4"
+                        className="py-4 text-center text-gray-500 italic"
+                      >
+                        No top customers available
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-  <div className="mt-4 lg:mt-5 flex justify-end">
-    <button
-      onClick={handleExportCSV}
-      className="px-3 lg:px-4 py-2 lg:py-3 text-sm font-medium text-white bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] rounded-xl shadow-lg hover:shadow-xl flex items-center gap-2 transition-all duration-300 transform hover:scale-105"
-    >
-      <FaDownload className="text-sm" /> Export CSV
-    </button>
-  </div>
-</div>
+            <div className="mt-4 lg:mt-5 flex justify-end">
+              <button
+                onClick={handleExportCSV}
+                className="px-3 lg:px-4 py-2 lg:py-3 text-sm font-medium text-white bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] rounded-xl shadow-lg hover:shadow-xl flex items-center gap-2 transition-all duration-300 transform hover:scale-105"
+              >
+                <FaDownload className="text-sm" /> Export CSV
+              </button>
+            </div>
+          </div>
 
         </div>
       </div>

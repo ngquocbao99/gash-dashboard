@@ -71,9 +71,9 @@ const LiveStreamDetails = () => {
                     createdAt: livestreamData.createdAt,
                     updatedAt: livestreamData.updatedAt,
                     peakViewers: livestreamData.peakViewers || 0,
-                    peakViewersAt: livestreamData.peakViewersAt || null,
+                    peakViewersAt: livestreamData.peakViewersAt !== undefined ? livestreamData.peakViewersAt : null,
                     minViewers: livestreamData.minViewers || 0,
-                    minViewersAt: livestreamData.minViewersAt || null,
+                    minViewersAt: livestreamData.minViewersAt !== undefined ? livestreamData.minViewersAt : null,
                     currentViewers: livestreamData.currentViewers || 0,
                     duration: livestreamData.duration // Duration in milliseconds (null if still live)
                 });
@@ -162,7 +162,7 @@ const LiveStreamDetails = () => {
         if (products.length === 0) return;
 
         products.slice(0, 3).forEach((liveProduct, index) => {
-            const productImageUrl = getProductImageUrl(liveProduct, index);
+            const productImageUrl = getMainImageUrl(liveProduct);
             if (!productImageUrl && liveProduct.productId) {
                 const productId = typeof liveProduct.productId === 'string'
                     ? liveProduct.productId
@@ -215,133 +215,68 @@ const LiveStreamDetails = () => {
                 }
             }
         } catch (error) {
-            // Silently fail - image will show placeholder
+            return dateString;
         }
-
-        return null;
     };
 
-    // Helper: Get main product image URL from liveProduct (synchronous version)
-    // Handles multiple data structures from backend (similar to LiveStreamProducts.jsx)
-    const getProductImageUrl = (liveProduct, index = -1) => {
+    // Helper: Get main product image URL - Always prioritize isMain=true
+    const getMainImageUrl = (liveProduct) => {
         if (!liveProduct) return null;
 
-        // Try multiple paths to get images - try ALL paths, not just first match
+        // Try to get images from multiple possible locations
         let images = [];
 
-        // Path 1: productId.productImageIds (most common) - check if it's an array
-        if (liveProduct.productId?.productImageIds) {
-            if (Array.isArray(liveProduct.productId.productImageIds)) {
-                images = liveProduct.productId.productImageIds;
+        // 1. Check productId.productImageIds (most common from populated data)
+        if (liveProduct.productId?.productImageIds && Array.isArray(liveProduct.productId.productImageIds)) {
+            images = liveProduct.productId.productImageIds;
+        }
+        // 2. Check images array (alternative structure)
+        else if (liveProduct.productId?.images && Array.isArray(liveProduct.productId.images)) {
+            images = liveProduct.productId.images;
+        }
+        // 3. Check if liveProduct has a nested product object with images
+        else if (liveProduct.product?.productImageIds && Array.isArray(liveProduct.product.productImageIds)) {
+            images = liveProduct.product.productImageIds;
+        }
+        else if (liveProduct.product?.images && Array.isArray(liveProduct.product.images)) {
+            images = liveProduct.product.images;
+        }
+
+        if (images.length > 0) {
+            // PRIORITY 1: Find image with isMain === true (strict check)
+            const mainImage = images.find(img => img && img.isMain === true && img.imageUrl);
+            if (mainImage?.imageUrl) {
+                return mainImage.imageUrl;
             }
-            // If it's an object (nested), try to extract array
-            else if (typeof liveProduct.productId.productImageIds === 'object' && liveProduct.productId.productImageIds !== null) {
-                if (Array.isArray(liveProduct.productId.productImageIds.data)) {
-                    images = liveProduct.productId.productImageIds.data;
-                } else if (Array.isArray(liveProduct.productId.productImageIds.images)) {
-                    images = liveProduct.productId.productImageIds.images;
+
+            // PRIORITY 2: If no main image, use first image with valid imageUrl
+            const firstImage = images.find(img => img && img.imageUrl);
+            if (firstImage?.imageUrl) {
+                return firstImage.imageUrl;
+            }
+        }
+
+        // PRIORITY 3: Check if there's a direct image URL (from WebSocket/realtime data)
+        if (liveProduct.image && typeof liveProduct.image === 'string') {
+            return liveProduct.image;
+        }
+
+        // PRIORITY 4: Try to get image from product variants (variantImage)
+        if (liveProduct.productId?.productVariantIds && Array.isArray(liveProduct.productId.productVariantIds)) {
+            for (const variant of liveProduct.productId.productVariantIds) {
+                if (variant?.variantImage && typeof variant.variantImage === 'string') {
+                    return variant.variantImage;
                 }
             }
         }
 
-        // Path 2: productId.productIdImageIds (alternative field name) - try if Path 1 didn't work
-        if (images.length === 0 && liveProduct.productId?.productIdImageIds) {
-            if (Array.isArray(liveProduct.productId.productIdImageIds)) {
-                images = liveProduct.productId.productIdImageIds;
-            }
-            // If it's an object (nested), try to extract array
-            else if (typeof liveProduct.productId.productIdImageIds === 'object' && liveProduct.productId.productIdImageIds !== null) {
-                if (Array.isArray(liveProduct.productId.productIdImageIds.data)) {
-                    images = liveProduct.productId.productIdImageIds.data;
-                } else if (Array.isArray(liveProduct.productId.productIdImageIds.images)) {
-                    images = liveProduct.productId.productIdImageIds.images;
+        // PRIORITY 5: Check nested product.product for variants
+        if (liveProduct.product?.productVariantIds && Array.isArray(liveProduct.product.productVariantIds)) {
+            for (const variant of liveProduct.product.productVariantIds) {
+                if (variant?.variantImage && typeof variant.variantImage === 'string') {
+                    return variant.variantImage;
                 }
             }
-        }
-
-        // Path 3: productId.images (alternative)
-        if (images.length === 0 && liveProduct.productId?.images) {
-            if (Array.isArray(liveProduct.productId.images)) {
-                images = liveProduct.productId.images;
-            } else if (typeof liveProduct.productId.images === 'object' && liveProduct.productId.images !== null) {
-                if (Array.isArray(liveProduct.productId.images.data)) {
-                    images = liveProduct.productId.images.data;
-                }
-            }
-        }
-
-        // Path 4: product.productImageIds (if product is separate field)
-        if (images.length === 0 && liveProduct.product?.productImageIds) {
-            if (Array.isArray(liveProduct.product.productImageIds)) {
-                images = liveProduct.product.productImageIds;
-            } else if (typeof liveProduct.product.productImageIds === 'object' && liveProduct.product.productImageIds !== null) {
-                if (Array.isArray(liveProduct.product.productImageIds.data)) {
-                    images = liveProduct.product.productImageIds.data;
-                } else if (Array.isArray(liveProduct.product.productImageIds.images)) {
-                    images = liveProduct.product.productImageIds.images;
-                }
-            }
-        }
-
-        // Path 5: product.images (alternative)
-        if (images.length === 0 && liveProduct.product?.images) {
-            if (Array.isArray(liveProduct.product.images)) {
-                images = liveProduct.product.images;
-            } else if (typeof liveProduct.product.images === 'object' && liveProduct.product.images !== null) {
-                if (Array.isArray(liveProduct.product.images.data)) {
-                    images = liveProduct.product.images.data;
-                }
-            }
-        }
-
-        // Path 6: productImageIds at root level
-        if (images.length === 0 && liveProduct.productImageIds) {
-            if (Array.isArray(liveProduct.productImageIds)) {
-                images = liveProduct.productImageIds;
-            } else if (typeof liveProduct.productImageIds === 'object' && liveProduct.productImageIds !== null) {
-                if (Array.isArray(liveProduct.productImageIds.data)) {
-                    images = liveProduct.productImageIds.data;
-                } else if (Array.isArray(liveProduct.productImageIds.images)) {
-                    images = liveProduct.productImageIds.images;
-                }
-            }
-        }
-
-
-        // If no images found, check cache first
-        if (images.length === 0 && liveProduct.productId) {
-            const productId = typeof liveProduct.productId === 'string'
-                ? liveProduct.productId
-                : (liveProduct.productId._id || liveProduct.productId.id);
-
-            if (productId && productImageCache[productId]) {
-                return productImageCache[productId];
-            }
-        }
-
-        if (images.length === 0) return null;
-
-        // Filter valid images
-        const validImages = images.filter(img => {
-            if (!img || typeof img !== 'object') return false;
-            const url = img?.imageUrl || img?.url;
-            return url && typeof url === 'string' && url.trim().length > 0;
-        });
-
-        if (validImages.length === 0) return null;
-
-        // Find main image first (isMain === true)
-        const mainImage = validImages.find(img => {
-            const isMain = img?.isMain === true || img?.isMain === 'true' || img?.isMain === 1;
-            return isMain;
-        });
-
-        // Use main image or first valid image
-        const selectedImage = mainImage || validImages[0];
-        const imageUrl = selectedImage?.imageUrl || selectedImage?.url;
-
-        if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim().length > 0) {
-            return imageUrl.trim();
         }
 
         return null;
@@ -533,20 +468,20 @@ const LiveStreamDetails = () => {
                             <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
                                 <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
                                     <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
-                                    <span className="text-xs font-medium">Peak Viewers</span>
+                                    <span className="text-xs font-medium">Total Viewers</span>
                                 </div>
                                 <p className="text-sm sm:text-base font-semibold text-gray-900">{viewerStats.peak} viewers</p>
                             </div>
 
-                            {livestream.peakViewersAt && (
-                                <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
-                                    <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
-                                        <Schedule className="w-3 h-3 sm:w-4 sm:h-4" />
-                                        <span className="text-xs font-medium">Peak At</span>
-                                    </div>
-                                    <p className="text-xs sm:text-sm font-semibold text-gray-900">{formatDate(livestream.peakViewersAt)}</p>
+                            <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
+                                <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
+                                    <Schedule className="w-3 h-3 sm:w-4 sm:h-4" />
+                                    <span className="text-xs font-medium">Peak At</span>
                                 </div>
-                            )}
+                                <p className="text-xs sm:text-sm font-semibold text-gray-900">
+                                    {livestream.peakViewersAt && livestream.peakViewersAt !== null ? formatDate(livestream.peakViewersAt) : 'N/A'}
+                                </p>
+                            </div>
 
                             <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
                                 <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
@@ -556,15 +491,15 @@ const LiveStreamDetails = () => {
                                 <p className="text-sm sm:text-base font-semibold text-gray-900">{viewerStats.min} viewers</p>
                             </div>
 
-                            {livestream.minViewersAt && (
-                                <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
-                                    <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
-                                        <Schedule className="w-3 h-3 sm:w-4 sm:h-4" />
-                                        <span className="text-xs font-medium">Min At</span>
-                                    </div>
-                                    <p className="text-xs sm:text-sm font-semibold text-gray-900">{formatDate(livestream.minViewersAt)}</p>
+                            <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
+                                <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
+                                    <Schedule className="w-3 h-3 sm:w-4 sm:h-4" />
+                                    <span className="text-xs font-medium">Min At</span>
                                 </div>
-                            )}
+                                <p className="text-xs sm:text-sm font-semibold text-gray-900">
+                                    {livestream.minViewersAt && livestream.minViewersAt !== null ? formatDate(livestream.minViewersAt) : 'N/A'}
+                                </p>
+                            </div>
 
                             <div className="bg-gray-50 rounded-lg border p-2.5 sm:p-3" style={{ borderColor: '#A86523' }}>
                                 <div className="flex items-center gap-2 text-gray-600 mb-1.5 sm:mb-2">
@@ -754,7 +689,7 @@ const LiveStreamDetails = () => {
                                 const productName = liveProduct.productId?.productName || liveProduct.product?.productName || 'Unknown Product';
 
                                 // Get main image URL using helper function (pass index for debugging)
-                                let productImageUrl = getProductImageUrl(liveProduct, index);
+                                let productImageUrl = getMainImageUrl(liveProduct);
 
                                 // Additional fallback: if productId is a string (not populated), we can't get images
                                 // But if it's an object and we still don't have images, try direct access
@@ -775,43 +710,41 @@ const LiveStreamDetails = () => {
                                 return (
                                     <div key={liveProduct._id} className={`rounded-lg border p-2.5 sm:p-3 hover:shadow-md transition-shadow flex items-center gap-3 sm:gap-4 ${!isActive ? 'opacity-60' : ''} ${isPinned ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-300 shadow-md' : 'bg-gray-50'}`} style={isPinned ? {} : { borderColor: '#A86523' }}>
                                         {/* Product Image */}
-                                        <div className="flex-shrink-0 relative">
-                                            {productImageUrl ? (
-                                                <img
-                                                    key={`img-${liveProduct._id}-${productImageUrl.substring(0, 50)}-${index}`}
-                                                    src={productImageUrl}
-                                                    alt={productName}
-                                                    className="w-20 h-20 object-cover rounded-lg border border-gray-200"
-                                                    loading={index < 3 ? "eager" : "lazy"}
-                                                    onError={(e) => {
-                                                        // Hide the broken image
-                                                        const imgElement = e.target;
-                                                        imgElement.style.display = 'none';
-                                                        // Show placeholder
-                                                        const placeholder = imgElement.nextElementSibling;
-                                                        if (placeholder) {
-                                                            placeholder.style.display = 'flex';
-                                                        }
-                                                    }}
-                                                    onLoad={(e) => {
-                                                        // Ensure placeholder is hidden when image loads successfully
-                                                        const placeholder = e.target.nextElementSibling;
-                                                        if (placeholder) {
-                                                            placeholder.style.display = 'none';
-                                                        }
-                                                    }}
-                                                />
-                                            ) : null}
-                                            <div
-                                                key={`placeholder-${liveProduct._id}`}
-                                                className="flex-shrink-0 w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center border border-gray-200"
-                                                style={{ display: productImageUrl ? 'none' : 'flex' }}
-                                            >
-                                                <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                                </svg>
-                                            </div>
-                                        </div>
+                                        {(() => {
+                                            const productImageUrl = getMainImageUrl(liveProduct);
+                                            const productName = liveProduct.productId?.productName || 'Product';
+
+                                            if (productImageUrl) {
+                                                return (
+                                                    <div className="shrink-0 relative w-20 h-20">
+                                                        <img
+                                                            src={productImageUrl}
+                                                            alt={productName}
+                                                            className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                                                            onError={(e) => {
+                                                                e.target.style.display = 'none';
+                                                                if (e.target.nextSibling) {
+                                                                    e.target.nextSibling.style.display = 'flex';
+                                                                }
+                                                            }}
+                                                        />
+                                                        <div className="hidden w-20 h-20 bg-gray-200 rounded-lg items-center justify-center border border-gray-200">
+                                                            <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                            </svg>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <div className="shrink-0 w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center border border-gray-200">
+                                                    <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                    </svg>
+                                                </div>
+                                            );
+                                        })()}
 
                                         {/* Product Info */}
                                         <div className="flex-1 min-w-0">

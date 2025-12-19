@@ -53,7 +53,11 @@ const Profile = () => {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+      const validTypes = [
+        'image/png', 'image/jpeg', 'image/jpg', 'image/gif',
+        'image/webp', 'image/svg+xml', 'image/bmp',
+        'image/x-icon', 'image/tiff', 'image/x-tiff'
+      ];
       if (!validTypes.includes(file.type.toLowerCase())) {
         showToast("Please select a valid image type", "error", 3000);
         setInvalidFile(true);
@@ -170,10 +174,14 @@ const Profile = () => {
     if (address && address.length > 200)
       newErrors.address = "Address must be at most 200 characters";
 
-    // Validate image format if provided
+    // Validate image format if provided - allow all image types
     if (hasImage) {
       if (selectedFile) {
-        const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+        const validTypes = [
+          'image/png', 'image/jpeg', 'image/jpg', 'image/gif',
+          'image/webp', 'image/svg+xml', 'image/bmp',
+          'image/x-icon', 'image/tiff', 'image/x-tiff'
+        ];
         if (!validTypes.includes(selectedFile.type.toLowerCase())) {
           newErrors.image = "Please select a valid image type";
         }

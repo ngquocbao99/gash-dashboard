@@ -35,6 +35,7 @@ const LiveStreamDashboard = () => {
     const [isLive, setIsLive] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [showComments, setShowComments] = useState(true); // Default: show comments
+    const [isOwner, setIsOwner] = useState(false); // Check if current user is the owner
 
     // LiveKit state
     const [room, setRoom] = useState(null);
@@ -89,14 +90,13 @@ const LiveStreamDashboard = () => {
     const loadLivestreamDetails = useCallback(async () => {
         try {
             setIsLoading(true);
-            const response = await Api.livestream.getHost();
+            // Use getById to allow staff to access livestreams they don't own
+            const response = await Api.livestream.getById(livestreamId);
 
             if (response.success) {
-
                 const livestream = response.data?.livestream;
 
-
-                if (livestream && (livestream._id === livestreamId || livestream.livestreamId === parseInt(livestreamId))) {
+                if (livestream) {
                     // Ensure _id is set correctly (may be undefined)
                     // Backend returns peakViewers and minViewers calculated real-time
                     const livestreamWithId = {
@@ -110,20 +110,31 @@ const LiveStreamDashboard = () => {
                     currentLivestreamRef.current = livestreamWithId;
                     setIsLive(livestream.status === 'live');
                     isLiveRef.current = livestream.status === 'live';
+
+                    // Check if current user is the owner
+                    const hostId = livestream.hostId?._id || livestream.hostId;
+                    const userId = user?._id;
+                    const isUserOwner = hostId && userId && (
+                        hostId.toString() === userId.toString() ||
+                        hostId === userId
+                    );
+                    setIsOwner(isUserOwner);
                 } else {
-                    showToast('No live livestream found', 'error');
+                    showToast('Livestream not found', 'error');
                     navigate('/livestream');
                 }
             } else {
-                showToast('Unable to load livestream information', 'error');
+                showToast(response.message || 'Unable to load livestream information', 'error');
+                navigate('/livestream');
             }
         } catch (error) {
             console.error('Error loading livestream details:', error);
             showToast('Error loading livestream information', 'error');
+            navigate('/livestream');
         } finally {
             setIsLoading(false);
         }
-    }, [livestreamId, showToast, navigate]);
+    }, [livestreamId, user, showToast, navigate]);
 
     // Load livestream data on mount
     useEffect(() => {
@@ -307,12 +318,12 @@ const LiveStreamDashboard = () => {
                 ongoingCallsRef.current.updateViewerCount = true;
 
                 try {
-                    const response = await Api.livestream.getHost();
+                    const response = await Api.livestream.getById(livestreamId);
                     if (response.success) {
                         // Backend returns: { success: true, data: { livestream: {...} } }
                         const currentStream = response.data?.livestream;
 
-                        if (currentStream && (currentStream._id === livestreamId || currentStream.livestreamId === parseInt(livestreamId))) {
+                        if (currentStream) {
                             const newViewers = currentStream.currentViewers ?? 0;
                             const backendPeak = currentStream.peakViewers ?? 0;
                             const backendMin = currentStream.minViewers ?? 0;
@@ -403,7 +414,7 @@ const LiveStreamDashboard = () => {
     }, []);
 
 
-    // Auto-connect and start live when data is loaded
+    // Auto-connect and start live when data is loaded (only for owner)
     useEffect(() => {
         const connectIfNeeded = async () => {
 
@@ -413,7 +424,8 @@ const LiveStreamDashboard = () => {
                 return;
             }
 
-            if (currentLivestream && isLive && currentLivestream.roomName && !isConnected && !isReconnectingRef.current) {
+            // Only auto-connect if user is the owner
+            if (currentLivestream && isLive && currentLivestream.roomName && !isConnected && !isReconnectingRef.current && isOwner) {
                 autoConnectAttemptedRef.current = true;
 
 
@@ -471,8 +483,8 @@ const LiveStreamDashboard = () => {
             }
         };
 
-        // Trigger auto-connect when conditions change
-        if (currentLivestream && isLive && currentLivestream.roomName && !isConnected && !autoConnectAttemptedRef.current) {
+        // Trigger auto-connect when conditions change (only for owner)
+        if (currentLivestream && isLive && currentLivestream.roomName && !isConnected && !autoConnectAttemptedRef.current && isOwner) {
             // Debounce auto-connect to prevent multiple calls
             const timeoutId = setTimeout(connectIfNeeded, 1500);
             return () => {
@@ -482,11 +494,11 @@ const LiveStreamDashboard = () => {
         }
 
         // Reset flag when disconnected or stream changes
-        if (!isLive || !currentLivestream || isConnected) {
+        if (!isLive || !currentLivestream || isConnected || !isOwner) {
             autoConnectAttemptedRef.current = false;
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentLivestream, isLive, isConnected]);
+    }, [currentLivestream, isLive, isConnected, isOwner]);
 
 
     const startMediaStream = useCallback(async () => {
@@ -1934,6 +1946,14 @@ const LiveStreamDashboard = () => {
                                     </svg>
                                     {currentLivestream?.title || 'Livestream Dashboard'}
                                 </h1>
+                                {!isOwner && (
+                                    <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Support Mode - View and control the livestream
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -1958,28 +1978,30 @@ const LiveStreamDashboard = () => {
                                 </div>
                             )}
 
-                            {/* Connection Status - Compact */}
-                            <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 shadow-md">
-                                <div className="flex items-center gap-2">
-                                    <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
-                                    </svg>
-                                    <span className="text-xs font-semibold text-gray-700">Connection</span>
+                            {/* Connection Status - Compact - Only show for owner */}
+                            {isOwner && (
+                                <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 shadow-md">
+                                    <div className="flex items-center gap-2">
+                                        <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+                                        </svg>
+                                        <span className="text-xs font-semibold text-gray-700">Connection</span>
+                                    </div>
+                                    <div className="h-6 w-px bg-gray-300"></div>
+                                    <div className="flex items-center gap-2">
+                                        <div className={`w-2 h-2 rounded-full ${connectionState === 'connected' ? 'bg-green-500 animate-pulse' :
+                                            connectionState === 'connecting' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
+                                            }`}></div>
+                                        <span className="text-xs font-semibold text-gray-700">{connectionState === 'connected' ? 'Connected' :
+                                            connectionState === 'connecting' ? 'Connecting' : 'Disconnected'}</span>
+                                    </div>
+                                    <div className="h-6 w-px bg-gray-300"></div>
+                                    <div className="flex items-center gap-2">
+                                        <div className={`w-2 h-2 rounded-full ${isPublishing ? 'bg-green-600' : 'bg-gray-400'}`}></div>
+                                        <span className="text-xs font-semibold text-gray-700">{isPublishing ? 'Publishing' : 'Not Publishing'}</span>
+                                    </div>
                                 </div>
-                                <div className="h-6 w-px bg-gray-300"></div>
-                                <div className="flex items-center gap-2">
-                                    <div className={`w-2 h-2 rounded-full ${connectionState === 'connected' ? 'bg-green-500 animate-pulse' :
-                                        connectionState === 'connecting' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
-                                        }`}></div>
-                                    <span className="text-xs font-semibold text-gray-700">{connectionState === 'connected' ? 'Connected' :
-                                        connectionState === 'connecting' ? 'Connecting' : 'Disconnected'}</span>
-                                </div>
-                                <div className="h-6 w-px bg-gray-300"></div>
-                                <div className="flex items-center gap-2">
-                                    <div className={`w-2 h-2 rounded-full ${isPublishing ? 'bg-green-600' : 'bg-gray-400'}`}></div>
-                                    <span className="text-xs font-semibold text-gray-700">{isPublishing ? 'Publishing' : 'Not Publishing'}</span>
-                                </div>
-                            </div>
+                            )}
 
                             {/* Status Badge */}
                             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold shadow-md ${isLive
@@ -1991,22 +2013,16 @@ const LiveStreamDashboard = () => {
                             </div>
 
                             {/* End Stream Button - Only show for owner */}
-                            {currentLivestream && (() => {
-                                const isOwner = currentLivestream.hostId && (
-                                    (typeof currentLivestream.hostId === 'object' && (currentLivestream.hostId._id === user?._id || currentLivestream.hostId.id === user?._id)) ||
-                                    (typeof currentLivestream.hostId === 'string' && currentLivestream.hostId === user?._id)
-                                );
-                                return isOwner ? (
-                                    <button
-                                        onClick={handleEndLivestream}
-                                        disabled={isLoading || !isLive}
-                                        className="flex items-center gap-2 px-4 py-1.5 text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed transition-all font-semibold text-sm shadow-md hover:shadow-lg bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 transform hover:scale-105 disabled:transform-none"
-                                    >
-                                        <Stop className="w-4 h-4" />
-                                        {isLoading ? 'Stopping...' : 'End Stream'}
-                                    </button>
-                                ) : null;
-                            })()}
+                            {isOwner && (
+                                <button
+                                    onClick={handleEndLivestream}
+                                    disabled={isLoading || !isLive}
+                                    className="flex items-center gap-2 px-4 py-1.5 text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed transition-all font-semibold text-sm shadow-md hover:shadow-lg bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 transform hover:scale-105 disabled:transform-none"
+                                >
+                                    <Stop className="w-4 h-4" />
+                                    {isLoading ? 'Stopping...' : 'End Stream'}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -2093,35 +2109,37 @@ const LiveStreamDashboard = () => {
 
                     </div>
 
-                    {/* Center - Video Preview (Main Focus) */}
-                    <div className={`col-span-12 ${showComments ? 'lg:col-span-4' : 'lg:col-span-7'} flex flex-col`}>
-                        <div className="h-[calc(100vh-120px)] max-h-[900px] flex flex-col">
-                            <VideoPreview
-                                localVideoRef={localVideoRef}
-                                isVideoPlaying={isVideoPlaying}
-                                isAudioPlaying={isAudioPlaying}
-                                videoDimensions={videoDimensions}
-                                isFullscreen={isFullscreen}
-                                onToggleFullscreen={toggleFullscreen}
-                                onToggleVideo={toggleVideo}
-                                onToggleAudio={toggleAudio}
-                                onCheckLiveKit={checkLiveKitStatus}
-                                isConnected={isConnected}
-                                isPublishing={isPublishing}
-                                connectionState={connectionState}
-                                remoteParticipants={remoteParticipants}
-                                localParticipant={localParticipant}
-                                currentLivestream={currentLivestream}
-                                mediaError={mediaError}
-                                livekitError={livekitError}
-                            />
+                    {/* Center - Video Preview (Main Focus) - Only show for owner */}
+                    {isOwner && (
+                        <div className={`col-span-12 ${showComments ? 'lg:col-span-4' : 'lg:col-span-7'} flex flex-col`}>
+                            <div className="h-[calc(100vh-120px)] max-h-[900px] flex flex-col">
+                                <VideoPreview
+                                    localVideoRef={localVideoRef}
+                                    isVideoPlaying={isVideoPlaying}
+                                    isAudioPlaying={isAudioPlaying}
+                                    videoDimensions={videoDimensions}
+                                    isFullscreen={isFullscreen}
+                                    onToggleFullscreen={toggleFullscreen}
+                                    onToggleVideo={toggleVideo}
+                                    onToggleAudio={toggleAudio}
+                                    onCheckLiveKit={checkLiveKitStatus}
+                                    isConnected={isConnected}
+                                    isPublishing={isPublishing}
+                                    connectionState={connectionState}
+                                    remoteParticipants={remoteParticipants}
+                                    localParticipant={localParticipant}
+                                    currentLivestream={currentLivestream}
+                                    mediaError={mediaError}
+                                    livekitError={livekitError}
+                                />
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Right Sidebar - Comments & Products */}
                     {currentLivestream && showComments && (
                         <>
-                            <div className="col-span-12 lg:col-span-3">
+                            <div className={`col-span-12 ${isOwner ? 'lg:col-span-3' : 'lg:col-span-5'}`}>
                                 <LiveStreamComments
                                     liveId={currentLivestream._id}
                                     hostId={currentLivestream.hostId?._id || currentLivestream.hostId || user?._id}
@@ -2130,8 +2148,8 @@ const LiveStreamDashboard = () => {
                                 />
                             </div>
                             {/* Products Management */}
-                            <div className="col-span-12 lg:col-span-3 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-120px)] max-h-[900px]">
-                                <div className="p-3 border-b border-gray-200 bg-gray-50 rounded-t-lg shrink-0">
+                            <div className={`col-span-12 ${isOwner ? 'lg:col-span-3' : 'lg:col-span-5'} bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-120px)] max-h-[900px]`}>
+                                <div className="p-3 border-b border-gray-200 bg-gray-50 rounded-t-lg flex-shrink-0">
                                     <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wide flex items-center gap-2">
                                         <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -2150,8 +2168,8 @@ const LiveStreamDashboard = () => {
 
                     {/* Products Management - When comments are hidden */}
                     {currentLivestream && !showComments && (
-                        <div className="col-span-12 lg:col-span-3 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-120px)] max-h-[900px]">
-                            <div className="p-3 border-b border-gray-200 bg-gray-50 rounded-t-lg shrink-0">
+                        <div className={`col-span-12 ${isOwner ? 'lg:col-span-3' : 'lg:col-span-10'} bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden flex flex-col h-[calc(100vh-120px)] max-h-[900px]`}>
+                            <div className="p-3 border-b border-gray-200 bg-gray-50 rounded-t-lg flex-shrink-0">
                                 <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wide flex items-center gap-2">
                                     <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />

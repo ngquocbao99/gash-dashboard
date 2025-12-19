@@ -4,12 +4,7 @@ import Loading from '../../../components/Loading';
 import { useToast } from '../../../hooks/useToast';
 import io from 'socket.io-client';
 
-// Normalize socket URL
-const getSocketURL = () => {
-    const url = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    return url.replace(/\/$/, '');
-};
-const SOCKET_URL = getSocketURL();
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const LiveStreamProducts = ({ liveId }) => {
     const { showToast } = useToast();
@@ -26,6 +21,14 @@ const LiveStreamProducts = ({ liveId }) => {
     const searchTimeoutRef = useRef(null);
 
     const hasLiveId = useMemo(() => !!liveId, [liveId]);
+
+    // Filter to show only active products in dropdown
+    const activeProducts = useMemo(() => {
+        return allProducts.filter(p => {
+            const status = p?.productStatus || p?.status;
+            return status === 'active';
+        });
+    }, [allProducts]);
 
     // Helper: Extract array from API response
     const extractArray = (resp) => {
@@ -57,89 +60,64 @@ const LiveStreamProducts = ({ liveId }) => {
         return 'Unnamed';
     };
 
-    // Helper: Get main product image URL
-    // Handles multiple data structures from backend
+    // Helper: Get main product image URL - Always prioritize isMain=true
     const getMainImageUrl = (product) => {
         if (!product) return null;
 
-        // Try multiple possible paths for images array
+        // Try to get images from multiple possible locations
         let images = [];
 
-        // Path 1: productImageIds (most common) - check if it's an array
-        if (product.productImageIds) {
-            if (Array.isArray(product.productImageIds)) {
-                images = product.productImageIds;
+        // 1. Check productImageIds (most common from populated data)
+        if (product.productImageIds && Array.isArray(product.productImageIds)) {
+            images = product.productImageIds;
+        }
+        // 2. Check images array (alternative structure)
+        else if (product.images && Array.isArray(product.images)) {
+            images = product.images;
+        }
+        // 3. Check if product has a nested product object with images
+        else if (product.product?.productImageIds && Array.isArray(product.product.productImageIds)) {
+            images = product.product.productImageIds;
+        }
+        else if (product.product?.images && Array.isArray(product.product.images)) {
+            images = product.product.images;
+        }
+
+        if (images.length > 0) {
+            // PRIORITY 1: Find image with isMain === true (strict check)
+            const mainImage = images.find(img => img && img.isMain === true && img.imageUrl);
+            if (mainImage?.imageUrl) {
+                return mainImage.imageUrl;
             }
-            // If it's an object (nested), try to extract array
-            else if (typeof product.productImageIds === 'object' && product.productImageIds !== null) {
-                if (Array.isArray(product.productImageIds.data)) {
-                    images = product.productImageIds.data;
-                } else if (Array.isArray(product.productImageIds.images)) {
-                    images = product.productImageIds.images;
+
+            // PRIORITY 2: If no main image, use first image with valid imageUrl
+            const firstImage = images.find(img => img && img.imageUrl);
+            if (firstImage?.imageUrl) {
+                return firstImage.imageUrl;
+            }
+        }
+
+        // PRIORITY 3: Check if there's a direct image URL (from WebSocket/realtime data)
+        if (product.image && typeof product.image === 'string') {
+            return product.image;
+        }
+
+        // PRIORITY 4: Try to get image from product variants (variantImage)
+        if (product.productVariantIds && Array.isArray(product.productVariantIds)) {
+            for (const variant of product.productVariantIds) {
+                if (variant?.variantImage && typeof variant.variantImage === 'string') {
+                    return variant.variantImage;
                 }
             }
         }
 
-        // Path 2: images (alternative) - only if we haven't found images yet
-        if (images.length === 0 && product.images) {
-            if (Array.isArray(product.images)) {
-                images = product.images;
-            } else if (typeof product.images === 'object' && product.images !== null) {
-                if (Array.isArray(product.images.data)) {
-                    images = product.images.data;
+        // PRIORITY 5: Check nested product.product for variants
+        if (product.product?.productVariantIds && Array.isArray(product.product.productVariantIds)) {
+            for (const variant of product.product.productVariantIds) {
+                if (variant?.variantImage && typeof variant.variantImage === 'string') {
+                    return variant.variantImage;
                 }
             }
-        }
-
-        // Path 3: Check if product has a populated productId with images
-        if (images.length === 0 && product.productId && typeof product.productId === 'object' && product.productId !== null) {
-            // Try productImageIds first
-            if (Array.isArray(product.productId.productImageIds)) {
-                images = product.productId.productImageIds;
-            }
-            // Try productIdImageIds (alternative field name)
-            else if (Array.isArray(product.productId.productIdImageIds)) {
-                images = product.productId.productIdImageIds;
-            }
-            // Try images
-            else if (Array.isArray(product.productId.images)) {
-                images = product.productId.images;
-            }
-            // Try nested structure
-            else if (product.productId.productImageIds && typeof product.productId.productImageIds === 'object') {
-                if (Array.isArray(product.productId.productImageIds.data)) {
-                    images = product.productId.productImageIds.data;
-                }
-            }
-            else if (product.productId.productIdImageIds && typeof product.productId.productIdImageIds === 'object') {
-                if (Array.isArray(product.productId.productIdImageIds.data)) {
-                    images = product.productId.productIdImageIds.data;
-                }
-            }
-        }
-
-        if (images.length === 0) return null;
-
-        // Filter out invalid images (null, undefined, empty strings)
-        const validImages = images.filter(img => {
-            if (!img || typeof img !== 'object') return false;
-            const url = img.imageUrl || img.url;
-            return url && typeof url === 'string' && url.trim().length > 0;
-        });
-
-        if (validImages.length === 0) return null;
-
-        // Find main image or use first image
-        const mainImage = validImages.find(img => {
-            const isMain = img.isMain === true || img.isMain === 'true' || img.isMain === 1;
-            return isMain;
-        });
-
-        const imageUrl = mainImage?.imageUrl || mainImage?.url || validImages[0]?.imageUrl || validImages[0]?.url;
-
-        // Ensure it's a valid URL string
-        if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim().length > 0) {
-            return imageUrl.trim();
         }
 
         return null;
@@ -192,10 +170,26 @@ const LiveStreamProducts = ({ liveId }) => {
             if (productsArray.length > 0 || (resp && !Array.isArray(resp) && resp.success !== false)) {
                 // Filter to ensure only active products are shown
                 // Backend getActiveLiveProducts already filters isActive: true, but add extra safety check
-                const activeProducts = productsArray.filter(product => {
-                    // STRICT CHECK: Only show products where isActive === true
-                    return product.isActive === true;
-                });
+                const activeProducts = productsArray
+                    .filter(product => {
+                        // STRICT CHECK: Only show products where isActive === true
+                        return product.isActive === true;
+                    })
+                    .map(product => ({
+                        ...product,
+                        // Ensure isPinned is always a boolean
+                        isPinned: Boolean(product.isPinned === true || product.isPinned === 'true' || product.isPinned === 1)
+                    }))
+                    .sort((a, b) => {
+                        // Pinned products first
+                        if (a.isPinned !== b.isPinned) {
+                            return b.isPinned - a.isPinned; // true (1) comes before false (0)
+                        }
+                        // Then sort by addedAt (newest first)
+                        const aDate = a.addedAt ? new Date(a.addedAt) : new Date(0);
+                        const bDate = b.addedAt ? new Date(b.addedAt) : new Date(0);
+                        return bDate - aDate;
+                    });
 
                 setLiveProducts(activeProducts);
                 // Show success toast only when manually refreshed
@@ -222,65 +216,242 @@ const LiveStreamProducts = ({ liveId }) => {
         loadLiveProducts();
     }, [loadLiveProducts]);
 
-    // Setup Socket.IO for realtime product updates
+    // Realtime socket handlers
+    const handleProductAdded = useCallback((data) => {
+        const dataLiveId = data?.liveId?.toString?.() || data?.liveId;
+        const currentLiveId = liveId?.toString?.() || liveId;
+
+        if (dataLiveId === currentLiveId && data?.liveProduct) {
+            const hasImages = (data.liveProduct.productId?.productImageIds?.length > 0) ||
+                (data.liveProduct.product?.image);
+
+            // If socket data doesn't have images, try to merge from allProducts (which has full data)
+            let productToAdd = data.liveProduct;
+
+            if (!hasImages) {
+                // Find the product in allProducts by productId
+                const productIdToFind = data.liveProduct.productId?._id || data.liveProduct.productId;
+                const fullProductData = allProducts.find(p =>
+                    (p._id?.toString?.() || p._id) === (productIdToFind?.toString?.() || productIdToFind)
+                );
+
+                if (fullProductData) {
+                    // Create NEW object with merged data (don't mutate!)
+                    productToAdd = {
+                        ...data.liveProduct,
+                        productId: {
+                            _id: fullProductData._id,
+                            productName: fullProductData.productName,
+                            productImageIds: fullProductData.productImageIds || fullProductData.images || [],
+                            ...fullProductData
+                        }
+                    };
+                } else {
+                    // Fallback: reload from API to get full data
+                    loadLiveProducts();
+                    return;
+                }
+            }
+
+            setLiveProducts(prev => {
+                // Check if product already exists
+                const exists = prev.some(p =>
+                    (p._id?.toString?.() || p._id) === (productToAdd._id?.toString?.() || productToAdd._id)
+                );
+                if (exists) return prev;
+
+                // Ensure isPinned is boolean
+                const newProduct = {
+                    ...productToAdd,
+                    isPinned: Boolean(productToAdd.isPinned),
+                    isActive: true
+                };
+                const updated = [...prev, newProduct].sort((a, b) => {
+                    // Pinned products first
+                    if (a.isPinned !== b.isPinned) {
+                        return b.isPinned - a.isPinned; // true (1) comes before false (0)
+                    }
+                    // Then sort by addedAt (newest first)
+                    const aDate = a.addedAt ? new Date(a.addedAt) : new Date(0);
+                    const bDate = b.addedAt ? new Date(b.addedAt) : new Date(0);
+                    return bDate - aDate;
+                });
+                return updated;
+            });
+        }
+    }, [liveId, loadLiveProducts, allProducts]);
+
+    const handleProductRemoved = useCallback((data) => {
+        const dataLiveId = data?.liveId?.toString?.() || data?.liveId;
+        const currentLiveId = liveId?.toString?.() || liveId;
+
+        if (dataLiveId === currentLiveId) {
+            setLiveProducts(prev => {
+                if (data?.liveProductId) {
+                    const productIdStr = data.liveProductId?.toString?.() || data.liveProductId;
+                    return prev.filter(p => {
+                        const pId = p._id?.toString?.() || p._id;
+                        return pId !== productIdStr;
+                    });
+                } else if (data?.productId) {
+                    const productIdStr = data.productId?.toString?.() || data.productId;
+                    return prev.filter(p => {
+                        const pProductId = p.productId?._id?.toString?.() || p.productId?._id || p.productId;
+                        return pProductId !== productIdStr;
+                    });
+                }
+                return prev;
+            });
+        }
+    }, [liveId]);
+
+    const handleProductPinned = useCallback((data) => {
+        const dataLiveId = data?.liveId?.toString?.() || data?.liveId;
+        const currentLiveId = liveId?.toString?.() || liveId;
+
+        if (dataLiveId === currentLiveId && data?.liveProduct) {
+            setLiveProducts(prev => {
+                const productId = data.liveProduct._id?.toString?.() || data.liveProduct._id;
+                const updated = prev.map(p => {
+                    const pId = p._id?.toString?.() || p._id;
+                    if (pId === productId) {
+                        return { ...p, isPinned: true };
+                    }
+                    return p;
+                });
+                // Sort: pinned products first, then by addedAt (newest first)
+                return updated.sort((a, b) => {
+                    if (a.isPinned !== b.isPinned) {
+                        return b.isPinned - a.isPinned; // true (1) comes before false (0)
+                    }
+                    const aDate = a.addedAt ? new Date(a.addedAt) : new Date(0);
+                    const bDate = b.addedAt ? new Date(b.addedAt) : new Date(0);
+                    return bDate - aDate;
+                });
+            });
+        }
+    }, [liveId]);
+
+    const handleProductUnpinned = useCallback((data) => {
+        const dataLiveId = data?.liveId?.toString?.() || data?.liveId;
+        const currentLiveId = liveId?.toString?.() || liveId;
+
+        if (dataLiveId === currentLiveId) {
+            setLiveProducts(prev => {
+                let updated = prev;
+                if (data?.liveProductId) {
+                    const productIdStr = data.liveProductId?.toString?.() || data.liveProductId;
+                    updated = prev.map(p => {
+                        const pId = p._id?.toString?.() || p._id;
+                        if (pId === productIdStr) {
+                            return { ...p, isPinned: false };
+                        }
+                        return p;
+                    });
+                } else if (data?.productId) {
+                    const productIdStr = data.productId?.toString?.() || data.productId;
+                    updated = prev.map(p => {
+                        const pProductId = p.productId?._id?.toString?.() || p.productId?._id || p.productId;
+                        if (pProductId === productIdStr) {
+                            return { ...p, isPinned: false };
+                        }
+                        return p;
+                    });
+                }
+                // Sort: pinned products first, then by addedAt (newest first)
+                return updated.sort((a, b) => {
+                    if (a.isPinned !== b.isPinned) {
+                        return b.isPinned - a.isPinned; // true (1) comes before false (0)
+                    }
+                    const aDate = a.addedAt ? new Date(a.addedAt) : new Date(0);
+                    const bDate = b.addedAt ? new Date(b.addedAt) : new Date(0);
+                    return bDate - aDate;
+                });
+            });
+        }
+    }, [liveId]);
+
+    // Setup Socket.IO for realtime updates
     useEffect(() => {
-        if (!liveId || !hasLiveId) return;
+        if (!liveId) return;
+
+        // Ensure liveId is a string (handle ObjectId objects)
+        const liveIdStr = typeof liveId === 'string' ? liveId : (liveId?.toString?.() || String(liveId));
 
         const socket = io(SOCKET_URL, {
             transports: ['websocket', 'polling'],
             reconnection: true,
             reconnectionAttempts: 5,
             reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            timeout: 20000,
+            forceNew: false,
+            autoConnect: true,
         });
 
+        let isJoined = false;
+
+        const joinRoom = () => {
+            if (socket.connected && !isJoined) {
+                isJoined = true;
+                socket.emit('joinLivestreamRoom', liveIdStr);
+            }
+        };
+
         socket.on('connect', () => {
-            socket.emit('joinLivestreamRoom', liveId);
+            joinRoom();
         });
 
         socket.on('disconnect', () => {
-            // Socket will auto-reconnect
+            isJoined = false;
         });
 
-        // Listen for product events
+        socket.on('connect_error', () => {
+            isJoined = false;
+        });
+
+        socket.on('reconnect', () => {
+            isJoined = false;
+            joinRoom();
+        });
+
+        // Setup event listeners
         socket.on('product:added', (data) => {
-            if (data?.liveId === liveId) {
-                loadLiveProducts();
-            }
+            handleProductAdded(data);
         });
 
         socket.on('product:removed', (data) => {
-            if (data?.liveId === liveId) {
-                loadLiveProducts();
-            }
+            handleProductRemoved(data);
         });
 
         socket.on('product:pinned', (data) => {
-            if (data?.liveId === liveId) {
-                loadLiveProducts();
-            }
+            handleProductPinned(data);
         });
 
         socket.on('product:unpinned', (data) => {
-            if (data?.liveId === liveId) {
-                loadLiveProducts();
-            }
+            handleProductUnpinned(data);
         });
 
-        // Cleanup
+        // Join room immediately if already connected
+        if (socket.connected) {
+            joinRoom();
+        }
+
         return () => {
-            if (socket.connected) {
-                socket.emit('leaveLivestreamRoom', liveId);
+            if (socket.connected && isJoined) {
+                socket.emit('leaveLivestreamRoom', liveIdStr);
             }
             socket.off('connect');
             socket.off('disconnect');
+            socket.off('connect_error');
+            socket.off('reconnect');
             socket.off('product:added');
             socket.off('product:removed');
             socket.off('product:pinned');
             socket.off('product:unpinned');
             socket.close();
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [liveId, hasLiveId]);
+    }, [liveId, handleProductAdded, handleProductRemoved, handleProductPinned, handleProductUnpinned]);
 
     // Load all products for dropdown
     const loadAllProducts = useCallback(async () => {
@@ -390,7 +561,7 @@ const LiveStreamProducts = ({ liveId }) => {
 
             // Backend returns: { success: true/false, message: string, data?: object }
             if (response?.success === true) {
-                const productName = allProducts.find(p => (p?._id || p?.id) === selectedProductId)?.productName || 'Unknown';
+                const productName = activeProducts.find(p => (p?._id || p?.id) === selectedProductId)?.productName || 'Unknown';
                 showToast(`Product added successfully`, 'success');
                 setSelectedProductId('');
                 // Reload products to show the newly added product
@@ -481,11 +652,35 @@ const LiveStreamProducts = ({ liveId }) => {
 
     // Pin product
     const handlePin = async (liveProduct) => {
-        if (!liveProduct?._id) return;
+        if (!liveProduct?._id) {
+            showToast('Product ID is missing', 'error');
+            return;
+        }
+        if (!liveId) {
+            showToast('Live ID is missing', 'error');
+            return;
+        }
         try {
             setIsSubmitting(true);
             setError('');
-            await Api.livestream.pinProduct(liveProduct._id, { liveId });
+            // Ensure liveProductId is a string (handle ObjectId objects)
+            const liveProductId = typeof liveProduct._id === 'string'
+                ? liveProduct._id
+                : (liveProduct._id?.toString?.() || String(liveProduct._id));
+            // Ensure liveId is a string
+            const liveIdStr = typeof liveId === 'string'
+                ? liveId
+                : (liveId?.toString?.() || String(liveId));
+
+            // Validate ObjectId format
+            const isObjectId = (v) => /^[a-fA-F0-9]{24}$/.test(v);
+            if (!isObjectId(liveProductId) || !isObjectId(liveIdStr)) {
+                setError('Invalid product ID or live ID format');
+                showToast('Invalid product ID or live ID format', 'error');
+                return;
+            }
+
+            await Api.livestream.pinProduct(liveProductId, { liveId: liveIdStr });
             const productName = getProductName(liveProduct.productId || liveProduct.product || {});
             showToast(`Product pinned successfully`, 'success');
             await loadLiveProducts();
@@ -501,11 +696,35 @@ const LiveStreamProducts = ({ liveId }) => {
 
     // Unpin product
     const handleUnpin = async (liveProduct) => {
-        if (!liveProduct?._id) return;
+        if (!liveProduct?._id) {
+            showToast('Product ID is missing', 'error');
+            return;
+        }
+        if (!liveId) {
+            showToast('Live ID is missing', 'error');
+            return;
+        }
         try {
             setIsSubmitting(true);
             setError('');
-            await Api.livestream.unpinProduct(liveProduct._id, { liveId });
+            // Ensure liveProductId is a string (handle ObjectId objects)
+            const liveProductId = typeof liveProduct._id === 'string'
+                ? liveProduct._id
+                : (liveProduct._id?.toString?.() || String(liveProduct._id));
+            // Ensure liveId is a string
+            const liveIdStr = typeof liveId === 'string'
+                ? liveId
+                : (liveId?.toString?.() || String(liveId));
+
+            // Validate ObjectId format
+            const isObjectId = (v) => /^[a-fA-F0-9]{24}$/.test(v);
+            if (!isObjectId(liveProductId) || !isObjectId(liveIdStr)) {
+                setError('Invalid product ID or live ID format');
+                showToast('Invalid product ID or live ID format', 'error');
+                return;
+            }
+
+            await Api.livestream.unpinProduct(liveProductId, { liveId: liveIdStr });
             const productName = getProductName(liveProduct.productId || liveProduct.product || {});
             showToast(`Product unpinned successfully`, 'success');
             await loadLiveProducts();
@@ -522,7 +741,7 @@ const LiveStreamProducts = ({ liveId }) => {
     return (
         <div className="bg-transparent rounded-lg p-0 flex flex-col h-full">
             {/* Header with stats and refresh */}
-            <div className="flex items-center justify-between mb-4 pb-3 pt-2 border-b border-gray-200 shrink-0">
+            <div className="flex items-center justify-between mb-4 pb-3 pt-2 border-b border-gray-200 flex-shrink-0">
                 <div className="flex items-center gap-3">
                     <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Products</h3>
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-300 shadow-sm">
@@ -545,7 +764,7 @@ const LiveStreamProducts = ({ liveId }) => {
             </div>
 
             {/* Add product section - Compact */}
-            <div className="mb-3 p-3 bg-white rounded-lg border border-gray-200 shadow-sm shrink-0">
+            <div className="mb-3 p-3 bg-white rounded-lg border border-gray-200 shadow-sm flex-shrink-0">
                 <div className="space-y-3">
                     {/* Search input - inline */}
                     <div className="relative">
@@ -577,45 +796,49 @@ const LiveStreamProducts = ({ liveId }) => {
                             </button>
                         )}
                         {searchQuery && (
-                            <p className="mt-1 text-xs text-gray-500">{allProducts.length} result{allProducts.length !== 1 ? 's' : ''}</p>
+                            <p className="mt-1 text-xs text-gray-500">
+                                {activeProducts.length} active result{activeProducts.length !== 1 ? 's' : ''}
+                            </p>
                         )
                         }
                     </div>
 
                     {/* Product selector and add button - Row layout */}
                     <div className="flex gap-2 items-end">
-                        <div className="flex-1 relative" ref={dropdownRef}>
+                        <div className="flex-1 min-w-0 relative" ref={dropdownRef}>
                             <label className="block text-xs font-semibold text-gray-600 mb-1.5">Select Product</label>
                             <button
                                 type="button"
                                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                                disabled={!hasLiveId || isSubmitting || allProducts.length === 0}
+                                disabled={!hasLiveId || isSubmitting || activeProducts.length === 0}
                                 className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-left focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-h-[38px] hover:border-gray-400 transition-colors text-sm"
                             >
-                                {selectedProductId ? (
-                                    (() => {
-                                        const selected = allProducts.find(p => (p?._id || p?.id) === selectedProductId);
-                                        const imageUrl = selected ? getMainImageUrl(selected) : null;
-                                        const name = selected ? getProductName(selected) : 'Select a product';
-                                        return (
-                                            <>
-                                                {imageUrl && (
-                                                    <img src={imageUrl} alt={name} className="w-7 h-7 object-cover rounded border border-gray-200 flex-shrink-0" onError={(e) => { e.target.style.display = 'none'; }} />
-                                                )}
-                                                <span className="flex-1 truncate text-gray-900 text-sm">{name}</span>
-                                            </>
-                                        );
-                                    })()
-                                ) : (
-                                    <span className="text-gray-500 text-sm">Select a product</span>
-                                )}
+                                <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
+                                    {selectedProductId ? (
+                                        (() => {
+                                            const selected = activeProducts.find(p => (p?._id || p?.id) === selectedProductId);
+                                            const imageUrl = selected ? getMainImageUrl(selected) : null;
+                                            const name = selected ? getProductName(selected) : 'Select a product';
+                                            return (
+                                                <>
+                                                    {imageUrl && (
+                                                        <img src={imageUrl} alt={name} className="w-7 h-7 object-cover rounded border border-gray-200 flex-shrink-0" onError={(e) => { e.target.style.display = 'none'; }} />
+                                                    )}
+                                                    <span className="flex-1 truncate text-gray-900 text-sm min-w-0" title={name}>{name}</span>
+                                                </>
+                                            );
+                                        })()
+                                    ) : (
+                                        <span className="text-gray-500 text-sm truncate">Select a product</span>
+                                    )}
+                                </div>
                                 <svg className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isDropdownOpen ? 'transform rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                 </svg>
                             </button>
-                            {isDropdownOpen && allProducts.length > 0 && (
+                            {isDropdownOpen && activeProducts.length > 0 && (
                                 <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-xl max-h-64 overflow-y-auto">
-                                    {allProducts.map((p) => {
+                                    {activeProducts.map((p) => {
                                         const id = p?._id || p?.id;
                                         const name = getProductName(p);
                                         const imageUrl = getMainImageUrl(p);
@@ -639,7 +862,7 @@ const LiveStreamProducts = ({ liveId }) => {
                                                         </svg>
                                                     </div>
                                                 )}
-                                                <span className="flex-1 text-left text-sm font-medium text-gray-900 truncate">{name}</span>
+                                                <span className="flex-1 text-left text-sm font-medium text-gray-900 truncate" title={name}>{name}</span>
                                                 {isSelected && (
                                                     <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -657,7 +880,7 @@ const LiveStreamProducts = ({ liveId }) => {
                             className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-700 text-white rounded-lg hover:from-emerald-600 hover:to-emerald-800 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold text-sm shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 whitespace-nowrap transform hover:scale-105 disabled:transform-none"
                             title="Add to livestream"
                         >
-                        {isSubmitting ? (
+                            {isSubmitting ? (
                                 <Loading type="inline" size="small" message="" className="mr-1" />
                             ) : (
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -670,143 +893,85 @@ const LiveStreamProducts = ({ liveId }) => {
                 </div>
             </div>
 
-            {/* Pinned Products Section - Fixed, no scroll */}
-            {!isLoading && liveProducts.some(lp => lp.isPinned === true) && (
-                <div className="bg-gradient-to-br from-yellow-50 via-amber-50 to-yellow-50 border border-yellow-300 rounded-lg p-3 mb-4 shrink-0">
-                    <div className="flex items-center gap-2 mb-2">
-                        <svg className="w-4 h-4 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" />
-                        </svg>
-                        <span className="text-yellow-700 text-xs font-bold uppercase tracking-wide">
-                            Pinned Products
-                        </span>
+            {/* List live products - Compact */}
+            <div className="flex-1 min-h-0 flex flex-col">
+                {isLoading ? (
+                    <div className="grid gap-2 flex-1">
+                        {[...Array(3)].map((_, i) => (
+                            <div key={i} className="p-3 rounded-lg border border-gray-200 bg-gray-50 animate-pulse h-16" />
+                        ))}
                     </div>
-                    <div className="space-y-2">
-                        {liveProducts
-                            .filter(lp => lp.isPinned === true)
-                            .map((lp, index) => {
-                                // Try multiple paths to get product data
-                                let product = null;
+                ) : liveProducts.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300 flex-1 flex flex-col items-center justify-center">
+                        <svg className="w-10 h-10 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                        <p className="text-sm text-gray-600 font-medium">No products in livestream</p>
+                        <p className="text-xs text-gray-500 mt-1">Add products using the form above</p>
+                    </div>
+                ) : (
+                    <>
+                        {liveProducts.length > 20 && (
+                            <div className="flex justify-end mb-2 flex-shrink-0">
+                                <button
+                                    onClick={() => setShowAllProducts(!showAllProducts)}
+                                    className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                                >
+                                    {showAllProducts ? 'Show Less' : `View All (${liveProducts.length})`}
+                                </button>
+                            </div>
+                        )}
+                        <div className={`flex-1 overflow-y-auto space-y-2 pr-1 ${showAllProducts ? '' : ''}`}>
+                            {(showAllProducts ? liveProducts : liveProducts.slice(0, 20)).map((lp) => {
+                                // Handle both populated and unpopulated productId
+                                let product = (typeof lp.productId === 'object' ? lp.productId : null) || lp.product || {};
+                                const productId = product._id || lp.productId?._id || lp.productId || '';
 
-                                // Path 1: productId is populated object
-                                if (lp.productId && typeof lp.productId === 'object' && lp.productId !== null && !Array.isArray(lp.productId)) {
-                                    product = lp.productId;
-                                }
-                                // Path 2: product (alternative field)
-                                else if (lp.product && typeof lp.product === 'object' && lp.product !== null) {
-                                    product = lp.product;
-                                }
-                                // Path 3: productId is string, need to find from allProducts
-                                else if (lp.productId && typeof lp.productId === 'string') {
-                                    product = allProducts.find(p => {
-                                        const pId = p?._id || p?.id;
-                                        return pId && String(pId) === String(lp.productId);
-                                    }) || {};
-                                }
-                                // Path 4: Fallback to empty object
-                                else {
-                                    product = {};
+                                // CRITICAL FIX: If productId is just a string (not populated), find in allProducts
+                                if (typeof lp.productId === 'string' && allProducts.length > 0) {
+                                    const fullProduct = allProducts.find(p =>
+                                        (p._id?.toString?.() || p._id) === (lp.productId?.toString?.() || lp.productId)
+                                    );
+                                    if (fullProduct) {
+                                        product = fullProduct;
+                                    }
                                 }
 
                                 const productName = getProductName(product);
-                                const productId = product._id || product.id || lp.productId?._id || (typeof lp.productId === 'string' ? lp.productId : '') || '';
-                                const uniqueKey = lp._id || `${productId}_${index}` || `product_${index}`;
+
+                                // Try multiple ways to get image URL
                                 let productImageUrl = getMainImageUrl(product);
-
-                                // Image handling logic (same as below)
-                                if (!productImageUrl && lp.productId) {
-                                    if (typeof lp.productId === 'object' && lp.productId !== null) {
-                                        let directImages = lp.productId.productImageIds;
-                                        if (!Array.isArray(directImages) || directImages.length === 0) {
-                                            directImages = lp.productId.productIdImageIds;
-                                        }
-                                        if (Array.isArray(directImages) && directImages.length > 0) {
-                                            let validImg = directImages.find(img => {
-                                                const isMain = img?.isMain === true || img?.isMain === 'true' || img?.isMain === 1;
-                                                if (!isMain) return false;
-                                                const url = img?.imageUrl || img?.url;
-                                                return url && typeof url === 'string' && url.trim().length > 0;
-                                            });
-                                            if (!validImg) {
-                                                validImg = directImages.find(img => {
-                                                    const url = img?.imageUrl || img?.url;
-                                                    return url && typeof url === 'string' && url.trim().length > 0;
-                                                });
-                                            }
-                                            if (validImg) {
-                                                productImageUrl = validImg.imageUrl || validImg.url;
-                                            }
-                                        }
-                                    }
+                                // If product is not populated, try to get image from liveProduct itself
+                                if (!productImageUrl && lp.image) {
+                                    productImageUrl = lp.image;
                                 }
-
-                                if (!productImageUrl && lp.productId) {
-                                    let searchId = null;
-                                    if (typeof lp.productId === 'string') {
-                                        searchId = lp.productId;
-                                    } else if (typeof lp.productId === 'object' && lp.productId?._id) {
-                                        searchId = lp.productId._id;
-                                    }
-                                    if (searchId) {
-                                        const fullProduct = allProducts.find(p => {
-                                            const pId = p?._id || p?.id;
-                                            return pId && String(pId) === String(searchId);
-                                        });
-                                        if (fullProduct) {
-                                            productImageUrl = getMainImageUrl(fullProduct);
-                                        }
-                                    }
-                                }
-
-                                if (!productImageUrl && lp.productImageIds) {
-                                    if (Array.isArray(lp.productImageIds) && lp.productImageIds.length > 0) {
-                                        const validImg = lp.productImageIds.find(img => {
-                                            if (typeof img === 'string') return img.trim().length > 0;
-                                            const url = img?.imageUrl || img?.url;
-                                            return url && typeof url === 'string' && url.trim().length > 0;
-                                        });
-                                        if (validImg) {
-                                            productImageUrl = typeof validImg === 'string'
-                                                ? validImg
-                                                : (validImg.imageUrl || validImg.url);
-                                        }
-                                    }
+                                // Try getting from nested product object
+                                if (!productImageUrl && lp.product) {
+                                    productImageUrl = getMainImageUrl(lp.product);
                                 }
 
                                 return (
                                     <div
-                                        key={uniqueKey}
-                                        className="group p-3 rounded-lg border transition-all flex items-center gap-3 min-h-[80px] bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-300 shadow-md"
+                                        key={lp._id || productId}
+                                        className={`group p-3 rounded-lg border transition-all flex items-center gap-3 ${lp.isPinned
+                                            ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-300 shadow-md'
+                                            : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'
+                                            }`}
                                     >
                                         {/* Product Image */}
-                                        <div className="flex-shrink-0 relative">
+                                        <div className="flex-shrink-0">
                                             {productImageUrl ? (
                                                 <img
-                                                    key={`img-${uniqueKey}-${productImageUrl}`}
                                                     src={productImageUrl}
-                                                    alt={productName || 'Product image'}
+                                                    alt={productName}
                                                     className="w-12 h-12 object-cover rounded-lg border border-gray-200"
-                                                    loading="lazy"
                                                     onError={(e) => {
-                                                        const imgElement = e.target;
-                                                        imgElement.style.display = 'none';
-                                                        const placeholder = imgElement.nextElementSibling;
-                                                        if (placeholder) {
-                                                            placeholder.style.display = 'flex';
-                                                        }
-                                                    }}
-                                                    onLoad={(e) => {
-                                                        const placeholder = e.target.nextElementSibling;
-                                                        if (placeholder) {
-                                                            placeholder.style.display = 'none';
-                                                        }
+                                                        e.target.style.display = 'none';
+                                                        e.target.nextSibling.style.display = 'flex';
                                                     }}
                                                 />
                                             ) : null}
-                                            <div
-                                                className={`w-12 h-12 bg-gray-100 rounded-lg border border-gray-200 items-center justify-center ${productImageUrl ? 'hidden' : 'flex'}`}
-                                                style={{ display: productImageUrl ? 'none' : 'flex' }}
-                                            >
+                                            <div className={`w-12 h-12 bg-gray-100 rounded-lg border border-gray-200 items-center justify-center ${productImageUrl ? 'hidden' : 'flex'}`}>
                                                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                                 </svg>
@@ -816,14 +981,17 @@ const LiveStreamProducts = ({ liveId }) => {
                                         {/* Product Info */}
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2 mb-1">
-                                                <span className="text-sm font-medium text-gray-900 truncate">{productName}</span>
-                                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-200 text-yellow-800 border border-yellow-400">
-                                                    <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" />
-                                                    </svg>
-                                                    PINNED
-                                                </span>
+                                                <span className="text-sm font-medium text-gray-900 truncate" title={productName}>{productName}</span>
+                                                {lp.isPinned && (
+                                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-200 text-yellow-800 border border-yellow-400">
+                                                        <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" />
+                                                        </svg>
+                                                        PINNED
+                                                    </span>
+                                                )}
                                             </div>
+                                            {/* AddBy and time info */}
                                             {lp.addedAt && (
                                                 <div className="flex items-center gap-1.5 text-xs text-gray-500">
                                                     {lp.addBy && (
@@ -837,273 +1005,54 @@ const LiveStreamProducts = ({ liveId }) => {
                                             )}
                                         </div>
 
-                                        {/* Actions */}
+                                        {/* Actions - Compact */}
                                         <div className="flex items-center gap-1.5 flex-shrink-0">
-                                            <button
-                                                onClick={() => handleUnpin(lp)}
-                                                disabled={isSubmitting}
-                                                className="p-1.5 text-yellow-700 hover:bg-gradient-to-r hover:from-yellow-50 hover:to-amber-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
-                                                title="Unpin product"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7l4-4m0 0l4 4m-4-4v18" />
-                                                </svg>
-                                            </button>
+                                            {lp.isPinned ? (
+                                                <button
+                                                    onClick={() => handleUnpin(lp)}
+                                                    disabled={isSubmitting}
+                                                    className="p-1.5 text-yellow-700 hover:bg-gradient-to-r hover:from-yellow-50 hover:to-amber-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
+                                                    title="Unpin product"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7l4-4m0 0l4 4m-4-4v18" />
+                                                    </svg>
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handlePin(lp)}
+                                                    disabled={isSubmitting}
+                                                    className="p-1.5 text-yellow-600 hover:bg-gradient-to-r hover:from-yellow-50 hover:to-amber-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
+                                                    title="Pin product"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                                                    </svg>
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => handleRemoveFromLive(lp)}
                                                 disabled={isSubmitting}
-                                                className="p-1.5 text-red-600 hover:bg-red-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
-                                                title="Remove product"
+                                                className="p-1.5 text-red-600 hover:bg-gradient-to-r hover:from-red-50 hover:to-rose-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
+                                                title="Remove product from live"
                                             >
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                 </svg>
                                             </button>
                                         </div>
                                     </div>
                                 );
                             })}
-                    </div>
-                </div>
-            )}
-
-            {/* List live products - Compact - Only unpinned products scroll */}
-            {isLoading ? (
-                <div className="grid gap-2 overflow-y-auto pr-1" style={{ maxHeight: 'calc(5 * 80px)' }}>
-                    {[...Array(3)].map((_, i) => (
-                        <div key={i} className="p-3 rounded-lg border border-gray-200 bg-gray-50 animate-pulse h-16" />
-                    ))}
-                </div>
-            ) : liveProducts.length === 0 ? (
-                <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300 flex flex-col items-center justify-center">
-                    <svg className="w-10 h-10 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                    </svg>
-                    <p className="text-sm text-gray-600 font-medium">No products in livestream</p>
-                    <p className="text-xs text-gray-500 mt-1">Add products using the form above</p>
-                </div>
-            ) : (
-                <div className="overflow-y-auto pr-1" style={{ maxHeight: 'calc(5 * 80px)' }}>
-                    <div className="space-y-2">
-                        {liveProducts.filter(lp => !lp.isPinned).map((lp, index) => {
-                            // Try multiple paths to get product data
-                            let product = null;
-
-                            // Path 1: productId is populated object
-                            if (lp.productId && typeof lp.productId === 'object' && lp.productId !== null && !Array.isArray(lp.productId)) {
-                                product = lp.productId;
-                            }
-                            // Path 2: product (alternative field)
-                            else if (lp.product && typeof lp.product === 'object' && lp.product !== null) {
-                                product = lp.product;
-                            }
-                            // Path 3: productId is string, need to find from allProducts
-                            else if (lp.productId && typeof lp.productId === 'string') {
-                                product = allProducts.find(p => {
-                                    const pId = p?._id || p?.id;
-                                    return pId && String(pId) === String(lp.productId);
-                                }) || {};
-                            }
-                            // Path 4: Fallback to empty object
-                            else {
-                                product = {};
-                            }
-
-                            const productName = getProductName(product);
-                            // Ensure unique key for each product
-                            const productId = product._id || product.id || lp.productId?._id || (typeof lp.productId === 'string' ? lp.productId : '') || '';
-                            const uniqueKey = lp._id || `${productId}_${index}` || `product_${index}`;
-
-                            // Try to get image from multiple sources
-                            let productImageUrl = getMainImageUrl(product);
-
-                            // If no image found, try direct access to productImageIds in liveProduct.productId
-                            if (!productImageUrl && lp.productId) {
-                                // Try if productId is an object with productImageIds
-                                if (typeof lp.productId === 'object' && lp.productId !== null) {
-                                    // Try productImageIds first
-                                    let directImages = lp.productId.productImageIds;
-                                    // Try productIdImageIds (alternative field name)
-                                    if (!Array.isArray(directImages) || directImages.length === 0) {
-                                        directImages = lp.productId.productIdImageIds;
-                                    }
-
-                                    if (Array.isArray(directImages) && directImages.length > 0) {
-                                        // Find main image first
-                                        let validImg = directImages.find(img => {
-                                            const isMain = img?.isMain === true || img?.isMain === 'true' || img?.isMain === 1;
-                                            if (!isMain) return false;
-                                            const url = img?.imageUrl || img?.url;
-                                            return url && typeof url === 'string' && url.trim().length > 0;
-                                        });
-
-                                        // If no main image, use first valid image
-                                        if (!validImg) {
-                                            validImg = directImages.find(img => {
-                                                const url = img?.imageUrl || img?.url;
-                                                return url && typeof url === 'string' && url.trim().length > 0;
-                                            });
-                                        }
-
-                                        if (validImg) {
-                                            productImageUrl = validImg.imageUrl || validImg.url;
-                                        }
-                                    }
-                                }
-                            }
-
-                            // If no image found, try getting from allProducts if productId is a string
-                            if (!productImageUrl && lp.productId) {
-                                let searchId = null;
-                                if (typeof lp.productId === 'string') {
-                                    searchId = lp.productId;
-                                } else if (typeof lp.productId === 'object' && lp.productId?._id) {
-                                    searchId = lp.productId._id;
-                                }
-
-                                if (searchId) {
-                                    const fullProduct = allProducts.find(p => {
-                                        const pId = p?._id || p?.id;
-                                        return pId && String(pId) === String(searchId);
-                                    });
-                                    if (fullProduct) {
-                                        productImageUrl = getMainImageUrl(fullProduct);
-                                    }
-                                }
-                            }
-
-                            // Last resort: try to get image from liveProduct directly (if backend structure is different)
-                            if (!productImageUrl && lp.productImageIds) {
-                                if (Array.isArray(lp.productImageIds) && lp.productImageIds.length > 0) {
-                                    const validImg = lp.productImageIds.find(img => {
-                                        if (typeof img === 'string') return img.trim().length > 0;
-                                        const url = img?.imageUrl || img?.url;
-                                        return url && typeof url === 'string' && url.trim().length > 0;
-                                    });
-                                    if (validImg) {
-                                        productImageUrl = typeof validImg === 'string'
-                                            ? validImg
-                                            : (validImg.imageUrl || validImg.url);
-                                    }
-                                }
-                            }
-
-                            return (
-                                <div
-                                    key={uniqueKey}
-                                    className={`group p-3 rounded-lg border transition-all flex items-center gap-3 min-h-[80px] ${lp.isPinned
-                                        ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-300 shadow-md'
-                                        : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'
-                                        }`}
-                                >
-                                    {/* Product Image */}
-                                    <div className="flex-shrink-0 relative">
-                                        {productImageUrl ? (
-                                            <img
-                                                key={`img-${uniqueKey}-${productImageUrl}`}
-                                                src={productImageUrl}
-                                                alt={productName || 'Product image'}
-                                                className="w-12 h-12 object-cover rounded-lg border border-gray-200"
-                                                loading="lazy"
-                                                onError={(e) => {
-                                                    console.warn('Image failed to load:', productImageUrl, 'for product:', productName);
-                                                    // Hide the broken image
-                                                    const imgElement = e.target;
-                                                    imgElement.style.display = 'none';
-                                                    // Show placeholder
-                                                    const placeholder = imgElement.nextElementSibling;
-                                                    if (placeholder) {
-                                                        placeholder.style.display = 'flex';
-                                                    }
-                                                }}
-                                                onLoad={(e) => {
-                                                    // Ensure placeholder is hidden when image loads successfully
-                                                    const placeholder = e.target.nextElementSibling;
-                                                    if (placeholder) {
-                                                        placeholder.style.display = 'none';
-                                                    }
-                                                }}
-                                            />
-                                        ) : null}
-                                        <div
-                                            className={`w-12 h-12 bg-gray-100 rounded-lg border border-gray-200 items-center justify-center ${productImageUrl ? 'hidden' : 'flex'}`}
-                                            style={{ display: productImageUrl ? 'none' : 'flex' }}
-                                        >
-                                            <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                            </svg>
-                                        </div>
-                                    </div>
-
-                                    {/* Product Info */}
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className="text-sm font-medium text-gray-900 truncate">{productName}</span>
-                                            {lp.isPinned && (
-                                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-200 text-yellow-800 border border-yellow-400">
-                                                    <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" />
-                                                    </svg>
-                                                    PINNED
-                                                </span>
-                                            )}
-                                        </div>
-                                        {/* AddBy and time info */}
-                                        {lp.addedAt && (
-                                            <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                                                {lp.addBy && (
-                                                    <>
-                                                        <span>by {lp.addBy.name || lp.addBy.username || 'Unknown'}</span>
-                                                        <span>•</span>
-                                                    </>
-                                                )}
-                                                <span>{formatDateTime(lp.addedAt)}</span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Actions - Compact */}
-                                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                                        {lp.isPinned ? (
-                                            <button
-                                                onClick={() => handleUnpin(lp)}
-                                                disabled={isSubmitting}
-                                                className="p-1.5 text-yellow-700 hover:bg-gradient-to-r hover:from-yellow-50 hover:to-amber-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
-                                                title="Unpin product"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7l4-4m0 0l4 4m-4-4v18" />
-                                                </svg>
-                                            </button>
-                                        ) : (
-                                            <button
-                                                onClick={() => handlePin(lp)}
-                                                disabled={isSubmitting}
-                                                className="p-1.5 text-yellow-600 hover:bg-gradient-to-r hover:from-yellow-50 hover:to-amber-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
-                                                title="Pin product"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                                                </svg>
-                                            </button>
-                                        )}
-                                        <button
-                                            onClick={() => handleRemoveFromLive(lp)}
-                                            disabled={isSubmitting}
-                                            className="p-1.5 text-red-600 hover:bg-gradient-to-r hover:from-red-50 hover:to-rose-50 rounded-md disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md"
-                                            title="Remove product from live"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
+                        </div>
+                        {!showAllProducts && liveProducts.length > 20 && (
+                            <p className="text-xs text-gray-500 mt-2 text-center">
+                                Showing 20 of {liveProducts.length} products
+                            </p>
+                        )}
+                    </>
+                )}
+            </div>
         </div>
     );
 };

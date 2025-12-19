@@ -442,6 +442,7 @@ const OrderDetails = ({ order, onClose, isOpen, autoOpenRefundModal = false }) =
                                         <table className="min-w-full divide-y divide-gray-200">
                                             <thead className="bg-gray-50">
                                                 <tr>
+                                                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Order ID</th>
                                                     <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Order Status</th>
                                                     <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Payment Method</th>
                                                     <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Payment Status</th>
@@ -450,6 +451,9 @@ const OrderDetails = ({ order, onClose, isOpen, autoOpenRefundModal = false }) =
                                             </thead>
                                             <tbody className="bg-white divide-y divide-gray-200">
                                                 <tr>
+                                                    <td className="px-3 py-2 text-xs sm:text-sm font-medium text-gray-900 font-mono">
+                                                        {currentOrder?._id || 'N/A'}
+                                                    </td>
                                                     <td className="px-3 py-2 text-xs sm:text-sm font-medium text-gray-900">
                                                         {displayStatus(currentOrder?.order_status)}
                                                     </td>
@@ -625,12 +629,21 @@ const OrderDetails = ({ order, onClose, isOpen, autoOpenRefundModal = false }) =
                                         </p>
                                     </div>
                                 )}
-                                {/* Cancel Reason (only if cancelled) */}
+                                {/* Left Column - Cancel Reason (only if cancelled) */}
                                 {currentOrder?.order_status === 'cancelled' && (
-                                    <div className="sm:col-span-2 flex flex-col">
+                                    <div className="flex flex-col">
                                         <p className="text-xs text-gray-500 mb-0.5">Cancel Reason</p>
                                         <p className={`text-xs sm:text-sm font-medium ${currentOrder?.cancelReason ? 'text-yellow-600' : 'text-gray-600'}`}>
                                             {displayStatus(currentOrder?.cancelReason || "N/A")}
+                                        </p>
+                                    </div>
+                                )}
+                                {/* Right Column - Cancel Date (only if cancelled) */}
+                                {currentOrder?.order_status === 'cancelled' && (
+                                    <div className="flex flex-col">
+                                        <p className="text-xs text-gray-500 mb-0.5">Cancel Date</p>
+                                        <p className="text-xs sm:text-sm font-medium text-gray-900">
+                                            {formatDateTime(currentOrder?.updatedAt || currentOrder?.updated_at) || "N/A"}
                                         </p>
                                     </div>
                                 )}

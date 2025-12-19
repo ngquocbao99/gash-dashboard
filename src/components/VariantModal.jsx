@@ -140,8 +140,10 @@ const VariantModal = ({
             errors.stockQuantity = 'Please fill in all required fields';
         } else {
             const stock = parseInt(variantForm.stockQuantity);
-            if (isNaN(stock) || stock < 1 || stock > 100000) {
-                errors.stockQuantity = 'Stock quantity must be between 1 and 100.000';
+            if (isNaN(stock) || stock < 0) {
+                errors.stockQuantity = 'Stock quantity must be 0 or greater';
+            } else if (stock > 1000) {
+                errors.stockQuantity = 'The stock quantity must not exceed 1000';
             }
         }
 
@@ -168,13 +170,38 @@ const VariantModal = ({
     const handleFieldChange = useCallback((field, value) => {
         setVariantForm(prev => ({ ...prev, [field]: value }));
 
-        // Clear validation error for this field
-        if (validationErrors[field]) {
-            setValidationErrors(prev => {
-                const newErrors = { ...prev };
-                delete newErrors[field];
-                return newErrors;
-            });
+        // Real-time validation for stockQuantity
+        if (field === 'stockQuantity') {
+            if (value === '' || value === null || value === undefined) {
+                setValidationErrors(prev => {
+                    const newErrors = { ...prev };
+                    delete newErrors[field];
+                    return newErrors;
+                });
+            } else {
+                const stock = parseInt(value);
+                if (isNaN(stock) || stock < 0) {
+                    setValidationErrors(prev => ({ ...prev, [field]: 'Stock quantity must be 0 or greater' }));
+                } else if (stock > 1000) {
+                    setValidationErrors(prev => ({ ...prev, [field]: 'The stock quantity must not exceed 1000' }));
+                } else {
+                    // Clear error if valid
+                    setValidationErrors(prev => {
+                        const newErrors = { ...prev };
+                        delete newErrors[field];
+                        return newErrors;
+                    });
+                }
+            }
+        } else {
+            // Clear validation error for other fields
+            if (validationErrors[field]) {
+                setValidationErrors(prev => {
+                    const newErrors = { ...prev };
+                    delete newErrors[field];
+                    return newErrors;
+                });
+            }
         }
     }, [validationErrors]);
 
@@ -233,8 +260,14 @@ const VariantModal = ({
             return;
         }
 
-        if (isNaN(stock) || stock < 1 || stock > 100000) {
-            setValidationErrors(prev => ({ ...prev, stockQuantity: 'Stock quantity must be between 1 and 100.000' }));
+        if (isNaN(stock) || stock < 0) {
+            setValidationErrors(prev => ({ ...prev, stockQuantity: 'Stock quantity must be 0 or greater' }));
+            showToast('Please check the input fields again', 'error');
+            setLoading(false);
+            return;
+        }
+        if (stock > 1000) {
+            setValidationErrors(prev => ({ ...prev, stockQuantity: 'The stock quantity must not exceed 1000' }));
             showToast('Please check the input fields again', 'error');
             setLoading(false);
             return;
@@ -353,7 +386,7 @@ const VariantModal = ({
             console.error("Error response data:", err.response?.data);
 
             let errorMessage = `Failed to ${isEditMode ? 'update' : 'create'} variant`;
-            
+
             if (err.response?.data?.message) {
                 errorMessage = err.response.data.message;
             } else if (err.response?.data?.error) {

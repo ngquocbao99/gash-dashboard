@@ -17,12 +17,12 @@ const MediaSetup = ({
     onToggleAudio,
     previewVideoRef
 }) => {
-    // Sync muted state with audio enabled state
+    // Always keep preview muted to prevent audio feedback/echo
     useEffect(() => {
         if (previewVideoRef.current) {
-            previewVideoRef.current.muted = !isAudioEnabled;
+            previewVideoRef.current.muted = true;
         }
-    }, [isAudioEnabled]);
+    }, []);
 
     return (
         <div
@@ -81,7 +81,7 @@ const MediaSetup = ({
                         <video
                             ref={previewVideoRef}
                             autoPlay
-                            muted={!isAudioEnabled}
+                            muted={true}
                             playsInline
                             controls={false}
                             className="w-full h-full object-cover"

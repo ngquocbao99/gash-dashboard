@@ -472,11 +472,18 @@ const Products = () => {
       if (selectedProductId === productId) setSelectedProductId(null);
       if (editingProductId === productId) setEditingProductId(null);
     } catch (err) {
-      const errorMessage = err.response?.data?.message || err.message || 'Failed to discontinue product';
-      setError(errorMessage);
+      let errorMessage = err.response?.data?.message || err.message || 'Failed to discontinue product';
+
+      // Improve error message for active orders
+      if (errorMessage.includes('active orders') || errorMessage.includes('pending, confirmed, or shipping')) {
+        errorMessage = 'Cannot delete product because it still contains variants with active orders';
+      }
+
+      // Only show toast, don't set error state (error state is for fetch operations)
       showToast(errorMessage, 'error');
     } finally {
       setLoading(false);
+      setError(''); // Clear any previous error state
       setProductPendingDiscontinue(null);
       setShowDiscontinueConfirm(false);
     }
