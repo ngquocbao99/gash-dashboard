@@ -4,6 +4,7 @@ import Api from "../../common/SummaryAPI";
 import { FaEdit, FaTrash } from 'react-icons/fa';
 import VariantModal from "../../components/VariantModal";
 import Loading from "../../components/Loading";
+import DeleteConfirmModal from "../../components/DeleteConfirmModal";
 
 const ProductVariants = () => {
   const { showToast } = useContext(ToastContext);
@@ -175,17 +176,20 @@ const ProductVariants = () => {
     setShowDeleteConfirm(true);
   };
 
-  // Deactivate variant (soft delete)
+  // Delete variant (soft delete - sets status to discontinued)
   const handleDelete = async () => {
     if (!variantToDelete) return;
 
+    setLoading(true);
     try {
-      await Api.newVariants.update(variantToDelete._id, { variantStatus: 'inactive' });
-      showToast("Variant deactivated successfully", "success");
+      await Api.newVariants.delete(variantToDelete._id);
+      showToast("Variant deleted successfully (status set to discontinued)", "success");
+      setShowDeleteConfirm(false);
+      setVariantToDelete(null);
       fetchVariants();
     } catch (err) {
       console.error(err);
-      let errorMessage = "Failed to deactivate variant";
+      let errorMessage = "Failed to delete variant";
       if (err.response?.data?.message) {
         errorMessage = err.response.data.message;
 
@@ -194,13 +198,13 @@ const ProductVariants = () => {
           errorMessage = "Cannot delete variant because it still contains active orders.";
         }
       } else if (err.response?.status === 403) {
-        errorMessage = "Access denied. Only admin and manager can deactivate variants";
+        errorMessage = "Access denied. Only admin and manager can delete variants";
       } else if (err.response?.status === 404) {
         errorMessage = "Variant not found";
       } else if (err.response?.status >= 500) {
         errorMessage = "Server error. Please try again later";
       } else if (err.message) {
-        errorMessage = `Failed to deactivate variant: ${err.message}`;
+        errorMessage = `Failed to delete variant: ${err.message}`;
 
         // Improve error message for active orders
         if (errorMessage.includes('active orders') || errorMessage.includes('pending, confirmed, or shipping')) {
@@ -210,9 +214,7 @@ const ProductVariants = () => {
       // Only show toast, don't set error state (error state is for fetch operations)
       showToast(errorMessage, "error");
     } finally {
-      setShowDeleteConfirm(false);
-      setVariantToDelete(null);
-      // Note: No error state to clear here as we don't use error state for delete operations
+      setLoading(false);
     }
   };
 
@@ -704,7 +706,9 @@ const ProductVariants = () => {
                                         ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white'
                                         : variant.variantStatus === 'inactive'
                                           ? 'bg-red-600 text-white'
-                                          : 'bg-gray-100 text-gray-800'
+                                          : variant.variantStatus === 'discontinued'
+                                            ? 'bg-yellow-100 text-yellow-800'
+                                            : 'bg-gray-100 text-gray-800'
                                         }`}
                                     >
                                       {variant.variantStatus || 'unknown'}
@@ -738,7 +742,7 @@ const ProductVariants = () => {
                                           ? 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
                                           : 'text-white bg-red-600 hover:bg-red-700 border-red-600 hover:border-red-700'
                                           }`}
-                                        title="Deactivate Variant"
+                                        title="Delete Variant"
                                       >
                                         <svg className="w-3 h-3 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -899,48 +903,30 @@ const ProductVariants = () => {
             </>
           )}
 
-        {/* Deactivate Confirmation Modal */}
-        {showDeleteConfirm && variantToDelete && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-md transform transition-all duration-300 scale-100 animate-in fade-in-0 zoom-in-95">
-              <div className="p-6">
-                <div className="flex items-center mb-4">
-                  <div className="shrink-0 w-10 h-10 mx-auto bg-red-100 rounded-full flex items-center justify-center">
-                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                    </svg>
-                  </div>
-                </div>
-                <div className="text-center">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Deactivate Variant</h3>
-                  <p className="text-gray-600 mb-6">
-                    Are you sure you want to deactivate variant{" "}
-                    <span className="font-semibold text-gray-900">
-                      {variantToDelete.productColorId?.color_name} - {variantToDelete.productSizeId?.size_name}
-                    </span>{" "}
-                    for <span className="font-semibold text-gray-900">{variantToDelete.productId?.productName}</span>?
-                    <br />
-                    <span className="text-sm text-gray-500">This action can be undone by editing the variant.</span>
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-                    <button
-                      onClick={handleCancelDelete}
-                      className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all duration-200 font-medium hover:shadow-sm"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleDelete}
-                      className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all duration-200 font-medium hover:shadow-lg transform hover:scale-105"
-                    >
-                      Deactivate Variant
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Delete Confirmation Modal */}
+        <DeleteConfirmModal
+          isOpen={showDeleteConfirm && variantToDelete !== null}
+          title="Delete Variant"
+          itemName={variantToDelete ? (variantToDelete.variantName || `${variantToDelete.productColorId?.color_name || ''} - ${variantToDelete.productSizeId?.size_name || ''}`).trim() || 'this variant' : ''}
+          message={
+            variantToDelete ? (
+              <>
+                Are you sure you want to delete variant{" "}
+                <span className="font-semibold text-gray-900">
+                  {variantToDelete.productColorId?.color_name} - {variantToDelete.productSizeId?.size_name}
+                </span>{" "}
+                for <span className="font-semibold text-gray-900">{variantToDelete.productId?.productName}</span>?
+                <br />
+                <span className="text-sm text-gray-500">This action cannot be undone.</span>
+              </>
+            ) : null
+          }
+          confirmText="Delete"
+          cancelText="Cancel"
+          onConfirm={handleDelete}
+          onCancel={handleCancelDelete}
+          isLoading={loading}
+        />
       </div>
     </div>
   );
