@@ -31,6 +31,11 @@ const LiveStreamControl = () => {
     const [currentDuration, setCurrentDuration] = useState('00:00:00');
     const socketRef = useRef(null);
 
+    // Track ongoing API calls to prevent duplicate requests
+    const ongoingCallsRef = useRef({
+        updateViewerCount: false,
+    });
+
     // Format date helper function
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
@@ -69,11 +74,15 @@ const LiveStreamControl = () => {
                     endTime: livestreamData.endTime,
                     createdAt: livestreamData.createdAt,
                     updatedAt: livestreamData.updatedAt,
-                    peakViewers: livestreamData.peakViewers || 0,
+                    peakViewers: livestreamData.peakViewers ?? 0,
                     peakViewersAt: livestreamData.peakViewersAt || null,
-                    minViewers: livestreamData.minViewers || 0,
+                    minViewers: livestreamData.minViewers ?? 0,
                     minViewersAt: livestreamData.minViewersAt || null,
-                    currentViewers: livestreamData.currentViewers || 0,
+                    // For live streams, use currentViewers; for ended streams, use totalViewers or 0
+                    currentViewers: livestreamData.status === 'live'
+                        ? (livestreamData.currentViewers ?? 0)
+                        : (livestreamData.totalViewers ?? 0),
+                    totalViewers: livestreamData.totalViewers ?? 0,
                     duration: livestreamData.duration
                 });
 
@@ -113,28 +122,87 @@ const LiveStreamControl = () => {
         setTimeout(() => setIsRefreshing(false), 500);
     };
 
+    // Handle viewer count update from socket (real-time) - only update currentViewers
+    // Peak and min are calculated by backend and synced via periodic API calls
+    const handleViewerCountUpdate = useCallback((count) => {
+        setLivestream(prev => {
+            if (!prev) {
+                return prev;
+            }
+
+            // Only update currentViewers from socket
+            // Peak and min come from backend via periodic sync
+            const currentCount = typeof count === 'number' ? count : 0;
+
+            if (prev.currentViewers === currentCount) {
+                return prev;
+            }
+
+            return {
+                ...prev,
+                currentViewers: currentCount
+            };
+        });
+    }, []);
+
     // Setup Socket.IO for realtime updates
     useEffect(() => {
         if (!livestreamId || !livestream || livestream.status !== 'live') {
             return;
         }
 
-        // Create socket connection
+        // Create socket with proper configuration
         const socket = io(SOCKET_URL, {
-            transports: ['websocket', 'polling'],
+            transports: ['polling', 'websocket'], // Try polling first, then upgrade to websocket
             reconnection: true,
             reconnectionAttempts: 5,
             reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            timeout: 20000,
+            forceNew: false,
+            autoConnect: true,
+            // Additional options for better compatibility
+            upgrade: true,
+            rememberUpgrade: true,
         });
 
         socketRef.current = socket;
 
+        let isConnected = false;
+        let joinRoomAttempted = false;
+
+        const joinRoom = () => {
+            if (socket.connected && !joinRoomAttempted && livestreamId) {
+                joinRoomAttempted = true;
+                socket.emit('joinLivestreamRoom', livestreamId);
+            }
+        };
+
         socket.on('connect', () => {
-            socket.emit('joinLivestreamRoom', livestreamId);
+            isConnected = true;
+            joinRoomAttempted = false;
+            // Join livestream room to receive viewer count updates
+            joinRoom();
         });
 
-        socket.on('disconnect', () => {
-            // Socket will auto-reconnect
+        socket.on('disconnect', (reason) => {
+            isConnected = false;
+            joinRoomAttempted = false;
+            // Allow automatic reconnection
+        });
+
+        socket.on('connect_error', (error) => {
+            // Socket.IO will automatically retry
+            // Only log after multiple failures
+            if (socket.io.reconnecting) {
+                // Reconnecting, don't log
+            }
+        });
+
+        socket.on('reconnect', (attemptNumber) => {
+            isConnected = true;
+            // Re-join room after reconnection
+            joinRoom();
         });
 
         // Listen for comment events
@@ -200,27 +268,131 @@ const LiveStreamControl = () => {
             }
         });
 
+        // Listen for viewer count updates from backend
+        socket.on('viewer:count', (data) => {
+            try {
+                if (data?.liveId === livestreamId && typeof data?.count === 'number') {
+                    handleViewerCountUpdate(data.count);
+                }
+            } catch (e) {
+                console.error('Error handling viewer count update:', e);
+            }
+        });
+
         // Cleanup
         return () => {
-            if (socket.connected) {
-                socket.emit('leaveLivestreamRoom', livestreamId);
+            // Cleanup function
+            try {
+                // Remove all listeners first
+                socket.off('connect');
+                socket.off('disconnect');
+                socket.off('comment:added');
+                socket.off('comment:deleted');
+                socket.off('comment:pinned');
+                socket.off('comment:unpinned');
+                socket.off('product:added');
+                socket.off('product:removed');
+                socket.off('product:pinned');
+                socket.off('product:unpinned');
+                socket.off('reaction:added');
+                socket.off('reaction:updated');
+                socket.off('viewer:count');
+                socket.off('connect_error');
+                socket.off('reconnect');
+
+                // Leave room before disconnecting (only if connected)
+                if (socket.connected && joinRoomAttempted) {
+                    socket.emit('leaveLivestreamRoom', livestreamId);
+                    // Wait a bit for the emit to complete
+                    setTimeout(() => {
+                        socket.disconnect();
+                    }, 100);
+                } else {
+                    socket.disconnect();
+                }
+            } catch (error) {
+                // Force disconnect if cleanup fails
+                try {
+                    socket.disconnect();
+                } catch (e) {
+                    // Ignore
+                }
             }
-            socket.off('connect');
-            socket.off('disconnect');
-            socket.off('comment:added');
-            socket.off('comment:deleted');
-            socket.off('comment:pinned');
-            socket.off('comment:unpinned');
-            socket.off('product:added');
-            socket.off('product:removed');
-            socket.off('product:pinned');
-            socket.off('product:unpinned');
-            socket.off('reaction:added');
-            socket.off('reaction:updated');
-            socket.close();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [livestreamId, livestream?._id, livestream?.status]);
+    }, [livestreamId, livestream?._id, livestream?.status, handleViewerCountUpdate]);
+
+    // Periodic sync for viewer count (fallback and peak/min tracking) - more frequent for faster updates
+    useEffect(() => {
+        if (!livestream || livestream.status !== 'live') return;
+
+        // Copy ref to variable for cleanup
+        const ongoingCalls = ongoingCallsRef.current;
+
+        const syncViewerCount = async () => {
+            try {
+                // Prevent duplicate calls
+                if (ongoingCalls.updateViewerCount) {
+                    return;
+                }
+                ongoingCalls.updateViewerCount = true;
+
+                try {
+                    const response = await Api.livestream.getById(livestreamId);
+                    if (response.success) {
+                        // Backend returns: { success: true, data: { livestream: {...} } }
+                        const currentStream = response.data?.livestream;
+
+                        if (currentStream) {
+                            const newViewers = currentStream.currentViewers ?? 0;
+                            const backendPeak = currentStream.peakViewers ?? 0;
+                            const backendMin = currentStream.minViewers ?? 0;
+
+                            // Get peak/min from backend (backend calculates real-time)
+                            setLivestream(prev => {
+                                if (!prev) return prev;
+
+                                // Check if any value changed
+                                const hasChanges =
+                                    prev.currentViewers !== newViewers ||
+                                    prev.peakViewers !== backendPeak ||
+                                    prev.minViewers !== backendMin;
+
+                                if (!hasChanges) {
+                                    return prev;
+                                }
+
+                                return {
+                                    ...prev,
+                                    currentViewers: newViewers,
+                                    peakViewers: backendPeak,
+                                    minViewers: backendMin
+                                };
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error syncing viewer count:', error);
+                } finally {
+                    ongoingCalls.updateViewerCount = false;
+                }
+            } catch (error) {
+                console.error('Error in syncViewerCount:', error);
+            }
+        };
+
+        // Initial sync
+        syncViewerCount();
+
+        // Sync every 5 seconds for faster updates (was 10 seconds)
+        const interval = setInterval(syncViewerCount, 5000);
+
+        return () => {
+            clearInterval(interval);
+            // Reset flag on unmount
+            ongoingCalls.updateViewerCount = false;
+        };
+    }, [livestream, livestreamId, livestream?.status]);
 
     // Initial load
     useEffect(() => {
@@ -522,22 +694,29 @@ const LiveStreamControl = () => {
 
                         {/* Viewer Stats Card */}
                         <div className="bg-white rounded-lg border border-gray-200 p-3 lg:p-4 shrink-0">
-                            <div className="grid grid-cols-2 gap-3 mb-3 pb-3 border-b border-gray-200">
+                            <div className="flex items-center gap-3">
                                 {/* Min Viewers */}
                                 <div className="text-center min-w-0">
-                                    <p className="text-[10px] font-medium text-gray-600 mb-1 truncate">Min</p>
-                                    <p className="text-xl font-bold text-gray-900 truncate">{livestream.minViewers || 0}</p>
+                                    <div className="text-xs text-gray-500 font-medium">Min</div>
+                                    <div className="text-base font-bold text-gray-900">{livestream.minViewers || 0}</div>
                                 </div>
+                                <div className="h-6 w-px bg-gray-300"></div>
                                 {/* Peak Viewers */}
                                 <div className="text-center min-w-0">
-                                    <p className="text-[10px] font-medium text-gray-600 mb-1 truncate">Peak</p>
-                                    <p className="text-xl font-bold text-green-600 truncate">{livestream.peakViewers || 0}</p>
+                                    <div className="text-xs text-gray-500 font-medium">Peak</div>
+                                    <div className="text-base font-bold text-green-600">{livestream.peakViewers || 0}</div>
                                 </div>
-                            </div>
-                            {/* Current Viewers */}
-                            <div className="text-center">
-                                <p className="text-[10px] font-medium text-gray-600 mb-1 truncate">Views</p>
-                                <p className="text-xl font-bold text-purple-600 truncate">{livestream.currentViewers || 0}</p>
+                                <div className="h-6 w-px bg-gray-300"></div>
+                                {/* Current/Total Viewers */}
+                                <div className="text-center min-w-0">
+                                    <div className="text-xs text-gray-500 font-medium">Views</div>
+                                    <div className="text-base font-bold text-purple-600">
+                                        {livestream.status === 'live'
+                                            ? (livestream.currentViewers ?? 0)
+                                            : (livestream.totalViewers ?? livestream.currentViewers ?? 0)
+                                        }
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

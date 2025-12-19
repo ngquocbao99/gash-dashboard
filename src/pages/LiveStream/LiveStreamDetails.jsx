@@ -38,6 +38,7 @@ const LiveStreamDetails = () => {
     const [showAllComments, setShowAllComments] = useState(false);
     const [showAllProducts, setShowAllProducts] = useState(false);
     const [productImageCache, setProductImageCache] = useState({}); // Cache for fetched product images
+    const [isOwner, setIsOwner] = useState(false); // Check if current user is the owner
 
     // Load livestream details
     const loadLivestreamDetails = async () => {
@@ -77,6 +78,15 @@ const LiveStreamDetails = () => {
                     currentViewers: livestreamData.currentViewers || 0,
                     duration: livestreamData.duration // Duration in milliseconds (null if still live)
                 });
+
+                // Check if current user is the owner
+                const hostId = livestreamData.hostId?._id || livestreamData.hostId;
+                const userId = user?._id;
+                const isUserOwner = hostId && userId && (
+                    hostId.toString() === userId.toString() ||
+                    hostId === userId
+                );
+                setIsOwner(isUserOwner);
 
                 // Set products, comments, reactions separately
                 // Sort products: pinned products first (only when live), then by addedAt (newest first)
@@ -390,7 +400,13 @@ const LiveStreamDetails = () => {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 lg:gap-4 shrink-0">
                     {livestream.status === 'live' && (
                         <button
-                            onClick={() => navigate(`/livestream-control/${livestreamId}`)}
+                            onClick={() => {
+                                if (isOwner) {
+                                    navigate(`/manage-livestream/${livestreamId}`);
+                                } else {
+                                    navigate(`/livestream-control/${livestreamId}`);
+                                }
+                            }}
                             className="flex items-center space-x-1 lg:space-x-2 px-3 lg:px-4 py-2 lg:py-3 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-xs lg:text-sm font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transform hover:scale-105"
                         >
                             <Dashboard className="w-3 h-3 lg:w-4 lg:h-4" />
