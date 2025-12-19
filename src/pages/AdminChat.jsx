@@ -117,20 +117,7 @@ socketRef.current.on("conversation_updated", (updatedConvo) => {
     const isAdmin = userRef.current?.role === 'admin';
     
     // Filter: Remove if closed
-    // For non-admins, also remove if assigned to another staff
     if (updatedStatus === "closed") {
-      setConversations((prev) => {
-        const filtered = prev.filter((c) => getId(c) !== convoId);
-        if (selectedRef.current && getId(selectedRef.current) === convoId) {
-          setSelected(null);
-        }
-        return filtered;
-      });
-      return;
-    }
-    
-    // For non-admins, filter out conversations assigned to other staff
-    if (!isAdmin && updatedStaffId && updatedStaffId !== adminId && updatedStatus === "pending") {
       setConversations((prev) => {
         const filtered = prev.filter((c) => getId(c) !== convoId);
         if (selectedRef.current && getId(selectedRef.current) === convoId) {
@@ -166,33 +153,26 @@ socketRef.current.on("conversation_updated", (updatedConvo) => {
           return c;
         });
       } else {
-        // For admins, add all conversations. For non-admins, only add if assigned to this staff or is open
-        const isAdmin = userRef.current?.role === 'admin';
-        if (isAdmin || !updatedStaffId || updatedStaffId === adminId || updatedStatus === "open") {
-          // Ensure accountId is properly cached
-          let accountId = updatedConvo.accountId;
-          if (typeof accountId === "string") {
-            const cached = userCacheRef.current.get(accountId);
-            accountId = cached || { _id: accountId };
-          } else if (accountId && typeof accountId === "object" && accountId._id && (accountId.username || accountId.email)) {
-            userCacheRef.current.set(String(accountId._id), accountId);
-          }
-          
-          updated = [
-            {
-              ...updatedConvo,
-              lastMessage: updatedConvo.lastMessage || "New conversation",
-              unreadCount: 1,
-              status: updatedStatus || "open",
-              staffId: updatedStaffId,
-              accountId: accountId,
-            },
-            ...prev,
-          ];
-        } else {
-          // Don't add if assigned to another staff (non-admin only)
-          return prev;
+        // Ensure accountId is properly cached
+        let accountId = updatedConvo.accountId;
+        if (typeof accountId === "string") {
+          const cached = userCacheRef.current.get(accountId);
+          accountId = cached || { _id: accountId };
+        } else if (accountId && typeof accountId === "object" && accountId._id && (accountId.username || accountId.email)) {
+          userCacheRef.current.set(String(accountId._id), accountId);
         }
+        
+        updated = [
+          {
+            ...updatedConvo,
+            lastMessage: updatedConvo.lastMessage || "New conversation",
+            unreadCount: 1,
+            status: updatedStatus || "open",
+            staffId: updatedStaffId,
+            accountId: accountId,
+          },
+          ...prev,
+        ];
       }
       // Sort by updatedAt descending
       return updated.sort((a, b) => {
@@ -225,14 +205,8 @@ socketRef.current.on("conversation_updated", (updatedConvo) => {
         accountId: accountId,
       };
       
-      // For admins, add all conversations. For non-admins, only add if open or assigned to this staff
-      const isAdmin = userRef.current?.role === 'admin';
-      const convoStaffId = newConvo.staffId;
       if (newConvo.status === "closed") {
         return; // Don't add closed conversations
-      }
-      if (!isAdmin && convoStaffId && convoStaffId !== adminId && newConvo.status === "pending") {
-        return; // Don't add conversations assigned to other staff (non-admin only)
       }
       
       setConversations((prev) => {
@@ -312,9 +286,7 @@ socketRef.current.on("conversation_updated", (updatedConvo) => {
       setLoadingConvos(true);
       const token = localStorage.getItem("token");
       const isAdmin = user?.role === 'admin';
-      const url = isAdmin 
-        ? `${API_URL}/conversations?isAdmin=true`
-        : `${API_URL}/conversations?staffId=${adminId}`;
+      const url = `${API_URL}/conversations?isAdmin=${isAdmin}`;
       const res = await axios.get(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -620,19 +592,11 @@ socketRef.current.on("conversation_updated", (updatedConvo) => {
   };
 
   const canOpenChat = (conv) => {
-    const isAdmin = user?.role === 'admin';
-    // Admins can open any conversation, staff can only open assigned or open ones
-    return isAdmin || conv.status === "open" || (conv.status === "pending" && String(conv.staffId) === adminId);
+    return true;
   };
 
   const canMessage = (conv) => {
-    const isAdmin = user?.role === 'admin';
-    // Admins can only message if they're the assigned staff or it's open
-    // Staff can message if they're assigned or it's open
-    if (isAdmin) {
-      return conv.status === "open" || (conv.status === "pending" && String(conv.staffId) === adminId);
-    }
-    return conv.status === "open" || (conv.status === "pending" && String(conv.staffId) === adminId);
+    return true;
   };
 
   // =============== UI ===================
@@ -674,11 +638,7 @@ socketRef.current.on("conversation_updated", (updatedConvo) => {
                       <li
                         key={cid}
                         onClick={() => {
-                          if (canOpenChat(c)) {
-                            loadMessages(c);
-                          } else {
-                            showToast("This conversation is assigned to another staff.", "error");
-                          }
+                          loadMessages(c);
                         }}
                         className={`cursor-pointer flex items-center justify-between p-3 rounded-xl border-2 transition-all duration-300 ${
                           active
@@ -706,15 +666,9 @@ socketRef.current.on("conversation_updated", (updatedConvo) => {
                             </span>
                           )}
                           {c.status === "open" ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleTakeConversation(c);
-                              }}
-                              className="text-xs bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] text-white px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-                            >
-                              <FaCheck className="text-xs" /> Take
-                            </button>
+                            <span className="text-xs bg-gradient-to-r from-green-400/20 via-emerald-400/20 to-teal-400/20 text-green-700 px-2 py-0.5 rounded-full border border-green-400/50">
+                              Open
+                            </span>
                           ) : c.status === "pending" ? (
                             <span className="text-xs bg-gradient-to-r from-yellow-400/20 via-amber-400/20 to-orange-400/20 text-gray-700 px-2 py-0.5 rounded-full border border-yellow-400/50">
                               Assigned
@@ -757,7 +711,7 @@ socketRef.current.on("conversation_updated", (updatedConvo) => {
                       <span className="text-xs bg-gradient-to-r from-green-400/20 via-emerald-400/20 to-teal-400/20 text-green-700 px-2 py-1 rounded-xl border border-green-400/50 shadow-sm">
                         Open
                       </span>
-                    ) : selected.status === "pending" && String(selected.staffId) === adminId ? (
+                    ) : selected.status === "pending" ? (
                       <>
                         <span className="text-xs bg-gradient-to-r from-yellow-400/20 via-amber-400/20 to-orange-400/20 text-gray-700 px-2 py-1 rounded-xl border border-yellow-400/50 shadow-sm">
                           Assigned
@@ -774,15 +728,6 @@ socketRef.current.on("conversation_updated", (updatedConvo) => {
                       <span className="text-xs bg-gradient-to-r from-yellow-400/20 via-amber-400/20 to-orange-400/20 text-gray-700 px-2 py-1 rounded-xl border border-yellow-400/50 shadow-sm">
                         Assigned
                       </span>
-                    )}
-                    {selected.status === "pending" && String(selected.staffId) !== adminId && user?.role !== 'admin' && (
-                      <button
-                        onClick={() => handleTakeConversation(selected)}
-                        className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-300 shadow-md bg-gradient-to-r from-[#E9A319] to-[#A86523] hover:from-[#A86523] hover:to-[#8B4E1A] text-white hover:shadow-lg transform hover:scale-105"
-                      >
-                        <FaCheck size={18} />
-                        <span>Take</span>
-                      </button>
                     )}
                   </div>
                 </div>
@@ -1029,7 +974,7 @@ socketRef.current.on("conversation_updated", (updatedConvo) => {
                               }
                             }}
                           />
-                          <div className="absolute right-3 bottom-1 text-xs text-gray-400 pointer-events-none">
+                          <div className="absolute right-3 bottom-4 text-xs text-gray-400 pointer-events-none">
                             {input.length}/500
                           </div>
                         </div>
