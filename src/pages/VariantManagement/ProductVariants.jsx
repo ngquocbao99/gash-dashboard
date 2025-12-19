@@ -180,7 +180,7 @@ const ProductVariants = () => {
     if (!variantToDelete) return;
 
     try {
-      await Api.newVariants.update(variantToDelete._id, { variantStatus: 'inactive' });
+      await Api.newVariants.update(variantToDelete._id, { variantStatus: 'discontinued' });
       showToast("Variant deactivated successfully", "success");
       fetchVariants();
     } catch (err) {

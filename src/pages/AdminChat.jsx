@@ -64,127 +64,127 @@ export default function AdminChat() {
       console.info("Socket connected:", socketRef.current.id);
     });
 
-socketRef.current.on("new_message", (msg) => {
-  try {
-    const convoId = String(
-      typeof msg.conversationId === "object"
-        ? msg.conversationId._id || msg.conversationId
-        : msg.conversationId
-    );
+    socketRef.current.on("new_message", (msg) => {
+      try {
+        const convoId = String(
+          typeof msg.conversationId === "object"
+            ? msg.conversationId._id || msg.conversationId
+            : msg.conversationId
+        );
 
-    // 1. Push message into the open chat
-    if (selectedRef.current && convoId === getId(selectedRef.current)) {
-      setMessages((prev) => [...prev, msg]);
-    }
-
-    // 2. UPDATE SIDEBAR LIVE: lastMessage + unread count
-    setConversations((prev) => {
-      const updated = prev.map((c) => {
-        if (getId(c) === convoId) {
-          return {
-            ...c,
-            lastMessage:
-              msg.messageText ||
-              (msg.type === "image" ? "Image" :
-               msg.type === "sticker" ? "Sticker" :
-               msg.type === "emoji" ? "Emoji" : "Media"),
-            unreadCount:
-              selectedRef.current && getId(selectedRef.current) === convoId
-                ? 0
-                : (c.unreadCount || 0) + 1,
-            updatedAt: new Date().toISOString(), // Update timestamp for sorting
-          };
+        // 1. Push message into the open chat
+        if (selectedRef.current && convoId === getId(selectedRef.current)) {
+          setMessages((prev) => [...prev, msg]);
         }
-        return c;
-      });
-      // Sort by updatedAt descending to bring updated conversations to top
-      return updated.sort((a, b) => {
-        const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-        const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-        return bTime - aTime;
-      });
+
+        // 2. UPDATE SIDEBAR LIVE: lastMessage + unread count
+        setConversations((prev) => {
+          const updated = prev.map((c) => {
+            if (getId(c) === convoId) {
+              return {
+                ...c,
+                lastMessage:
+                  msg.messageText ||
+                  (msg.type === "image" ? "Image" :
+                   msg.type === "sticker" ? "Sticker" :
+                   msg.type === "emoji" ? "Emoji" : "Media"),
+                unreadCount:
+                  selectedRef.current && getId(selectedRef.current) === convoId
+                    ? 0
+                    : (c.unreadCount || 0) + 1,
+                updatedAt: new Date().toISOString(), // Update timestamp for sorting
+              };
+            }
+            return c;
+          });
+          // Sort by updatedAt descending to bring updated conversations to top
+          return updated.sort((a, b) => {
+            const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+            const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+            return bTime - aTime;
+          });
+        });
+      } catch (err) {
+        console.error("Error handling new_message:", err);
+      }
     });
-  } catch (err) {
-    console.error("Error handling new_message:", err);
-  }
-});
 
-socketRef.current.on("conversation_updated", (updatedConvo) => {
-  try {
-    const convoId = getId(updatedConvo);
-    const updatedStaffId = updatedConvo.staffId ? getId(updatedConvo.staffId) : null;
-    const updatedStatus = updatedConvo.status;
-    const isAdmin = userRef.current?.role === 'admin';
-    
-    // Filter: Remove if closed
-    if (updatedStatus === "closed") {
-      setConversations((prev) => {
-        const filtered = prev.filter((c) => getId(c) !== convoId);
-        if (selectedRef.current && getId(selectedRef.current) === convoId) {
-          setSelected(null);
+    socketRef.current.on("conversation_updated", (updatedConvo) => {
+      try {
+        const convoId = getId(updatedConvo);
+        const updatedStaffId = updatedConvo.staffId ? getId(updatedConvo.staffId) : null;
+        const updatedStatus = updatedConvo.status;
+        const isAdmin = userRef.current?.role === 'admin';
+        
+        // Filter: Remove if closed
+        if (updatedStatus === "closed") {
+          setConversations((prev) => {
+            const filtered = prev.filter((c) => getId(c) !== convoId);
+            if (selectedRef.current && getId(selectedRef.current) === convoId) {
+              setSelected(null);
+            }
+            return filtered;
+          });
+          return;
         }
-        return filtered;
-      });
-      return;
-    }
-    
-    setConversations((prev) => {
-      const exists = prev.some((c) => getId(c) === convoId);
-      let updated;
-      if (exists) {
-        // Update existing conversation
-        updated = prev.map((c) => {
-          if (getId(c) === convoId) {
+        
+        setConversations((prev) => {
+          const exists = prev.some((c) => getId(c) === convoId);
+          let updated;
+          if (exists) {
+            // Update existing conversation
+            updated = prev.map((c) => {
+              if (getId(c) === convoId) {
+                // Ensure accountId is properly cached
+                let accountId = updatedConvo.accountId || c.accountId;
+                if (accountId && typeof accountId === "object" && accountId._id && (accountId.username || accountId.email)) {
+                  userCacheRef.current.set(String(accountId._id), accountId);
+                }
+                
+                return {
+                  ...c,
+                  ...updatedConvo,
+                  lastMessage: updatedConvo.lastMessage || c.lastMessage,
+                  accountId: accountId,
+                  staffId: updatedStaffId || c.staffId,
+                  updatedAt: updatedConvo.updatedAt || c.updatedAt,
+                };
+              }
+              return c;
+            });
+          } else {
             // Ensure accountId is properly cached
-            let accountId = updatedConvo.accountId || c.accountId;
-            if (accountId && typeof accountId === "object" && accountId._id && (accountId.username || accountId.email)) {
+            let accountId = updatedConvo.accountId;
+            if (typeof accountId === "string") {
+              const cached = userCacheRef.current.get(accountId);
+              accountId = cached || { _id: accountId };
+            } else if (accountId && typeof accountId === "object" && accountId._id && (accountId.username || accountId.email)) {
               userCacheRef.current.set(String(accountId._id), accountId);
             }
             
-            return {
-              ...c,
-              ...updatedConvo,
-              lastMessage: updatedConvo.lastMessage || c.lastMessage,
-              accountId: accountId,
-              staffId: updatedStaffId || c.staffId,
-              updatedAt: updatedConvo.updatedAt || c.updatedAt,
-            };
+            updated = [
+              {
+                ...updatedConvo,
+                lastMessage: updatedConvo.lastMessage || "New conversation",
+                unreadCount: 1,
+                status: updatedStatus || "open",
+                staffId: updatedStaffId,
+                accountId: accountId,
+              },
+              ...prev,
+            ];
           }
-          return c;
+          // Sort by updatedAt descending
+          return updated.sort((a, b) => {
+            const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+            const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+            return bTime - aTime;
+          });
         });
-      } else {
-        // Ensure accountId is properly cached
-        let accountId = updatedConvo.accountId;
-        if (typeof accountId === "string") {
-          const cached = userCacheRef.current.get(accountId);
-          accountId = cached || { _id: accountId };
-        } else if (accountId && typeof accountId === "object" && accountId._id && (accountId.username || accountId.email)) {
-          userCacheRef.current.set(String(accountId._id), accountId);
-        }
-        
-        updated = [
-          {
-            ...updatedConvo,
-            lastMessage: updatedConvo.lastMessage || "New conversation",
-            unreadCount: 1,
-            status: updatedStatus || "open",
-            staffId: updatedStaffId,
-            accountId: accountId,
-          },
-          ...prev,
-        ];
+      } catch (err) {
+        console.error("Error handling conversation_updated:", err);
       }
-      // Sort by updatedAt descending
-      return updated.sort((a, b) => {
-        const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-        const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-        return bTime - aTime;
-      });
     });
-  } catch (err) {
-    console.error("Error handling conversation_updated:", err);
-  }
-});
 
     socketRef.current.on("conversation_created", (convo) => {
       // Ensure accountId is properly cached
@@ -665,7 +665,7 @@ socketRef.current.on("conversation_updated", (updatedConvo) => {
                               {c.unreadCount}
                             </span>
                           )}
-                          {c.status === "open" ? (
+                          {/* {c.status === "open" ? (
                             <span className="text-xs bg-gradient-to-r from-green-400/20 via-emerald-400/20 to-teal-400/20 text-green-700 px-2 py-0.5 rounded-full border border-green-400/50">
                               Open
                             </span>
@@ -673,7 +673,7 @@ socketRef.current.on("conversation_updated", (updatedConvo) => {
                             <span className="text-xs bg-gradient-to-r from-yellow-400/20 via-amber-400/20 to-orange-400/20 text-gray-700 px-2 py-0.5 rounded-full border border-yellow-400/50">
                               Assigned
                             </span>
-                          ) : null}
+                          ) : null} */}
                         </div>
                       </li>
                     );
@@ -706,7 +706,7 @@ socketRef.current.on("conversation_updated", (updatedConvo) => {
                         : "Chat active"}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  {/* <div className="flex items-center gap-2">
                     {selected.status === "open" ? (
                       <span className="text-xs bg-gradient-to-r from-green-400/20 via-emerald-400/20 to-teal-400/20 text-green-700 px-2 py-1 rounded-xl border border-green-400/50 shadow-sm">
                         Open
@@ -729,172 +729,174 @@ socketRef.current.on("conversation_updated", (updatedConvo) => {
                         Assigned
                       </span>
                     )}
-                  </div>
+                  </div> */}
                 </div>
 
- {/* MESSAGES */}
-<div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-gray-50 to-gray-100">
-  {loadingMessages ? (
-    <div className="flex items-center justify-center h-full">
-      <Loading type="default" size="small" message="Loading messages..." />
-    </div>
-  ) : (
-    messages.map((m, i) => {
-      const senderId = String(m.senderId);
-      const isMe = senderId === String(adminId); // staff/admin đang login = bên phải
+                {/* MESSAGES */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-gray-50 to-gray-100">
+                  {loadingMessages ? (
+                    <div className="flex items-center justify-center h-full">
+                      <Loading type="default" size="small" message="Loading messages..." />
+                    </div>
+                  ) : (
+                    messages.map((m, i) => {
+                      const senderId = String(m.senderId);
+                      const isMe = senderId === String(adminId);
 
-      // Lấy cache
-      let sender = userCacheRef.current.get(senderId);
+                      // Lấy cache
+                      let sender = userCacheRef.current.get(senderId);
 
-      // Nếu cache chưa có → fetch user
-      if (!sender) {
-        fetchUserDetails(senderId).then((data) => {
-          if (data) {
-            userCacheRef.current.set(senderId, data);
-            setMessages((prev) => [...prev]);
-          }
-        });
-      }
+                      // Nếu cache chưa có → fetch user
+                      if (!sender) {
+                        fetchUserDetails(senderId).then((data) => {
+                          if (data) {
+                            userCacheRef.current.set(senderId, data);
+                            setMessages((prev) => [...prev]);
+                          }
+                        });
+                      }
 
-      // FE ROLE MAP — không cần BE trả role
-      const roleMap = {
-        admin: "Admin",
-        manager: "Manager",
-        staff: "Staff",
-        user: "User",
-      };
+                      // FE ROLE MAP — không cần BE trả role
+                      const roleMap = {
+                        admin: "Admin",
+                        manager: "Manager",
+                        staff: "Staff",
+                        user: "User",
+                      };
 
-      // ---------------- ROLE RESOLVE ----------------
-      let resolvedRole;
+                      // ---------------- ROLE RESOLVE ----------------
+                      let resolvedRole;
 
-      if (isMe) {
-        // Nếu là chính mình
-        resolvedRole = roleMap[user?.role] || "User";
-      } else {
-        // Role từ backend
-        resolvedRole = sender?.role;
+                      if (isMe) {
+                        // Nếu là chính mình
+                        resolvedRole = roleMap[user?.role] || "User";
+                      } else {
+                        // Role từ backend
+                        resolvedRole = sender?.role;
 
-        // Nếu BE không trả role thì FE fallback
-        if (!resolvedRole) {
-          const uname = sender?.username?.toLowerCase() || "";
+                        // Nếu BE không trả role thì FE fallback
+                        if (!resolvedRole) {
+                          const uname = sender?.username?.toLowerCase() || "";
 
-          if (uname.includes("admin")) resolvedRole = "admin";
-          else if (uname.includes("manager")) resolvedRole = "manager";
-          else if (uname.includes("staff")) resolvedRole = "staff";
-          else resolvedRole = "user";
-        }
-      }
+                          if (uname.includes("admin")) resolvedRole = "admin";
+                          else if (uname.includes("manager")) resolvedRole = "manager";
+                          else if (uname.includes("staff")) resolvedRole = "staff";
+                          else resolvedRole = "user";
+                        }
+                      }
 
-      const finalRole = resolvedRole.charAt(0).toUpperCase() + resolvedRole.slice(1);
+                      const finalRole = resolvedRole.charAt(0).toUpperCase() + resolvedRole.slice(1);
 
-      // ---------------- NAME RESOLVE ----------------
-      let senderName;
+                      const isStaffSide = ['admin', 'manager', 'staff'].includes(resolvedRole.toLowerCase());
 
-      if (isMe) {
-        senderName = `${user?.username || "You"} (${finalRole})`;
-      } else {
-        const name =
-          sender?.username ||
-          sender?.email ||
-          `User ${senderId.slice(-4)}`;
-        senderName = `${name} (${finalRole})`;
-      }
+                      // ---------------- NAME RESOLVE ----------------
+                      let senderName;
 
-      return (
-        <div
-          key={i}
-          className={`flex ${isMe ? "justify-end" : "justify-start"}`}
-        >
-          <div className="max-w-[75%] flex flex-col gap-1">
+                      if (isMe) {
+                        senderName = `${user?.username || "You"} (${finalRole})`;
+                      } else {
+                        const name =
+                          sender?.username ||
+                          sender?.email ||
+                          `User ${senderId.slice(-4)}`;
+                        senderName = `${name} (${finalRole})`;
+                      }
 
-            {/* TÊN NGƯỜI GỬI */}
-            <span
-              className={`text-xs font-medium px-1 ${
-                isMe ? "text-right text-gray-400" : "text-left text-gray-500"
-              }`}
-            >
-              {senderName}
-            </span>
+                      return (
+                        <div
+                          key={i}
+                          className={`flex ${isStaffSide ? "justify-end" : "justify-start"}`}
+                        >
+                          <div className="max-w-[75%] flex flex-col gap-1">
 
-            {/* BONG BÓNG TIN NHẮN */}
-            <div
-              className={`
-                p-3 rounded-2xl shadow-lg
-                transition-all duration-300 backdrop-blur-xl
-                ${
-                  isMe
-                    ? "bg-gradient-to-br from-[#E9A319] to-[#A86523] text-white rounded-br-md"
-                    : "bg-white border border-gray-200 text-gray-800 rounded-bl-md"
-                }
-              `}
-            >
-              {m.type === "image" ? (
-                <div
-                  className="relative cursor-pointer"
-                  onClick={() => {
-                    const imageUrl = m.imageUrl || m.attachments;
-                    const fullUrl = imageUrl?.startsWith("http")
-                      ? imageUrl
-                      : `${API_URL}${imageUrl?.startsWith("/") ? "" : "/"}${imageUrl}`;
-                    setViewerImage(fullUrl);
-                  }}
-                >
-                  <img
-                    src={
-                      (m.imageUrl || m.attachments)?.startsWith("http")
-                        ? (m.imageUrl || m.attachments)
-                        : `${API_URL}${
-                            (m.imageUrl || m.attachments)?.startsWith("/")
-                              ? ""
-                              : "/"
-                          }${m.imageUrl || m.attachments}`
-                    }
-                    alt="sent"
-                    className="rounded-xl border border-gray-200 max-w-[240px] max-h-[320px] object-cover shadow-md"
-                  />
+                            {/* TÊN NGƯỜI GỬI */}
+                            <span
+                              className={`text-xs font-medium px-1 ${
+                                isStaffSide ? "text-right text-gray-400" : "text-left text-gray-500"
+                              }`}
+                            >
+                              {senderName}
+                            </span>
+
+                            {/* BONG BÓNG TIN NHẮN */}
+                            <div
+                              className={`
+                                p-3 rounded-2xl shadow-lg
+                                transition-all duration-300 backdrop-blur-xl
+                                ${
+                                  isStaffSide
+                                    ? "bg-gradient-to-br from-[#E9A319] to-[#A86523] text-white rounded-br-md"
+                                    : "bg-white border border-gray-200 text-gray-800 rounded-bl-md"
+                                }
+                              `}
+                            >
+                              {m.type === "image" ? (
+                                <div
+                                  className="relative cursor-pointer"
+                                  onClick={() => {
+                                    const imageUrl = m.imageUrl || m.attachments;
+                                    const fullUrl = imageUrl?.startsWith("http")
+                                      ? imageUrl
+                                      : `${API_URL}${imageUrl?.startsWith("/") ? "" : "/"}${imageUrl}`;
+                                    setViewerImage(fullUrl);
+                                  }}
+                                >
+                                  <img
+                                    src={
+                                      (m.imageUrl || m.attachments)?.startsWith("http")
+                                        ? (m.imageUrl || m.attachments)
+                                        : `${API_URL}${
+                                            (m.imageUrl || m.attachments)?.startsWith("/")
+                                              ? ""
+                                              : "/"
+                                          }${m.imageUrl || m.attachments}`
+                                    }
+                                    alt="sent"
+                                    className="rounded-xl border border-gray-200 max-w-[240px] max-h-[320px] object-cover shadow-md"
+                                  />
+                                </div>
+                              ) : (
+                                <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                                  {m.messageText}
+                                </p>
+                              )}
+
+                              {/* TIME */}
+                              <div
+                                className={`text-[10px] mt-1 ${
+                                  isStaffSide ? "text-yellow-100 text-right" : "text-gray-400 text-left"
+                                }`}
+                              >
+                                {(() => {
+                                  const date = new Date(m.createdAt);
+                                  const now = new Date();
+                                  const isToday =
+                                    date.getDate() === now.getDate() &&
+                                    date.getMonth() === now.getMonth() &&
+                                    date.getFullYear() === now.getFullYear();
+
+                                  if (isToday) {
+                                    return date.toLocaleTimeString("en-US", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    });
+                                  }
+                                  return date.toLocaleDateString("en-GB", {
+                                    weekday: "short",
+                                    day: "2-digit",
+                                    month: "short",
+                                  });
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+
+                  <div ref={endRef}></div>
                 </div>
-              ) : (
-                <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                  {m.messageText}
-                </p>
-              )}
-
-              {/* TIME */}
-              <div
-                className={`text-[10px] mt-1 ${
-                  isMe ? "text-yellow-100 text-right" : "text-gray-400 text-left"
-                }`}
-              >
-                {(() => {
-                  const date = new Date(m.createdAt);
-                  const now = new Date();
-                  const isToday =
-                    date.getDate() === now.getDate() &&
-                    date.getMonth() === now.getMonth() &&
-                    date.getFullYear() === now.getFullYear();
-
-                  if (isToday) {
-                    return date.toLocaleTimeString("en-US", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    });
-                  }
-                  return date.toLocaleDateString("en-GB", {
-                    weekday: "short",
-                    day: "2-digit",
-                    month: "short",
-                  });
-                })()}
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    })
-  )}
-
-  <div ref={endRef}></div>
-</div>
 
                 {/* INPUT */}
                 <div className="border-t border-gray-200 bg-white px-4 py-3 flex-shrink-0 relative">
