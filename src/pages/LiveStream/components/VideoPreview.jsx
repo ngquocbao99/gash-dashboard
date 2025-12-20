@@ -71,12 +71,12 @@ const VideoPreview = ({
                         )}
 
                         {/* Fullscreen Button */}
-                        <button
+                        {/* <button
                             onClick={onToggleFullscreen}
                             className="absolute bottom-3 right-3 bg-gradient-to-r from-gray-800/90 to-black/90 backdrop-blur-md text-white p-1.5 rounded-lg hover:from-gray-700/90 hover:to-gray-900/90 transition-all duration-200 shadow-md hover:shadow-lg"
                         >
                             {isFullscreen ? <FullscreenExit className="w-4 h-4" /> : <Fullscreen className="w-4 h-4" />}
-                        </button>
+                        </button> */}
                     </div>
                 </div>
             </div>
