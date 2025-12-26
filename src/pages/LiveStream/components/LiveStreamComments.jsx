@@ -6,14 +6,7 @@ import Api from '../../../common/SummaryAPI';
 import { useToast } from '../../../hooks/useToast';
 import Loading from '../../../components/Loading';
 
-// Get socket URL - ensure it works in both dev and production
-const getSocketURL = () => {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    // Remove trailing slash if present
-    return apiUrl.replace(/\/$/, '');
-};
-
-const SOCKET_URL = getSocketURL();
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 // DeleteConfirmModal Component
 const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, commentText }) => {
@@ -285,10 +278,8 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
     const [error, setError] = useState('');
     const commentsEndRef = useRef(null);
     const commentsContainerRef = useRef(null);
-    const socketRef = useRef(null);
     const isInitialLoadRef = useRef(true);
     const previousCommentsLengthRef = useRef(0);
-    const isJoinedRef = useRef(false);
 
     // Only for admin and manager
     const isAdmin = user?.role === 'admin' || user?.role === 'manager';
@@ -579,128 +570,51 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
         // Ensure liveId is a string (handle ObjectId objects)
         const liveIdStr = typeof liveId === 'string' ? liveId : (liveId?.toString?.() || String(liveId));
 
-        const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';
-
-        // Cleanup existing socket if liveId changes
-        if (socketRef.current) {
-            if (DEBUG) console.log('🧹 Cleaning up existing socket before creating new one');
-            if (socketRef.current.connected && isJoinedRef.current) {
-                socketRef.current.emit('leaveLivestreamRoom', liveIdStr);
-            }
-            socketRef.current.off('connect');
-            socketRef.current.off('disconnect');
-            socketRef.current.off('connect_error');
-            socketRef.current.off('reconnect');
-            socketRef.current.off('comment:added');
-            socketRef.current.off('comment:deleted');
-            socketRef.current.off('comment:pinned');
-            socketRef.current.off('comment:unpinned');
-            socketRef.current.close();
-            socketRef.current = null;
-            isJoinedRef.current = false;
-        }
-
-        // Create new socket connection
-        // In production, prefer websocket first, then fallback to polling
         const socket = io(SOCKET_URL, {
-            transports: ['websocket', 'polling'],
+            transports: ['websocket', 'polling'], // Add polling as fallback
             reconnection: true,
-            reconnectionAttempts: 10, // Increase attempts for production
+            reconnectionAttempts: 5,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
             timeout: 20000,
-            forceNew: true, // Force new connection to ensure clean state
+            forceNew: false,
             autoConnect: true,
-            withCredentials: true, // Important for CORS in production
         });
 
-        if (DEBUG) {
-            console.log('🔌 Creating socket connection to:', SOCKET_URL);
-        }
-
-        socketRef.current = socket;
+        let isJoined = false;
+        const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';
 
         const joinRoom = () => {
-            const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';
-            if (socket.connected && !isJoinedRef.current) {
-                isJoinedRef.current = true;
+            if (socket.connected && !isJoined) {
+                isJoined = true;
                 socket.emit('joinLivestreamRoom', liveIdStr);
-                if (DEBUG) {
-                    console.log('✅ Emitted joinLivestreamRoom for:', liveIdStr);
-                    console.log('✅ Socket connected:', socket.connected);
-                    console.log('✅ Socket ID:', socket.id);
-                }
-            } else {
-                if (DEBUG) {
-                    console.warn('⚠️ Cannot join room:', {
-                        connected: socket.connected,
-                        alreadyJoined: isJoinedRef.current,
-                        liveId: liveIdStr
-                    });
-                }
+                if (DEBUG) console.log('✅ Joined livestream room for comments:', liveIdStr);
             }
         };
 
-        // Setup event listeners BEFORE connecting
         socket.on('connect', () => {
-            const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';
-            console.log('✅ Socket connected successfully');
-            console.log('✅ Socket ID:', socket.id);
-            console.log('✅ Joining room:', liveIdStr);
+            if (DEBUG) console.log('✅ Socket connected for comments, joining room:', liveIdStr);
             joinRoom();
-
-            // Verify join after a short delay
-            setTimeout(() => {
-                if (socket.connected && !isJoinedRef.current) {
-                    console.warn('⚠️ Socket connected but not joined room yet, retrying...');
-                    joinRoom();
-                }
-            }, 500);
         });
 
         socket.on('disconnect', (reason) => {
-            if (DEBUG) console.log('⚠️ Socket disconnected:', reason);
-            isJoinedRef.current = false;
-            // Log disconnect reason for debugging
-            if (reason === 'io server disconnect') {
-                console.warn('⚠️ Server disconnected socket. Client needs to reconnect manually.');
-            } else if (reason === 'io client disconnect') {
-                console.log('ℹ️ Client disconnected socket.');
-            } else {
-                console.warn('⚠️ Socket disconnected due to:', reason);
-            }
+            if (DEBUG) console.log('⚠️ Socket disconnected (comments):', reason);
+            isJoined = false;
         });
 
         socket.on('connect_error', (error) => {
-            console.error('❌ Socket connection error:', error);
-            console.error('❌ Socket URL:', SOCKET_URL);
-            console.error('❌ Error details:', {
-                message: error.message,
-                type: error.type,
-                description: error.description
-            });
-            isJoinedRef.current = false;
-            // Show user-friendly error message (only log in production, don't show toast to avoid spam)
-            console.warn('⚠️ Socket connection failed. Comments may not update in real-time.');
+            console.error('❌ Socket connection error (comments):', error);
+            isJoined = false;
         });
 
         socket.on('reconnect', (attemptNumber) => {
-            if (DEBUG) console.log('🔄 Socket reconnected, attempt:', attemptNumber);
-            isJoinedRef.current = false;
+            if (DEBUG) console.log('🔄 Socket reconnected (comments), attempt:', attemptNumber);
+            isJoined = false;
             joinRoom();
         });
 
-        // Setup comment event listeners
         socket.on('comment:added', (data) => {
-            const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';
-            if (DEBUG) {
-                console.log('📨 Received comment:added event:', data);
-                console.log('📨 Current liveId:', liveIdStr);
-                console.log('📨 Event liveId:', data?.liveId);
-                console.log('📨 Socket connected:', socket.connected);
-            }
-            // Always log in production for debugging
-            console.log('📨 Comment added event received for liveId:', data?.liveId);
+            if (DEBUG) console.log('📨 Received comment:added event:', data);
             handleCommentAdded(data);
         });
 
@@ -720,39 +634,24 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
         });
 
         // Join room immediately if already connected
-        let connectTimeout = null;
         if (socket.connected) {
             joinRoom();
-        } else {
-            // Wait a bit for connection, then try to join
-            connectTimeout = setTimeout(() => {
-                if (socket.connected && !isJoinedRef.current) {
-                    joinRoom();
-                }
-            }, 1000);
         }
 
         return () => {
-            if (connectTimeout) {
-                clearTimeout(connectTimeout);
+            if (DEBUG) console.log('🧹 Cleaning up socket connection (comments)');
+            if (socket.connected && isJoined) {
+                socket.emit('leaveLivestreamRoom', liveIdStr);
             }
-            if (DEBUG) console.log('🧹 Cleaning up socket connection for liveId:', liveIdStr);
-            if (socketRef.current && socketRef.current.connected && isJoinedRef.current) {
-                socketRef.current.emit('leaveLivestreamRoom', liveIdStr);
-            }
-            if (socketRef.current) {
-                socketRef.current.off('connect');
-                socketRef.current.off('disconnect');
-                socketRef.current.off('connect_error');
-                socketRef.current.off('reconnect');
-                socketRef.current.off('comment:added');
-                socketRef.current.off('comment:deleted');
-                socketRef.current.off('comment:pinned');
-                socketRef.current.off('comment:unpinned');
-                socketRef.current.close();
-                socketRef.current = null;
-            }
-            isJoinedRef.current = false;
+            socket.off('connect');
+            socket.off('disconnect');
+            socket.off('connect_error');
+            socket.off('reconnect');
+            socket.off('comment:added');
+            socket.off('comment:deleted');
+            socket.off('comment:pinned');
+            socket.off('comment:unpinned');
+            socket.close();
         };
     }, [liveId, handleCommentAdded, handleCommentDeleted, handleCommentPinned, handleCommentUnpinned]);
 
