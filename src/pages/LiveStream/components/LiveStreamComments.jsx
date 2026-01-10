@@ -412,15 +412,7 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
         const dataLiveId = String(data?.liveId || '');
         const currentLiveId = String(liveId || '');
 
-        if (DEBUG) {
-            console.log('📨 handleCommentAdded called:', {
-                dataLiveId,
-                currentLiveId,
-                match: dataLiveId === currentLiveId,
-                hasComment: !!data?.comment,
-                commentId: data?.comment?._id
-            });
-        }
+        // Debug logging removed
 
         if (dataLiveId === currentLiveId && data?.comment) {
             const newComment = data.comment;
@@ -443,7 +435,6 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
                 });
 
                 if (existingComment) {
-                    if (DEBUG) console.log('⚠️ Comment already exists, skipping:', normalizedComment._id);
                     return prev;
                 }
 
@@ -452,7 +443,6 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
                     return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
                 });
 
-                if (DEBUG) console.log('✅ Added new comment, total comments:', updated.length);
                 return updated;
             });
 
@@ -513,15 +503,6 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
         const currentLiveId = liveId?.toString?.() || liveId;
 
         if (dataLiveId === currentLiveId && data?.commentId) {
-            const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';
-            if (DEBUG) {
-                console.log('📌 Handling comment:unpinned event:', {
-                    commentId: data.commentId,
-                    liveId: dataLiveId,
-                    currentLiveId
-                });
-            }
-
             setComments(prev => {
                 // Normalize commentId for comparison
                 const unpinnedCommentId = data.commentId?.toString?.() || data.commentId;
@@ -529,7 +510,6 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
                 const updated = prev.map(c => {
                     const commentId = c._id?.toString?.() || c._id;
                     if (commentId === unpinnedCommentId) {
-                        if (DEBUG) console.log('✅ Unpinning comment:', commentId);
                         return { ...c, isPinned: false };
                     }
                     return c;
@@ -590,17 +570,14 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
                 // Join both rooms for compatibility (backend may emit to either)
                 socket.emit('joinLivestreamRoom', liveIdStr);
                 socket.emit('joinLiveProductRoom', liveIdStr);
-                if (DEBUG) console.log('✅ Joined livestream rooms for comments:', liveIdStr);
             }
         };
 
         socket.on('connect', () => {
-            if (DEBUG) console.log('✅ Socket connected for comments, joining room:', liveIdStr);
             joinRoom();
         });
 
         socket.on('disconnect', (reason) => {
-            if (DEBUG) console.log('⚠️ Socket disconnected (comments):', reason);
             isJoined = false;
         });
 
@@ -610,28 +587,23 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
         });
 
         socket.on('reconnect', (attemptNumber) => {
-            if (DEBUG) console.log('🔄 Socket reconnected (comments), attempt:', attemptNumber);
             isJoined = false;
             joinRoom();
         });
 
         socket.on('comment:added', (data) => {
-            if (DEBUG) console.log('📨 Received comment:added event:', data);
             handleCommentAdded(data);
         });
 
         socket.on('comment:deleted', (data) => {
-            if (DEBUG) console.log('📨 Received comment:deleted event:', data);
             handleCommentDeleted(data);
         });
 
         socket.on('comment:pinned', (data) => {
-            if (DEBUG) console.log('📨 Received comment:pinned event:', data);
             handleCommentPinned(data);
         });
 
         socket.on('comment:unpinned', (data) => {
-            if (DEBUG) console.log('📨 Received comment:unpinned event:', data);
             handleCommentUnpinned(data);
         });
 
@@ -641,7 +613,6 @@ const LiveStreamComments = ({ liveId, hostId, isVisible, onToggle }) => {
         }
 
         return () => {
-            if (DEBUG) console.log('🧹 Cleaning up socket connection (comments)');
             if (socket.connected && isJoined) {
                 socket.emit('leaveLivestreamRoom', liveIdStr);
             }

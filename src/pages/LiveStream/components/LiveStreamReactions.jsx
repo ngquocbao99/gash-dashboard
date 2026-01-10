@@ -137,17 +137,14 @@ const LiveStreamReactions = ({ liveId }) => {
                 isJoined = true;
                 // Join livestream room (same as comments) to receive reaction events
                 socket.emit('joinLivestreamRoom', liveIdStr);
-                if (DEBUG) console.log('✅ Joined livestream room for reactions:', liveIdStr);
             }
         };
 
         socket.on('connect', () => {
-            if (DEBUG) console.log('✅ Socket connected for reactions, joining room:', liveIdStr);
             joinRoom();
         });
 
         socket.on('disconnect', (reason) => {
-            if (DEBUG) console.log('⚠️ Socket disconnected (reactions):', reason);
             isJoined = false;
         });
 
@@ -157,13 +154,11 @@ const LiveStreamReactions = ({ liveId }) => {
         });
 
         socket.on('reconnect', (attemptNumber) => {
-            if (DEBUG) console.log('🔄 Socket reconnected (reactions), attempt:', attemptNumber);
             isJoined = false;
             joinRoom();
         });
 
         socket.on('reaction:added', (data) => {
-            if (DEBUG) console.log('📨 Received reaction:added event:', data);
             handleReactionAdded(data);
         });
 
@@ -173,7 +168,6 @@ const LiveStreamReactions = ({ liveId }) => {
         }
 
         return () => {
-            if (DEBUG) console.log('🧹 Cleaning up socket connection (reactions)');
             if (socket.connected && isJoined) {
                 socket.emit('leaveLivestreamRoom', liveIdStr);
             }

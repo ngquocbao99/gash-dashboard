@@ -381,7 +381,6 @@ const LiveStreamDashboard = () => {
             const roomToClean = roomRef.current || room;
 
             if (roomToClean) {
-                // console.log('🔌 Disconnecting room...');
                 try {
                     roomToClean.removeAllListeners();
                     if (roomToClean.state !== 'disconnected') {
@@ -395,12 +394,10 @@ const LiveStreamDashboard = () => {
             }
 
             if (streamRef.current) {
-                // console.log('🎥 Stopping media stream...');
                 stopMediaStream();
             }
 
             // Reset all flags to allow fresh start on return
-            // console.log('🔄 Resetting all connection flags...');
             isPublishingRef.current = false;
             autoConnectAttemptedRef.current = false;
             isReconnectingRef.current = false;
@@ -839,7 +836,6 @@ const LiveStreamDashboard = () => {
 
                                 setIsPublishing(true);
                                 isPublishingRef.current = true;
-                                console.log('Audio track published via toggle');
                             } else {
                                 console.warn('⚠️ Audio track not ready for publishing:', audioTrack.readyState);
                                 audioTrack.enabled = newValue;
@@ -848,7 +844,6 @@ const LiveStreamDashboard = () => {
                             // Handle TrackInvalidError gracefully
                             if (publishError.message?.includes('already been published') ||
                                 publishError.message?.includes('same ID')) {
-                                console.log('ℹ️ Track already published (duplicate detected), enabling it');
                                 const existingPub = Array.from(room.localParticipant.audioTrackPublications.values())
                                     .find(pub => pub.track?.id === audioTrack.id || pub.source === 'microphone');
                                 if (existingPub?.track) {
@@ -1358,7 +1353,6 @@ const LiveStreamDashboard = () => {
             });
 
             newRoom.on(RoomEvent.Disconnected, async (reason) => {
-                console.log('Disconnected from LiveKit room:', reason);
                 setIsConnected(false);
                 setConnectionState('disconnected');
                 setLocalParticipant(null);
