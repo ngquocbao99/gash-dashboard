@@ -61,7 +61,6 @@ export default function AdminChat() {
     socketRef.current = io(SOCKET_URL, { transports: ["websocket"] });
 
     socketRef.current.on("connect", () => {
-      console.info("Socket connected:", socketRef.current.id);
     });
 
 socketRef.current.on("new_message", (msg) => {
